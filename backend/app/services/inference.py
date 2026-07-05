@@ -152,8 +152,10 @@ def _resolve_provider() -> str:
 async def run_inference_pipeline() -> list[StrategyInference]:
     provider = _resolve_provider()
     results: list[StrategyInference] = []
+    limit = max(1, settings.inference_trader_limit)
+    traders = store.traders[:limit]
 
-    for trader in store.traders:
+    for trader in traders:
         item: StrategyInference | None = None
         if provider in {"openai", "deepseek"}:
             item = await _llm_inference(trader, provider)

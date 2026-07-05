@@ -42,6 +42,8 @@ class TraderProfile(BaseModel):
     rank: int
     pnl_usd: float
     pnl_change_pct: float
+    account_value_usd: float = 0.0
+    volume_usd: float = 0.0
     win_rate: float
     avg_hold_hours: float
     total_trades: int
@@ -74,6 +76,7 @@ class LiquidationEvent(BaseModel):
     size_usd: float
     price: float
     timestamp: datetime
+    tx_hash: str | None = None
 
 
 class DashboardStats(BaseModel):
@@ -84,6 +87,7 @@ class DashboardStats(BaseModel):
     dominant_strategy: str | None = None
     avg_smart_money_score: float | None = None
     telegram_alerts_24h: int | None = None
+    data_source: str | None = None
 
 
 class StrategyInference(BaseModel):
@@ -146,3 +150,12 @@ class PipelineStatus(BaseModel):
     traders_tracked: int
     inferences_count: int
     alerts_count: int
+    data_source: str
+
+
+class MarketStatus(BaseModel):
+    top_asset: str | None = None
+    last_snapshot_at: datetime | None
+    last_liquidation_at: datetime | None
+    liquidation_events_24h: int
+    has_live_market: bool

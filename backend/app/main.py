@@ -7,11 +7,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.collectors.scheduler import run_bootstrap_pipeline, start_background_tasks, stop_background_tasks
 from app.config import settings
 from app.db import init_db
-from app.routers import api, v2
+from app.routers import api, v2, v3
 from app.services.store import store
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+# Reduce noisy HTTP logs (may include tokens in URLs)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 @asynccontextmanager
@@ -42,6 +45,7 @@ app.add_middleware(
 
 app.include_router(api.router)
 app.include_router(v2.router)
+app.include_router(v3.router)
 
 
 @app.get("/health")

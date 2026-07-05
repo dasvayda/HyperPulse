@@ -18,6 +18,8 @@ class TraderRow(Base):
     rank: Mapped[int] = mapped_column(Integer, default=0)
     pnl_usd: Mapped[float] = mapped_column(Float, default=0.0)
     pnl_change_pct: Mapped[float] = mapped_column(Float, default=0.0)
+    account_value_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    volume_usd: Mapped[float] = mapped_column(Float, default=0.0)
     win_rate: Mapped[float] = mapped_column(Float, default=0.0)
     avg_hold_hours: Mapped[float] = mapped_column(Float, default=0.0)
     total_trades: Mapped[int] = mapped_column(Integer, default=0)
@@ -52,6 +54,18 @@ class LiquidationRow(Base):
     side: Mapped[str] = mapped_column(String(16))
     size_usd: Mapped[float] = mapped_column(Float, default=0.0)
     price: Mapped[float] = mapped_column(Float, default=0.0)
+    tx_hash: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MarketSnapshotRow(Base):
+    __tablename__ = "market_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    asset: Mapped[str] = mapped_column(String(32), index=True)
+    mark_price: Mapped[float] = mapped_column(Float)
+    open_interest: Mapped[float] = mapped_column(Float, default=0.0)
+    funding_rate: Mapped[float] = mapped_column(Float, default=0.0)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

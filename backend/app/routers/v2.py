@@ -1,8 +1,14 @@
-from fastapi import APIRouter, Query
+from datetime import datetime, timedelta, timezone
 
+from fastapi import APIRouter, Query
+from sqlalchemy.orm import Session
+
+from app.db import SessionLocal
+from app.models.orm import LiquidationRow, MarketSnapshotRow
 from app.models.schemas import (
     AlertHistoryItem,
     MarketInsight,
+    MarketStatus,
     PipelineStatus,
     SmartMoneyRank,
     StrategyInference,
@@ -55,6 +61,43 @@ def list_alerts(
 def pipeline_status() -> PipelineStatus:
     return store.pipeline_status()
 
+
+@router.get("/market/status", response_model=MarketStatus)
+def market_status() -> MarketStatus:
+    """Summarise recent Hyperliquid on-chain market activity."""
+    db: Session = SessionLocal()
+    try:
+        last_snapshot = (
+            db.query(MarketSnapshotRow)
+            .order_by(MarketSnapshotRow.timestamp.desc())
+            .first()
+        )
+        last_liq = (
+            db.query(LiquidationRow)
+            .order_by(LiquidationRow.timestamp.desc())
+            .first()
+        )
+
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(hours=24)
+        liq_24h = (
+            db.query(LiquidationRow)
+            .filter(LiquidationRow.timestamp >= cutoff)
+            .count()
+        )
+    finally:
+        db.close()
+
+    has_live = last_snapshot is not None or last_liq is not None
+    top_asset = last_snapshot.asset if last_snapshot is not None else None
+
+    return MarketStatus(
+        top_asset=top_asset,
+        last_snapshot_at=last_snapshot.timestamp if last_snapshot else None,
+        last_liquidation_at=last_liq.timestamp if last_liq else None,
+        liquidation_events_24h=liq_24h,
+        has_live_market=has_live,
+    )
 
 @router.post("/pipeline/run", response_model=PipelineStatus)
 async def run_pipeline_now() -> PipelineStatus:

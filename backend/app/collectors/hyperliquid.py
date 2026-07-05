@@ -4,9 +4,10 @@ import logging
 import random
 from datetime import datetime, timedelta, timezone
 
-import httpx
-
+from app.collectors.hyperliquid_client import info as hl_info
 from app.config import settings
+from app.db import SessionLocal
+from app.models.orm import MarketSnapshotRow
 from app.models.schemas import (
     AlertType,
     LiquidationEvent,
@@ -33,15 +34,9 @@ async def fetch_meta_and_asset_ctxs() -> dict | None:
         return cached
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(
-                f"{settings.hyperliquid_api_url.rstrip('/')}/info",
-                json={"type": "metaAndAssetCtxs"},
-            )
-            response.raise_for_status()
-            data = response.json()
-            cache_set(cache_key, data, ttl_seconds=30)
-            return data
+        data = await hl_info({"type": "metaAndAssetCtxs"})
+        cache_set(cache_key, data, ttl_seconds=30)
+        return data
     except Exception as exc:
         logger.warning("Hyperliquid meta fetch failed: %s", exc)
         return None
@@ -72,7 +67,6 @@ def _simulate_market_tick() -> None:
             zone.model_copy(
                 update={
                     "size_usd": max(1_000_000.0, zone.size_usd * (1 + random.uniform(-0.02, 0.03))),
-                    "distance_pct": round(zone.distance_pct + random.uniform(-0.2, 0.2), 2),
                     "sparkline": [round(v, 1) for v in spark],
                 }
             )
@@ -179,9 +173,34 @@ async def collect_market_snapshot() -> dict:
 
     if live is not None:
         _apply_live_meta(live)
-        # Still simulate trader/alert activity until full account collectors exist
-        _simulate_market_tick()
-    else:
+        # Persist basic market snapshot for later analytics
+        try:
+            meta, contexts = live[0], live[1]
+            universe = meta.get("universe", [])
+            db = SessionLocal()
+            now = _utcnow()
+            for idx, ctx in enumerate(contexts):
+                name = universe[idx].get("name") if idx < len(universe) else None
+                if not name:
+                    continue
+                mark = ctx.get("markPx")
+                if mark is None:
+                    continue
+                oi = ctx.get("openInterest") or ctx.get("openInterest", "0")
+                funding = ctx.get("funding") or "0"
+                snapshot = MarketSnapshotRow(
+                    asset=name,
+                    mark_price=float(mark),
+                    open_interest=float(oi),
+                    funding_rate=float(funding),
+                    timestamp=now,
+                )
+                db.add(snapshot)
+            db.commit()
+            db.close()
+        except Exception as exc:
+            logger.warning("Failed to persist market snapshot: %s", exc)
+    elif settings.use_mock_data:
         _simulate_market_tick()
 
     with store._lock:

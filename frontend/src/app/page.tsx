@@ -24,13 +24,14 @@ import {
   getAIInsights,
   getAlertsHistory,
   getPipelineStatus,
+  getMarketStatus,
   formatUsd,
   formatTimeAgo,
   formatConfidence,
 } from "@/lib/api";
 
 export default async function HomePage() {
-  const [stats, alerts, zones, rankings, insights, alertHistory, pipeline] =
+  const [stats, alerts, zones, rankings, insights, alertHistory, pipeline, market] =
     await Promise.all([
       getDashboardStats(),
       getWhaleAlerts(),
@@ -39,17 +40,24 @@ export default async function HomePage() {
       getAIInsights(),
       getAlertsHistory(),
       getPipelineStatus(),
+      getMarketStatus(),
     ]);
 
   const recentAlerts = alerts.slice(0, 5);
   const topZones = zones.slice(0, 4);
   const topRanks = rankings.slice(0, 5);
+  const previewInsights = insights.slice(0, 2);
 
   return (
     <DashboardLayout>
       <PageHeader
         title="Dashboard"
         description="AI strategy inference, smart money ranking, and liquidation intelligence"
+        actions={
+          <span className="text-xs text-text-dim border border-border rounded-full px-3 py-1">
+            Data source: {stats.data_source ?? pipeline.data_source}
+          </span>
+        }
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -85,6 +93,91 @@ export default async function HomePage() {
         />
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+        <div className="rounded-xl border border-border bg-bg-surface p-5">
+          <h2 className="text-sm font-semibold text-text-primary mb-3">
+            Hyperliquid Market Status
+          </h2>
+          <dl className="space-y-1 text-xs text-text-muted">
+            <div className="flex justify-between">
+              <dt>Top asset</dt>
+              <dd className="text-text-primary">
+                {market.top_asset ?? stats.top_asset}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>Last snapshot</dt>
+              <dd>
+                {market.last_snapshot_at
+                  ? formatTimeAgo(market.last_snapshot_at)
+                  : "—"}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>Last liquidation</dt>
+              <dd>
+                {market.last_liquidation_at
+                  ? formatTimeAgo(market.last_liquidation_at)
+                  : "—"}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>Liquidations (24h)</dt>
+              <dd>{market.liquidation_events_24h}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>Source</dt>
+              <dd className={market.has_live_market ? "text-positive" : ""}>
+                {market.has_live_market ? "live" : "no data yet"}
+              </dd>
+            </div>
+          </dl>
+        </div>
+        <div className="rounded-xl border border-border bg-bg-surface p-5">
+          <h2 className="text-sm font-semibold text-text-primary mb-3">
+            Pipeline Status
+          </h2>
+          <dl className="space-y-1 text-xs text-text-muted">
+            <div className="flex justify-between">
+              <dt>Collectors</dt>
+              <dd>
+                {pipeline.last_collect_at
+                  ? formatTimeAgo(pipeline.last_collect_at)
+                  : "—"}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>Inference</dt>
+              <dd>
+                {pipeline.last_inference_at
+                  ? formatTimeAgo(pipeline.last_inference_at)
+                  : "—"}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>Ranking</dt>
+              <dd>
+                {pipeline.last_ranking_at
+                  ? formatTimeAgo(pipeline.last_ranking_at)
+                  : "—"}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>Tracked traders</dt>
+              <dd>{pipeline.traders_tracked}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>Inferences</dt>
+              <dd>{pipeline.inferences_count}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>Alerts</dt>
+              <dd>{pipeline.alerts_count}</dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
@@ -95,9 +188,15 @@ export default async function HomePage() {
               View all
             </Link>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {insights.slice(0, 2).map((insight) => (
-              <InsightCard key={insight.id} insight={insight} />
+          <div
+            className={
+              previewInsights.length > 1
+                ? "grid grid-cols-1 md:grid-cols-2 gap-4"
+                : "grid grid-cols-1 gap-4"
+            }
+          >
+            {previewInsights.map((insight) => (
+              <InsightCard key={insight.id} insight={insight} className="w-full" />
             ))}
           </div>
         </div>

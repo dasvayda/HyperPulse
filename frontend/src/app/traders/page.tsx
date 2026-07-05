@@ -10,32 +10,36 @@ import {
   PageHeader,
   TrendValue,
 } from "@/components/ui/DataTable";
-import { Badge } from "@/components/ui/Badge";
 import { SparkBarBackground } from "@/components/ui/SparkBar";
-import { getTraders, formatUsd, formatPct } from "@/lib/api";
+import { getTraders, getPipelineStatus, formatUsd } from "@/lib/api";
 
 export default async function TradersPage() {
-  const traders = await getTraders();
+  const [traders, pipeline] = await Promise.all([
+    getTraders(),
+    getPipelineStatus(),
+  ]);
 
   return (
     <DashboardLayout>
       <PageHeader
         title="Traders"
-        description="Top profitable traders on Hyperliquid ranked by performance"
+        description="Top traders from the Hyperliquid leaderboard"
+        actions={
+          <span className="text-xs text-text-dim border border-border rounded-full px-3 py-1">
+            Data source: {pipeline.data_source}
+          </span>
+        }
       />
 
       <DataTable>
         <DataTableHead>
           <DataTableHeaderCell>#</DataTableHeaderCell>
           <DataTableHeaderCell>Trader</DataTableHeaderCell>
-          <DataTableHeaderCell>PnL</DataTableHeaderCell>
-          <DataTableHeaderCell>Win Rate</DataTableHeaderCell>
-          <DataTableHeaderCell>Avg Hold</DataTableHeaderCell>
-          <DataTableHeaderCell>Trades</DataTableHeaderCell>
-          <DataTableHeaderCell>Assets</DataTableHeaderCell>
-          <DataTableHeaderCell>Strategy</DataTableHeaderCell>
+          <DataTableHeaderCell>Account Value</DataTableHeaderCell>
+          <DataTableHeaderCell>All-time PnL</DataTableHeaderCell>
+          <DataTableHeaderCell>Volume</DataTableHeaderCell>
           <DataTableHeaderCell>Risk</DataTableHeaderCell>
-          <DataTableHeaderCell>Trend</DataTableHeaderCell>
+          <DataTableHeaderCell>PnL Curve</DataTableHeaderCell>
         </DataTableHead>
         <DataTableBody>
           {traders.map((trader) => (
@@ -56,51 +60,29 @@ export default async function TradersPage() {
                   </span>
                 </Link>
               </DataTableCell>
-              <DataTableCell>
-                <SparkBarBackground
-                  values={trader.sparkline}
-                  color={trader.pnl_change_pct >= 0 ? "positive" : "negative"}
-                >
-                  <TrendValue
-                    value={formatUsd(trader.pnl_usd)}
-                    pct={trader.pnl_change_pct}
-                  />
-                </SparkBarBackground>
+              <DataTableCell className="font-medium">
+                {formatUsd(trader.account_value_usd)}
               </DataTableCell>
               <DataTableCell>
-                <span className="text-positive font-medium">
-                  {trader.win_rate}%
-                </span>
+                <TrendValue
+                  value={formatUsd(trader.pnl_usd)}
+                  pct={trader.pnl_change_pct}
+                />
               </DataTableCell>
               <DataTableCell className="text-text-muted">
-                {trader.avg_hold_hours}h
-              </DataTableCell>
-              <DataTableCell className="text-text-muted">
-                {trader.total_trades.toLocaleString()}
-              </DataTableCell>
-              <DataTableCell>
-                <div className="flex gap-1">
-                  {trader.preferred_assets.map((a) => (
-                    <Badge key={a} variant="default">
-                      {a}
-                    </Badge>
-                  ))}
-                </div>
-              </DataTableCell>
-              <DataTableCell>
-                <div className="flex gap-1 flex-wrap">
-                  {trader.strategy_tags.map((tag) => (
-                    <Badge key={tag} variant="accent">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
+                {trader.volume_usd > 0 ? formatUsd(trader.volume_usd) : "—"}
               </DataTableCell>
               <DataTableCell>
                 <div className="flex items-center gap-2">
                   <div className="w-10 h-1.5 rounded-full bg-bg-elevated overflow-hidden">
                     <div
-                      className={`h-full rounded-full ${trader.risk_score > 70 ? "bg-negative" : trader.risk_score > 50 ? "bg-accent" : "bg-positive"}`}
+                      className={`h-full rounded-full ${
+                        trader.risk_score > 70
+                          ? "bg-negative"
+                          : trader.risk_score > 50
+                            ? "bg-accent"
+                            : "bg-positive"
+                      }`}
                       style={{ width: `${trader.risk_score}%` }}
                     />
                   </div>
@@ -110,20 +92,23 @@ export default async function TradersPage() {
                 </div>
               </DataTableCell>
               <DataTableCell>
-                <span
-                  className={
-                    trader.pnl_change_pct >= 0
-                      ? "text-positive text-xs font-medium"
-                      : "text-negative text-xs font-medium"
-                  }
+                <SparkBarBackground
+                  values={trader.sparkline}
+                  color={trader.pnl_change_pct >= 0 ? "positive" : "negative"}
                 >
-                  {formatPct(trader.pnl_change_pct)}
-                </span>
+                  <span className="text-xs text-text-dim">day → all-time</span>
+                </SparkBarBackground>
               </DataTableCell>
             </DataTableRow>
           ))}
         </DataTableBody>
       </DataTable>
+
+      <p className="text-xs text-text-dim mt-4">
+        Live leaderboard fields: account value, all-time PnL/ROI, trading volume,
+        window PnL curve, and ROI volatility risk. Win rate, hold time, assets, and
+        strategy require fill-level analytics and are shown on detail pages when available.
+      </p>
     </DashboardLayout>
   );
 }

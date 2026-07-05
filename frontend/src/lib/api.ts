@@ -4,6 +4,7 @@ import type {
   LiquidationEvent,
   LiquidationZone,
   MarketInsight,
+  MarketStatus,
   PipelineStatus,
   SmartMoneyRank,
   StrategyInference,
@@ -78,6 +79,10 @@ export function getPipelineStatus(): Promise<PipelineStatus> {
   return fetchApi("/api/v2/pipeline/status");
 }
 
+export function getMarketStatus(): Promise<MarketStatus> {
+  return fetchApi("/api/v2/market/status");
+}
+
 export function formatConfidence(value: number): string {
   return `${value.toFixed(0)}%`;
 }
@@ -107,4 +112,8 @@ export function formatTimeAgo(iso: string): string {
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ago`;
   return `${Math.floor(hours / 24)}d ago`;
+}
+
+export function getExplorerTxUrl(hash: string): string {
+  return `https://app.hyperliquid.xyz/explorer/tx/${encodeURIComponent(hash)}`;
 }

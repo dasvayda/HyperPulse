@@ -5,6 +5,9 @@ import logging
 
 from app.config import settings
 from app.collectors.hyperliquid import collect_market_snapshot
+from app.collectors.traders import collect_top_traders
+from app.collectors.liquidations import collect_liquidation_events
+from app.collectors.whales import collect_whale_events
 from app.services.alerts import process_alert_triggers
 from app.services.inference import apply_inference_to_alerts, run_inference_pipeline
 from app.services.ranking import run_ranking_pipeline
@@ -17,8 +20,6 @@ _started = False
 
 
 async def _loop(name: str, interval: int, coro_factory) -> None:
-    # Bootstrap already ran one cycle; wait before the first background pass.
-    await asyncio.sleep(interval)
     while True:
         try:
             await coro_factory()
@@ -28,7 +29,10 @@ async def _loop(name: str, interval: int, coro_factory) -> None:
 
 
 async def _collect_cycle() -> None:
+    await collect_top_traders()
     snapshot = await collect_market_snapshot()
+    await collect_liquidation_events()
+    await collect_whale_events()
     logger.info("Collector cycle complete: %s", snapshot)
 
 
@@ -49,9 +53,10 @@ async def _ranking_cycle() -> None:
 
 
 async def run_bootstrap_pipeline() -> None:
+    """Run one collect pass so the API can serve live data quickly on startup."""
     await _collect_cycle()
-    await _inference_cycle()
     await _ranking_cycle()
+    logger.info("Bootstrap pipeline complete (inference/alerts deferred to background)")
 
 
 def start_background_tasks() -> None:

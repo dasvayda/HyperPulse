@@ -1,6 +1,6 @@
 from collections.abc import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import settings
@@ -30,3 +30,21 @@ def init_db() -> None:
     from app.models import orm  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _migrate_sqlite()
+
+
+def _migrate_sqlite() -> None:
+    if not settings.database_url.startswith("sqlite"):
+        return
+    with engine.begin() as conn:
+        liq_columns = conn.execute(text("PRAGMA table_info(liquidations)")).fetchall()
+        liq_names = {row[1] for row in liq_columns}
+        if "tx_hash" not in liq_names:
+            conn.execute(text("ALTER TABLE liquidations ADD COLUMN tx_hash VARCHAR(80)"))
+
+        trader_columns = conn.execute(text("PRAGMA table_info(traders)")).fetchall()
+        trader_names = {row[1] for row in trader_columns}
+        if "account_value_usd" not in trader_names:
+            conn.execute(text("ALTER TABLE traders ADD COLUMN account_value_usd FLOAT DEFAULT 0"))
+        if "volume_usd" not in trader_names:
+            conn.execute(text("ALTER TABLE traders ADD COLUMN volume_usd FLOAT DEFAULT 0"))

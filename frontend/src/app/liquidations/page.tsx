@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import {
   DataTable,
@@ -15,15 +16,18 @@ import { SparkBarBackground } from "@/components/ui/SparkBar";
 import {
   getLiquidationZones,
   getLiquidationEvents,
+  getPipelineStatus,
   formatUsd,
   formatPrice,
   formatTimeAgo,
+  getExplorerTxUrl,
 } from "@/lib/api";
 
 export default async function LiquidationsPage() {
-  const [zones, events] = await Promise.all([
+  const [zones, events, pipeline] = await Promise.all([
     getLiquidationZones(),
     getLiquidationEvents(),
+    getPipelineStatus(),
   ]);
 
   return (
@@ -31,6 +35,11 @@ export default async function LiquidationsPage() {
       <PageHeader
         title="Liquidation Radar"
         description="Monitor liquidation clusters and squeeze risk across Hyperliquid markets"
+        actions={
+          <span className="text-xs text-text-dim border border-border rounded-full px-3 py-1">
+            Data source: {pipeline.data_source}
+          </span>
+        }
       />
 
       <h2 className="text-base font-semibold text-text-primary mb-4">
@@ -111,6 +120,7 @@ export default async function LiquidationsPage() {
           <DataTableHeaderCell>Size</DataTableHeaderCell>
           <DataTableHeaderCell>Price</DataTableHeaderCell>
           <DataTableHeaderCell>Time</DataTableHeaderCell>
+          <DataTableHeaderCell>Tx</DataTableHeaderCell>
         </DataTableHead>
         <DataTableBody>
           {events.map((event) => (
@@ -131,6 +141,21 @@ export default async function LiquidationsPage() {
               </DataTableCell>
               <DataTableCell className="text-text-muted">
                 {formatTimeAgo(event.timestamp)}
+              </DataTableCell>
+              <DataTableCell>
+                {event.tx_hash ? (
+                  <Link
+                    href={getExplorerTxUrl(event.tx_hash)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-mono text-xs text-accent hover:underline"
+                    title={event.tx_hash}
+                  >
+                    {`${event.tx_hash.slice(0, 8)}...${event.tx_hash.slice(-6)}`}
+                  </Link>
+                ) : (
+                  <span className="text-xs text-text-dim">—</span>
+                )}
               </DataTableCell>
             </DataTableRow>
           ))}

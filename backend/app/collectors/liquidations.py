@@ -1,0 +1,101 @@
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timezone
+from typing import Any
+
+from app.collectors.hyperliquid_client import info as hl_info
+from app.config import settings
+from app.models.schemas import LiquidationEvent, LiquidationSide
+from app.services.store import store
+
+logger = logging.getLogger(__name__)
+
+
+def _utcnow() -> datetime:
+  return datetime.now(timezone.utc)
+
+
+def _coins_for_liquidations() -> list[str]:
+  # Prefer assets already visible in zones; fallback to a core set.
+  assets = {z.asset for z in store.liquidation_zones}
+  if not assets:
+    assets = {"BTC", "ETH", "SOL", "HYPE"}
+  return sorted(assets)
+
+
+def _valid_tx_hash(raw: Any) -> str | None:
+  if not isinstance(raw, str):
+    return None
+  h = raw.strip().lower()
+  if not h.startswith("0x") or len(h) < 10:
+    return None
+  if set(h[2:]) <= {"0"}:
+    return None
+  return raw
+
+
+def _parse_recent_trades(coin: str, payload: Any) -> list[LiquidationEvent]:
+  events: list[LiquidationEvent] = []
+  if not isinstance(payload, list):
+    return events
+  for trade in payload:
+    if not isinstance(trade, dict):
+      continue
+    try:
+      px = float(trade.get("px"))
+      sz = float(trade.get("sz"))
+      ts = int(trade.get("time"))
+    except Exception:
+      continue
+    side_raw = (trade.get("side") or "").upper()
+    side = LiquidationSide.LONG if side_raw == "B" else LiquidationSide.SHORT
+    size_usd = abs(px * sz)
+    event_id = f"liq-{trade.get('tid') or trade.get('hash') or f'{coin}-{ts}'}"
+    events.append(
+      LiquidationEvent(
+        id=event_id,
+        asset=coin,
+        side=side,
+        size_usd=size_usd,
+        price=px,
+        timestamp=datetime.fromtimestamp(ts / 1000, tz=timezone.utc),
+        tx_hash=_valid_tx_hash(trade.get("hash")),
+      )
+    )
+  return events
+
+
+async def collect_liquidation_events() -> list[LiquidationEvent]:
+  """Fetch recent liquidation trades for key coins from Hyperliquid Info API."""
+  if settings.use_mock_data:
+    # Keep existing behaviour in mock mode.
+    return store.liquidation_events
+
+  coins = _coins_for_liquidations()
+  all_events: list[LiquidationEvent] = []
+
+  for coin in coins:
+    try:
+      raw = await hl_info({"type": "recentTrades", "coin": coin})
+    except Exception as exc:
+      logger.warning("Failed to fetch recentTrades for %s: %s", coin, exc)
+      continue
+    events = _parse_recent_trades(coin, raw)
+    all_events.extend(events)
+
+  if not all_events:
+    return store.liquidation_events
+
+  unique: dict[str, LiquidationEvent] = {}
+  for event in all_events:
+    unique[event.id] = event
+  merged = sorted(unique.values(), key=lambda e: e.timestamp, reverse=True)[:200]
+
+  with store._lock:
+    store.liquidation_events = merged
+  store.persist_liquidations(merged)
+  store.refresh_dashboard()
+  logger.info("Collected %s liquidation events", len(merged))
+  return store.liquidation_events
+

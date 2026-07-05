@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { SparkBarBackground } from "@/components/ui/SparkBar";
-import { getRankings, formatUsd, formatPct, formatConfidence } from "@/lib/api";
+import { getRankings, formatUsd, formatConfidence } from "@/lib/api";
 
 export default async function RankingsPage() {
   const rankings = await getRankings();
@@ -21,7 +21,7 @@ export default async function RankingsPage() {
     <DashboardLayout>
       <PageHeader
         title="Smart Money Ranking"
-        description="Composite ranking from win rate, momentum, consistency, and risk adjustment"
+        description="Composite ranking from live Hyperliquid PnL, ROI, curve stability, and risk"
       />
 
       <DataTable>
@@ -69,7 +69,7 @@ export default async function RankingsPage() {
                 />
               </DataTableCell>
               <DataTableCell className="text-positive font-medium">
-                {rank.win_rate}%
+                {rank.win_rate > 0 ? `${rank.win_rate}%` : "—"}
               </DataTableCell>
               <DataTableCell>{formatConfidence(rank.momentum_score)}</DataTableCell>
               <DataTableCell>
@@ -94,11 +94,15 @@ export default async function RankingsPage() {
               </DataTableCell>
               <DataTableCell>
                 <div className="flex gap-1 flex-wrap">
-                  {rank.strategy_tags.map((tag) => (
-                    <Badge key={tag} variant="accent">
-                      {tag}
-                    </Badge>
-                  ))}
+                  {rank.strategy_tags.length > 0 ? (
+                    rank.strategy_tags.map((tag) => (
+                      <Badge key={tag} variant="accent">
+                        {tag}
+                      </Badge>
+                    ))
+                  ) : (
+                    <span className="text-xs text-text-dim">—</span>
+                  )}
                 </div>
               </DataTableCell>
             </DataTableRow>
@@ -107,8 +111,8 @@ export default async function RankingsPage() {
       </DataTable>
 
       <p className="text-xs text-text-dim mt-4">
-        Score formula: win rate 35% + momentum 25% + consistency 25% + risk
-        adjustment 15%. Latest change: {formatPct(rankings[0]?.pnl_change_pct ?? 0)}.
+        Live formula: PnL 35% + ROI 30% + curve stability 20% + risk adjustment 15%.
+        Win rate is shown only when fill-level stats are available.
       </p>
     </DashboardLayout>
   );

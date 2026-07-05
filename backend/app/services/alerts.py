@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -70,6 +70,37 @@ def _record_alert(
     return item
 
 
+def _is_recent_duplicate(
+    event_type: str,
+    title: str,
+    message: str,
+    max_age_seconds: int = 3600,
+) -> bool:
+    """Return True if an identical alert was recently created."""
+    cutoff = _utcnow() - timedelta(seconds=max_age_seconds)
+    # store.alerts is sorted newest first
+    for existing in store.alerts:
+        created_at = existing.created_at
+        # Normalize to aware UTC to avoid naive/aware comparison issues
+        if isinstance(created_at, datetime) and created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        try:
+            if created_at < cutoff:
+                break
+        except TypeError:
+            # If comparison still fails for some reason, skip this record
+            continue
+
+        if (
+            existing.event_type == event_type
+            and existing.title == title
+            and existing.message == message
+            and existing.status in {"sent", "queued"}
+        ):
+            return True
+    return False
+
+
 async def send_whale_alert(alert: WhaleAlert) -> AlertHistoryItem | None:
     if not settings.alerts_enabled:
         return None
@@ -86,13 +117,17 @@ async def send_whale_alert(alert: WhaleAlert) -> AlertHistoryItem | None:
         f"Leverage: {alert.leverage}x | Win rate: {alert.win_rate}%\n"
         f"Strategy: {alert.inferred_strategy} ({alert.confidence_score:.0f}% conf)"
     )
+    plain = message.replace("<b>", "").replace("</b>", "")
+    event_type = f"whale_{alert.alert_type.value}"
+    if _is_recent_duplicate(event_type, title, plain):
+        return None
 
     sent = await _send_telegram(message)
     status = "sent" if sent else ("queued" if not settings.telegram_configured else "failed")
     return _record_alert(
-        event_type=f"whale_{alert.alert_type.value}",
+        event_type=event_type,
         title=title,
-        message=message.replace("<b>", "").replace("</b>", ""),
+        message=plain,
         status=status,
         payload=alert.model_dump(mode="json"),
     )
@@ -111,12 +146,17 @@ async def send_squeeze_alert(zone: LiquidationZone) -> AlertHistoryItem | None:
         f"Size: ${zone.size_usd / 1_000_000:.0f}M | Distance: {zone.distance_pct:+.1f}%\n"
         f"OI share: {zone.open_interest_pct:.1f}%"
     )
+    plain = message.replace("<b>", "").replace("</b>", "")
+    event_type = "squeeze_risk"
+    if _is_recent_duplicate(event_type, title, plain):
+        return None
+
     sent = await _send_telegram(message)
     status = "sent" if sent else ("queued" if not settings.telegram_configured else "failed")
     return _record_alert(
-        event_type="squeeze_risk",
+        event_type=event_type,
         title=title,
-        message=message.replace("<b>", "").replace("</b>", ""),
+        message=plain,
         status=status,
         payload=zone.model_dump(mode="json"),
     )
@@ -135,12 +175,17 @@ async def send_inference_alert(item: StrategyInference) -> AlertHistoryItem | No
         f"Risk: {item.risk_profile} | Confidence: {item.confidence:.0f}%\n"
         f"{item.rationale[:220]}"
     )
+    plain = message.replace("<b>", "").replace("</b>", "")
+    event_type = "strategy_inference"
+    if _is_recent_duplicate(event_type, title, plain):
+        return None
+
     sent = await _send_telegram(message)
     status = "sent" if sent else ("queued" if not settings.telegram_configured else "failed")
     return _record_alert(
-        event_type="strategy_inference",
+        event_type=event_type,
         title=title,
-        message=message.replace("<b>", "").replace("</b>", ""),
+        message=plain,
         status=status,
         payload=item.model_dump(mode="json"),
     )

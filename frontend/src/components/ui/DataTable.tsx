@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import type React from "react";
 
 interface DataTableProps {
   children: React.ReactNode;
@@ -107,7 +108,7 @@ export function StatCard({ label, value, change, positive }: StatCardProps) {
 
 interface PageHeaderProps {
   title: string;
-  description?: string;
+  description?: React.ReactNode;
   actions?: React.ReactNode;
 }
 

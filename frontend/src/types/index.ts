@@ -25,6 +25,8 @@ export interface TraderProfile {
   rank: number;
   pnl_usd: number;
   pnl_change_pct: number;
+  account_value_usd?: number;
+  volume_usd?: number;
   win_rate: number;
   avg_hold_hours: number;
   total_trades: number;
@@ -64,6 +66,7 @@ export interface LiquidationEvent {
   size_usd: number;
   price: number;
   timestamp: string;
+  tx_hash?: string | null;
 }
 
 export interface DashboardStats {
@@ -74,6 +77,7 @@ export interface DashboardStats {
   dominant_strategy?: string | null;
   avg_smart_money_score?: number | null;
   telegram_alerts_24h?: number | null;
+  data_source?: string | null;
 }
 
 export interface StrategyInference {
@@ -136,4 +140,13 @@ export interface PipelineStatus {
   traders_tracked: number;
   inferences_count: number;
   alerts_count: number;
+  data_source: string;
+}
+
+export interface MarketStatus {
+  top_asset: string | null;
+  last_snapshot_at: string | null;
+  last_liquidation_at: string | null;
+  liquidation_events_24h: number;
+  has_live_market: boolean;
 }

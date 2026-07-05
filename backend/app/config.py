@@ -1,4 +1,9 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 
 class Settings(BaseSettings):
@@ -11,8 +16,13 @@ class Settings(BaseSettings):
     # Hyperliquid
     hyperliquid_api_url: str = "https://api.hyperliquid.xyz"
     hyperliquid_ws_url: str = "wss://api.hyperliquid.xyz/ws"
+    hyperliquid_stats_url: str = "https://stats-data.hyperliquid.xyz/Mainnet"
     collector_enabled: bool = True
     collector_interval_seconds: int = 60
+    tracked_trader_limit: int = 100
+
+    # Data source
+    use_mock_data: bool = False
 
     # AI
     openai_api_key: str = ""
@@ -23,6 +33,7 @@ class Settings(BaseSettings):
     deepseek_model: str = "deepseek-chat"
     langgraph_url: str = ""
     inference_interval_seconds: int = 120
+    inference_trader_limit: int = 20
     ai_provider: str = "auto"  # auto | openai | deepseek | heuristic
 
     # Telegram
@@ -36,7 +47,7 @@ class Settings(BaseSettings):
     ranking_interval_seconds: int = 90
 
     class Config:
-        env_file = ".env"
+        env_file = (str(BACKEND_DIR / ".env"), str(ROOT_DIR / ".env"))
         extra = "ignore"
 
     @property

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import datetime, timezone
 from threading import Lock
 
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.data.seed import (
     DASHBOARD_STATS,
     LIQUIDATION_EVENTS,
@@ -35,20 +37,43 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+_ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
+
+
+def _is_real_address(address: str | None) -> bool:
+    if not address:
+        return False
+    return bool(_ADDRESS_RE.match(address))
+
+
 class StateStore:
     """In-memory state with optional SQLAlchemy persistence."""
 
     def __init__(self) -> None:
         self._lock = Lock()
-        self.whale_alerts: list[WhaleAlert] = list(WHALE_ALERTS)
-        self.traders: list[TraderProfile] = list(TRADERS)
-        self.liquidation_zones: list[LiquidationZone] = list(LIQUIDATION_ZONES)
-        self.liquidation_events: list[LiquidationEvent] = list(LIQUIDATION_EVENTS)
+
+        if settings.use_mock_data:
+            self.whale_alerts: list[WhaleAlert] = list(WHALE_ALERTS)
+            self.traders: list[TraderProfile] = list(TRADERS)
+            self.liquidation_zones: list[LiquidationZone] = list(LIQUIDATION_ZONES)
+            self.liquidation_events: list[LiquidationEvent] = list(LIQUIDATION_EVENTS)
+            self.dashboard = DASHBOARD_STATS.model_copy()
+        else:
+            self.whale_alerts = []
+            self.traders = []
+            self.liquidation_zones = []
+            self.liquidation_events = []
+            self.dashboard = DashboardStats(
+                active_whales=0,
+                alerts_24h=0,
+                total_liquidations_24h=0.0,
+                top_asset="BTC",
+            )
+
         self.inferences: list[StrategyInference] = []
         self.rankings: list[SmartMoneyRank] = []
         self.insights: list[MarketInsight] = []
         self.alerts: list[AlertHistoryItem] = []
-        self.dashboard = DASHBOARD_STATS.model_copy()
         self.last_collect_at: datetime | None = None
         self.last_inference_at: datetime | None = None
         self.last_ranking_at: datetime | None = None
@@ -60,7 +85,8 @@ class StateStore:
         try:
             traders = db.query(TraderRow).order_by(TraderRow.rank.asc()).all()
             if traders:
-                self.traders = [self._trader_from_row(t) for t in traders]
+                filtered = [t for t in traders if _is_real_address(t.address)]
+                self.traders = [self._trader_from_row(t) for t in filtered]
 
             inferences = (
                 db.query(InferenceRow)
@@ -117,6 +143,8 @@ class StateStore:
                 row.rank = trader.rank
                 row.pnl_usd = trader.pnl_usd
                 row.pnl_change_pct = trader.pnl_change_pct
+                row.account_value_usd = trader.account_value_usd
+                row.volume_usd = trader.volume_usd
                 row.win_rate = trader.win_rate
                 row.avg_hold_hours = trader.avg_hold_hours
                 row.total_trades = trader.total_trades
@@ -183,6 +211,7 @@ class StateStore:
                         side=event.side.value,
                         size_usd=event.size_usd,
                         price=event.price,
+                        tx_hash=event.tx_hash,
                         timestamp=event.timestamp,
                     )
                 )
@@ -233,8 +262,9 @@ class StateStore:
                     (i for i in self.inferences if i.trader_address == address),
                     None,
                 )
+                primary_tag = trader.strategy_tags[0] if trader.strategy_tags else "active"
                 summary = (
-                    f"{trader.alias} is a {trader.strategy_tags[0].lower()} trader "
+                    f"{trader.alias} is a {primary_tag.lower()} trader "
                     f"with {trader.win_rate}% win rate over {trader.total_trades} trades. "
                     f"Prefers {', '.join(trader.preferred_assets)} with avg hold time "
                     f"of {trader.avg_hold_hours}h."
@@ -267,6 +297,7 @@ class StateStore:
             [a for a in self.alerts if a.channel == "telegram" and a.status == "sent"]
         )
 
+        source = "mock" if settings.use_mock_data else "mixed"
         self.dashboard = DashboardStats(
             active_whales=len(self.traders),
             alerts_24h=len(self.whale_alerts),
@@ -275,11 +306,17 @@ class StateStore:
             dominant_strategy=dominant,
             avg_smart_money_score=round(avg_score, 1),
             telegram_alerts_24h=telegram_count,
+            data_source=source,
         )
         return self.dashboard
 
     def pipeline_status(self) -> PipelineStatus:
-        from app.config import settings
+        if settings.use_mock_data and self.last_collect_at is None:
+            source = "mock"
+        elif settings.use_mock_data:
+            source = "mixed"
+        else:
+            source = "live"
 
         return PipelineStatus(
             collector_enabled=settings.collector_enabled,
@@ -292,6 +329,7 @@ class StateStore:
             traders_tracked=len(self.traders),
             inferences_count=len(self.inferences),
             alerts_count=len(self.alerts),
+            data_source=source,
         )
 
     @staticmethod
@@ -302,6 +340,8 @@ class StateStore:
             rank=row.rank,
             pnl_usd=row.pnl_usd,
             pnl_change_pct=row.pnl_change_pct,
+            account_value_usd=getattr(row, "account_value_usd", 0.0) or 0.0,
+            volume_usd=getattr(row, "volume_usd", 0.0) or 0.0,
             win_rate=row.win_rate,
             avg_hold_hours=row.avg_hold_hours,
             total_trades=row.total_trades,

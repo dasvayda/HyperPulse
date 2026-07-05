@@ -39,7 +39,18 @@ export default async function TraderDetailPage({ params }: Props) {
     <DashboardLayout>
       <PageHeader
         title={trader.alias}
-        description={trader.address}
+        description={
+          <Link
+            href={`https://app.hyperliquid.xyz/explorer/address/${encodeURIComponent(
+              trader.address,
+            )}`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 text-accent hover:underline"
+          >
+            {trader.address}
+          </Link>
+        }
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -51,15 +62,19 @@ export default async function TraderDetailPage({ params }: Props) {
         />
         <StatCard
           label="Win Rate"
-          value={`${trader.win_rate}%`}
+          value={trader.win_rate > 0 ? `${trader.win_rate}%` : "—"}
         />
         <StatCard
           label="Avg Hold Time"
-          value={`${trader.avg_hold_hours}h`}
+          value={trader.avg_hold_hours > 0 ? `${trader.avg_hold_hours}h` : "—"}
         />
         <StatCard
           label="Total Trades"
-          value={trader.total_trades.toLocaleString()}
+          value={
+            trader.total_trades > 0
+              ? trader.total_trades.toLocaleString()
+              : "—"
+          }
         />
       </div>
 
@@ -109,7 +124,7 @@ export default async function TraderDetailPage({ params }: Props) {
       </div>
 
       <h3 className="text-base font-semibold text-text-primary mb-4">
-        Recent Positions
+        Recent Trades
       </h3>
       <DataTable>
         <DataTableHead>

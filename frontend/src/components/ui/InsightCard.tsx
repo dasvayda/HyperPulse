@@ -4,11 +4,14 @@ import { formatConfidence, formatTimeAgo } from "@/lib/api";
 
 interface InsightCardProps {
   insight: MarketInsight;
+  className?: string;
 }
 
-export function InsightCard({ insight }: InsightCardProps) {
+export function InsightCard({ insight, className = "" }: InsightCardProps) {
   return (
-    <div className="rounded-xl border border-border bg-bg-surface p-5 flex flex-col gap-3">
+    <div
+      className={`rounded-xl border border-border bg-bg-surface p-5 flex flex-col gap-3 w-full ${className}`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-text-primary">{insight.title}</h3>
