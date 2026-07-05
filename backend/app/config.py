@@ -1,0 +1,59 @@
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    database_url: str = "sqlite:///./hyperpulse.db"
+    redis_url: str = "redis://localhost:6379/0"
+    cors_origins: str = "http://localhost:3000"
+    api_host: str = "0.0.0.0"
+    api_port: int = 8000
+
+    # Hyperliquid
+    hyperliquid_api_url: str = "https://api.hyperliquid.xyz"
+    hyperliquid_ws_url: str = "wss://api.hyperliquid.xyz/ws"
+    collector_enabled: bool = True
+    collector_interval_seconds: int = 60
+
+    # AI
+    openai_api_key: str = ""
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_model: str = "gpt-4o-mini"
+    deepseek_api_key: str = ""
+    deepseek_base_url: str = "https://api.deepseek.com/v1"
+    deepseek_model: str = "deepseek-chat"
+    langgraph_url: str = ""
+    inference_interval_seconds: int = 120
+    ai_provider: str = "auto"  # auto | openai | deepseek | heuristic
+
+    # Telegram
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    alerts_enabled: bool = True
+    alert_min_confidence: float = 70.0
+    alert_min_size_usd: float = 500_000.0
+
+    # Ranking
+    ranking_interval_seconds: int = 90
+
+    class Config:
+        env_file = ".env"
+        extra = "ignore"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",")]
+
+    @property
+    def telegram_configured(self) -> bool:
+        return bool(self.telegram_bot_token and self.telegram_chat_id)
+
+    @property
+    def has_openai(self) -> bool:
+        return bool(self.openai_api_key)
+
+    @property
+    def has_deepseek(self) -> bool:
+        return bool(self.deepseek_api_key)
+
+
+settings = Settings()

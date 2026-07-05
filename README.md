@@ -2,149 +2,192 @@
 
 AI-powered intelligence platform for Hyperliquid traders.
 
-HyperIntel provides:
-
-- Whale tracking
-- Smart money analysis
-- Liquidation radar
-- AI-generated market insights
-- Position intelligence
-
-Unlike traditional whale alert services, HyperIntel focuses on understanding trader behavior, inferred strategies, and market context.
+HyperPulse provides whale tracking, smart money analysis, liquidation radar, and AI-generated market insights — focused on understanding trader behavior, inferred strategies, and market context.
 
 ---
 
-## Features
+## Phase Status
 
-### Whale Intelligence
+| Phase | Feature | Status | Route / API |
+|-------|---------|--------|-------------|
+| 1 | Whale Alerts | Done | `/whale-alerts`, `/api/v1/whale-alerts` |
+| 1 | Trader Profiles | Done | `/traders`, `/api/v1/traders` |
+| 1 | Liquidation Radar | Done | `/liquidations`, `/api/v1/liquidations/*` |
+| 1 | Dashboard Overview | Done | `/` |
+| 2 | AI Strategy Inference | Done | `/insights`, `/api/v2/inferences` |
+| 2 | Smart Money Ranking | Done | `/rankings`, `/api/v2/rankings` |
+| 2 | Telegram Alerts | Done | `/alerts`, `/api/v2/alerts` |
+| 2 | Collectors + Persistence | Done | `/api/v2/pipeline/status` |
 
-Track profitable traders on Hyperliquid.
+Phase 2 runs a background pipeline: collectors → store/DB → ranking → AI inference → Telegram alerts.
 
-Features:
-
-- Position entry detection
-- Position close detection
-- PnL estimation
-- Win-rate analysis
-- Holding-time analysis
-- Strategy inference
-
-Example:
-
-Trader A entered ETH Long.
-
-AI Analysis:
-
-- Historical win rate: 71%
-- Average holding time: 9 hours
-- Similar setup occurred 12 times
-- Average profit after entry: +6.8%
-
-Inferred strategy:
-Momentum breakout trading
+Without API keys, inference uses a heuristic classifier and alerts are queued locally.
 
 ---
 
-### Liquidation Radar
+## Quick Start
 
-Monitor liquidation clusters across markets.
+### Prerequisites
 
-Features:
+- Node.js 20+
+- Python 3.12+
+- Docker (optional, for PostgreSQL/Redis)
 
-- Long liquidation zones
-- Short liquidation zones
-- Heatmaps
-- Open interest shifts
-- Funding analysis
+### 1. Clone & configure
 
-Example:
+```bash
+git clone https://github.com/dasvayda/HyperPulse.git
+cd HyperPulse
+cp .env.example .env
+```
 
-BTC
+### 2. Backend
 
-145k
-↑
-$420M short liquidation zone
+```bash
+cd backend
+python -m venv .venv
+# Windows
+.venv\Scripts\activate
+# macOS/Linux
+source .venv/bin/activate
 
-138k
-↓
-$680M long liquidation zone
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+API docs: http://localhost:8000/docs
+
+### 3. Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Dashboard: http://localhost:3000
+
+### Docker (full stack)
+
+```bash
+docker compose up --build
+```
 
 ---
 
-### AI Market Commentary
+## Project Structure
 
-Generate contextual explanations.
-
-Example:
-
-Why are whales accumulating ETH?
-
-AI Summary:
-
-- Open interest rising
-- Funding remains neutral
-- Spot inflows increasing
-- Historical pattern similarity score: 82%
+```
+HyperPulse/
+├── frontend/          # Next.js 15 + TypeScript + Tailwind
+├── backend/           # FastAPI + collectors + AI services
+├── docs/              # Architecture docs
+├── docker-compose.yml
+├── agent.md
+└── .env.example
+```
 
 ---
 
-## Architecture
+## Phase 2 Architecture
 
-See:
+```mermaid
+flowchart LR
+  Collectors[Collectors] -->|feeds| Storage[(SQLite/Postgres + Redis)]
+  Storage --> Ranking[Smart Money Ranking]
+  Storage --> AIInference[AI Inference]
+  AIInference --> Alerts[Telegram Alerts]
+  Ranking --> API[API Gateway]
+  AIInference --> API
+  Alerts --> API
+  API --> Frontend[Dashboard]
+```
 
-docs/ARCHITECTURE.md
+| Component | Path | Notes |
+|-----------|------|-------|
+| Collectors | `backend/app/collectors/` | Hyperliquid meta API + simulated trader ticks |
+| Store/ORM | `backend/app/services/store.py`, `models/orm.py` | SQLite by default |
+| Ranking | `backend/app/services/ranking.py` | Win rate + momentum + consistency |
+| Inference | `backend/app/services/inference.py` | OpenAI / DeepSeek / heuristic |
+| Alerts | `backend/app/services/alerts.py` | Telegram or local queue |
+
+---
+
+## Design
+
+Nansen-inspired dark FinTech dashboard:
+
+- Background: `#0b0e11`
+- Accent: `#00ffa3` (neon mint)
+- Data tables with inline sparkline bars
+- Sidebar navigation with active state highlights
 
 ---
 
 ## Tech Stack
 
-Frontend
+| Layer | Stack |
+|-------|-------|
+| Frontend | Next.js, TypeScript, Tailwind CSS |
+| Backend | FastAPI, Python, SQLAlchemy |
+| Database | SQLite (default), PostgreSQL optional |
+| Cache | Redis optional (memory fallback) |
+| AI | OpenAI, DeepSeek, heuristic fallback |
+| Alerts | Telegram Bot API |
+| Infra | Docker, Railway, AWS |
 
-- Next.js
-- TypeScript
-- Tailwind
-- TradingView Charts
+---
 
-Backend
+## API Endpoints
 
-- FastAPI
-- Python
-- PostgreSQL
-- Redis
+### Phase 1 (`/api/v1`)
 
-AI
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/dashboard/stats` | Dashboard summary |
+| GET | `/api/v1/whale-alerts` | Whale entry/exit alerts |
+| GET | `/api/v1/traders` | Top trader profiles |
+| GET | `/api/v1/traders/{address}` | Trader detail |
+| GET | `/api/v1/liquidations/zones` | Liquidation zone clusters |
+| GET | `/api/v1/liquidations/events` | Recent liquidation events |
 
-- OpenAI
-- DeepSeek
-- LangGraph
+### Phase 2 (`/api/v2`)
 
-Infrastructure
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v2/rankings` | Smart money ranking |
+| GET | `/api/v2/insights` | AI market insights |
+| GET | `/api/v2/inferences` | Strategy classifications |
+| GET | `/api/v2/alerts` | Telegram alert history |
+| GET | `/api/v2/pipeline/status` | Collector/inference status |
+| POST | `/api/v2/pipeline/run` | Force one pipeline cycle |
 
-- Railway
-- AWS
-- Docker
+---
+
+## Environment
+
+Key Phase 2 variables (see `.env.example`):
+
+```bash
+OPENAI_API_KEY=
+DEEPSEEK_API_KEY=
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+AI_PROVIDER=auto
+COLLECTOR_ENABLED=true
+```
 
 ---
 
 ## Roadmap
 
-Phase 1
+**Phase 1** — Whale Alert, Trader Profiles, Basic Liquidation Radar
 
-- Whale Alert
-- Trader Profiles
-- Basic Liquidation Radar
+**Phase 2** — AI Strategy Inference, Smart Money Ranking, Telegram Alerts
 
-Phase 2
+**Phase 3** — Personalized AI Trading Coach, Portfolio Intelligence, Predictive Analytics
 
-- AI Strategy Inference
-- Smart Money Ranking
-- Telegram Alerts
-
-Phase 3
-
-- Personalized AI Trading Coach
-- Portfolio Intelligence
-- Predictive Analytics
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for system design.
 
 ---
 

@@ -1,8 +1,8 @@
-# HyperIntel Architecture
+# HyperPulse Architecture
 
 ## Overview
 
-HyperIntel is a data intelligence platform built on top of Hyperliquid.
+HyperPulse is a data intelligence platform built on top of Hyperliquid.
 
 The system continuously collects trading activities, market signals, and liquidation events.
 
@@ -286,9 +286,69 @@ Excluded
 
 ---
 
+# Phase 2 Implementation
+
+Phase 2 wires collectors, persistence, ranking, inference, and alerts into a background pipeline.
+
+```mermaid
+flowchart LR
+  Collectors[Collectors] -->|feeds| Storage[(SQLite/Postgres + Redis)]
+  Storage --> Ranking[Smart Money Ranking]
+  Storage --> AIInference[AI Inference]
+  AIInference --> Alerts[Telegram Alerts]
+  Ranking --> API[API Gateway]
+  AIInference --> API
+  Alerts --> API
+  API --> Frontend[Dashboard]
+```
+
+## Runtime modules
+
+| Module | Responsibility |
+|--------|----------------|
+| `app/collectors/hyperliquid.py` | Pull Hyperliquid meta/asset contexts; simulate trader ticks when live account feeds are unavailable |
+| `app/collectors/scheduler.py` | Async loops for collect / infer / rank |
+| `app/services/store.py` | In-memory state + SQLAlchemy persistence |
+| `app/services/ranking.py` | Smart money composite score |
+| `app/services/inference.py` | OpenAI / DeepSeek / heuristic strategy classification |
+| `app/services/alerts.py` | Telegram delivery or local queue |
+| `app/routers/v2.py` | Rankings, insights, inferences, alerts, pipeline status |
+
+## Persistence
+
+Default local database is SQLite (`hyperpulse.db`). Tables:
+
+- `traders`
+- `positions`
+- `liquidations`
+- `inference_results`
+- `alerts`
+
+Redis is optional. Cache falls back to process memory when Redis is down.
+
+## Ranking formula
+
+```
+smart_money_score =
+  win_rate * 0.35 +
+  momentum * 0.25 +
+  consistency * 0.25 +
+  risk_adjustment * 0.15
+```
+
+## Alert triggers
+
+- Whale entry/exit above confidence and size thresholds
+- Large liquidation zones (squeeze risk)
+- High-confidence strategy inference updates
+
+Without `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`, alerts are stored with status `queued`.
+
+---
+
 # Future Vision
 
-HyperIntel evolves from:
+HyperPulse evolves from:
 
 Data Platform
 
