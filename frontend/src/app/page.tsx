@@ -25,13 +25,15 @@ import {
   getAlertsHistory,
   getPipelineStatus,
   getMarketStatus,
+  getCoinPulse,
   formatUsd,
   formatTimeAgo,
   formatConfidence,
+  formatPct,
 } from "@/lib/api";
 
 export default async function HomePage() {
-  const [stats, alerts, zones, rankings, insights, alertHistory, pipeline, market] =
+  const [stats, alerts, zones, rankings, insights, alertHistory, pipeline, market, coinPulse] =
     await Promise.all([
       getDashboardStats(),
       getWhaleAlerts(),
@@ -41,12 +43,14 @@ export default async function HomePage() {
       getAlertsHistory(),
       getPipelineStatus(),
       getMarketStatus(),
+      getCoinPulse(),
     ]);
 
   const recentAlerts = alerts.slice(0, 5);
   const topZones = zones.slice(0, 4);
   const topRanks = rankings.slice(0, 5);
   const previewInsights = insights.slice(0, 2);
+  const pulse = coinPulse.slice(0, 6);
 
   return (
     <DashboardLayout>
@@ -63,13 +67,21 @@ export default async function HomePage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
           label="Active Whales"
-          value={String(stats.active_whales)}
-          change={`Provider: ${pipeline.ai_provider}`}
+          value={
+            stats.whales_positioned != null
+              ? `${stats.whales_positioned}/${stats.active_whales}`
+              : String(stats.active_whales)
+          }
+          change={
+            stats.whale_long_pct != null
+              ? `Long ${stats.whale_long_pct.toFixed(0)}%`
+              : `Provider: ${pipeline.ai_provider}`
+          }
           positive
         />
         <StatCard
-          label="Dominant Strategy"
-          value={stats.dominant_strategy ?? "—"}
+          label="Whale Bias"
+          value={(stats.whale_net_bias ?? stats.dominant_strategy ?? "—").toUpperCase()}
           change={`${pipeline.inferences_count} inferences`}
           positive
         />
@@ -211,6 +223,54 @@ export default async function HomePage() {
           </div>
           <AlertFeed alerts={alertHistory.slice(0, 4)} />
         </div>
+      </div>
+
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-text-primary">Coin Pulse</h2>
+        </div>
+        <DataTable>
+          <DataTableHead>
+            <DataTableHeaderCell>Coin</DataTableHeaderCell>
+            <DataTableHeaderCell>Whale L/S</DataTableHeaderCell>
+            <DataTableHeaderCell>24h Entries</DataTableHeaderCell>
+            <DataTableHeaderCell>Liq Bias</DataTableHeaderCell>
+            <DataTableHeaderCell>Funding</DataTableHeaderCell>
+          </DataTableHead>
+          <DataTableBody>
+            {pulse.map((row) => {
+              const netLabel =
+                row.whale_net_notional_usd >= 0
+                  ? `+${formatUsd(row.whale_net_notional_usd)}`
+                  : `-${formatUsd(Math.abs(row.whale_net_notional_usd))}`;
+              const liqLabel = `${row.liq_long_24h}L / ${row.liq_short_24h}S`;
+              const entryLabel = `+${row.entries_long_24h}L / +${row.entries_short_24h}S`;
+              return (
+                <DataTableRow key={row.asset}>
+                  <DataTableCell>
+                    <AssetIcon asset={row.asset} />
+                  </DataTableCell>
+                  <DataTableCell>
+                    <div className="text-xs text-text-muted">
+                      Long {row.whale_long_pct.toFixed(0)}% · {netLabel}
+                    </div>
+                  </DataTableCell>
+                  <DataTableCell className="text-xs text-text-muted">
+                    {entryLabel}
+                  </DataTableCell>
+                  <DataTableCell className="text-xs text-text-muted">
+                    {liqLabel}
+                  </DataTableCell>
+                  <DataTableCell className="text-xs text-text-muted">
+                    {row.funding_rate != null
+                      ? formatPct(row.funding_rate * 100)
+                      : "—"}
+                  </DataTableCell>
+                </DataTableRow>
+              );
+            })}
+          </DataTableBody>
+        </DataTable>
       </div>
 
       <div className="mb-8">

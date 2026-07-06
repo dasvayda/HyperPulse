@@ -101,6 +101,46 @@ def _is_recent_duplicate(
     return False
 
 
+def _format_price(value: float | None) -> str | None:
+    if value is None:
+        return None
+    if value >= 1000:
+        return f"${value:,.0f}"
+    return f"${value:,.2f}"
+
+
+def _behavior_label(alert: WhaleAlert) -> tuple[str, str, float, int]:
+    positions = store.whale_positions_by_trader.get(alert.trader_address, [])
+    if not positions:
+        return ("Active", "Balanced", alert.leverage, 0)
+    avg_lev = sum(p.leverage for p in positions) / len(positions)
+    if avg_lev >= 20:
+        label = "High-Lev Speculative"
+        risk = "Aggressive"
+    elif len(positions) >= 4:
+        label = "Diversified"
+        risk = "Balanced"
+    elif len(positions) == 1:
+        label = "Directional"
+        risk = "Balanced" if avg_lev >= 8 else "Conservative"
+    else:
+        label = "Active"
+        risk = "Balanced" if avg_lev >= 8 else "Conservative"
+    return (label, risk, avg_lev, len(positions))
+
+
+def _book_context_line(asset: str) -> str | None:
+    summary = store.whale_summary
+    if not summary:
+        return None
+    asset_summary = summary.by_asset.get(asset)
+    if not asset_summary:
+        return None
+    net = asset_summary.net_notional_usd
+    net_label = f"+${abs(net) / 1_000_000:.1f}M" if net >= 0 else f"-${abs(net) / 1_000_000:.1f}M"
+    return f"Book: {asset_summary.long_pct:.0f}% long ({net_label} net)"
+
+
 async def send_whale_alert(alert: WhaleAlert) -> AlertHistoryItem | None:
     if not settings.alerts_enabled:
         return None
@@ -110,13 +150,43 @@ async def send_whale_alert(alert: WhaleAlert) -> AlertHistoryItem | None:
         return None
 
     title = f"Whale {alert.alert_type.value.upper()} - {alert.asset}"
-    message = (
-        f"<b>{title}</b>\n"
-        f"Trader: {alert.trader_alias} ({alert.trader_address})\n"
-        f"Side: {alert.side.value.upper()} | Size: ${alert.size_usd:,.0f}\n"
-        f"Leverage: {alert.leverage}x | Win rate: {alert.win_rate}%\n"
-        f"Strategy: {alert.inferred_strategy} ({alert.confidence_score:.0f}% conf)"
+    price = alert.entry_price if alert.alert_type.value == "entry" else (alert.exit_price or alert.entry_price)
+    price_label = _format_price(price)
+    side_line = f"Side: {alert.side.value.upper()} | Size: ${alert.size_usd:,.0f}"
+    if price_label:
+        side_line = f"{side_line} @ {price_label}"
+
+    behavior_label, risk_label, avg_lev, open_positions = _behavior_label(alert)
+    behavior_line = (
+        f"Style: {behavior_label} (avg lev {avg_lev:.1f}x, {open_positions} open)"
+        if open_positions
+        else f"Style: {behavior_label}"
     )
+
+    trader = next((t for t in store.traders if t.address == alert.trader_address), None)
+    win_rate_line = None
+    if trader and trader.total_trades > 0:
+        win_rate_line = f"Win rate: {trader.win_rate:.1f}% ({trader.total_trades} trades)"
+
+    strategy_line = None
+    if alert.inferred_strategy and alert.inferred_strategy.lower() != "unknown":
+        strategy_line = f"Strategy: {alert.inferred_strategy} ({alert.confidence_score:.0f}% conf)"
+
+    lines = [
+        f"<b>{title}</b>",
+        f"Trader: {alert.trader_alias} ({alert.trader_address})",
+        side_line,
+        f"Leverage: {alert.leverage}x | Risk: {risk_label}",
+    ]
+    if win_rate_line:
+        lines.append(win_rate_line)
+    lines.append(behavior_line)
+    if strategy_line:
+        lines.append(strategy_line)
+    book_line = _book_context_line(alert.asset)
+    if book_line:
+        lines.append(book_line)
+    message = "\n".join(lines)
     plain = message.replace("<b>", "").replace("</b>", "")
     event_type = f"whale_{alert.alert_type.value}"
     if _is_recent_duplicate(event_type, title, plain):

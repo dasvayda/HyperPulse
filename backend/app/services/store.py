@@ -30,7 +30,10 @@ from app.models.schemas import (
     TraderDetail,
     TraderProfile,
     WhaleAlert,
+    WhaleBookSummary,
+    WhalePosition,
 )
+from app.services.whale_book import index_positions_by_trader, summarize_whale_book
 
 
 def _utcnow() -> datetime:
@@ -74,6 +77,9 @@ class StateStore:
         self.rankings: list[SmartMoneyRank] = []
         self.insights: list[MarketInsight] = []
         self.alerts: list[AlertHistoryItem] = []
+        self.whale_positions: list[WhalePosition] = []
+        self.whale_positions_by_trader: dict[str, list[WhalePosition]] = {}
+        self.whale_summary: WhaleBookSummary | None = None
         self.last_collect_at: datetime | None = None
         self.last_inference_at: datetime | None = None
         self.last_ranking_at: datetime | None = None
@@ -243,6 +249,16 @@ class StateStore:
         finally:
             db.close()
 
+    def update_whale_book(self, positions: list[WhalePosition], updated_at: datetime | None = None) -> None:
+        with self._lock:
+            self.whale_positions = positions
+            self.whale_positions_by_trader = index_positions_by_trader(positions)
+            self.whale_summary = summarize_whale_book(
+                positions=positions,
+                tracked=len(self.traders),
+                updated_at=updated_at,
+            )
+
     def get_trader_detail(self, address: str) -> TraderDetail | None:
         for trader in self.traders:
             if trader.address == address:
@@ -303,6 +319,9 @@ class StateStore:
             alerts_24h=len(self.whale_alerts),
             total_liquidations_24h=sum(e.size_usd for e in self.liquidation_events),
             top_asset=self.dashboard.top_asset,
+            whales_positioned=self.whale_summary.with_positions if self.whale_summary else None,
+            whale_long_pct=self.whale_summary.long_pct if self.whale_summary else None,
+            whale_net_bias=self.whale_summary.net_bias if self.whale_summary else None,
             dominant_strategy=dominant,
             avg_smart_money_score=round(avg_score, 1),
             telegram_alerts_24h=telegram_count,

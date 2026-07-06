@@ -1,0 +1,91 @@
+from __future__ import annotations
+
+from collections import defaultdict
+from datetime import datetime, timezone
+
+from app.models.schemas import AssetWhaleSummary, WhaleBookSummary, WhalePosition
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _net_bias(long_usd: float, short_usd: float) -> str:
+    if long_usd > short_usd * 1.1:
+        return "long"
+    if short_usd > long_usd * 1.1:
+        return "short"
+    return "neutral"
+
+
+def index_positions_by_trader(
+    positions: list[WhalePosition],
+) -> dict[str, list[WhalePosition]]:
+    by_trader: dict[str, list[WhalePosition]] = defaultdict(list)
+    for pos in positions:
+        by_trader[pos.trader_address].append(pos)
+    return dict(by_trader)
+
+
+def summarize_whale_book(
+    positions: list[WhalePosition],
+    tracked: int,
+    updated_at: datetime | None = None,
+) -> WhaleBookSummary:
+    updated_at = updated_at or _utcnow()
+    long_total = 0.0
+    short_total = 0.0
+    by_asset: dict[str, dict] = defaultdict(
+        lambda: {
+            "long": 0.0,
+            "short": 0.0,
+            "whales": set(),
+            "lev_total": 0.0,
+            "count": 0,
+        }
+    )
+
+    for pos in positions:
+        bucket = by_asset[pos.asset]
+        bucket["whales"].add(pos.trader_address)
+        bucket["lev_total"] += pos.leverage
+        bucket["count"] += 1
+        if pos.side.value == "long":
+            long_total += pos.size_usd
+            bucket["long"] += pos.size_usd
+        else:
+            short_total += pos.size_usd
+            bucket["short"] += pos.size_usd
+
+    total = long_total + short_total
+    long_pct = round(long_total / total * 100.0, 1) if total > 0 else 0.0
+    net_notional = long_total - short_total
+
+    assets: dict[str, AssetWhaleSummary] = {}
+    for asset, data in by_asset.items():
+        asset_total = data["long"] + data["short"]
+        asset_long_pct = round(data["long"] / asset_total * 100.0, 1) if asset_total > 0 else 0.0
+        avg_lev = round(data["lev_total"] / data["count"], 2) if data["count"] else 0.0
+        net_notional_asset = data["long"] - data["short"]
+        assets[asset] = AssetWhaleSummary(
+            asset=asset,
+            whales=len(data["whales"]),
+            long_notional_usd=round(data["long"], 2),
+            short_notional_usd=round(data["short"], 2),
+            long_pct=asset_long_pct,
+            net_notional_usd=round(net_notional_asset, 2),
+            net_bias=_net_bias(data["long"], data["short"]),
+            avg_leverage=avg_lev,
+        )
+
+    return WhaleBookSummary(
+        tracked=tracked,
+        with_positions=len({p.trader_address for p in positions}),
+        long_notional_usd=round(long_total, 2),
+        short_notional_usd=round(short_total, 2),
+        long_pct=long_pct,
+        net_notional_usd=round(net_notional, 2),
+        net_bias=_net_bias(long_total, short_total),
+        updated_at=updated_at,
+        by_asset=assets,
+    )

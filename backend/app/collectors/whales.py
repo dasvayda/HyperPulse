@@ -1,17 +1,25 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict, Tuple
 
 from app.collectors.hyperliquid_client import info as hl_info
 from app.config import settings
 from app.models.schemas import AlertType, PositionSide, WhaleAlert
+from app.models.schemas import WhalePosition
+from app.db import SessionLocal
+from app.models.orm import MarketSnapshotRow
 from app.services.store import store
 
 logger = logging.getLogger(__name__)
 
 # (trader_address, asset) -> current size
 _LAST_SIZES: Dict[Tuple[str, str], float] = {}
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def _addresses_to_track() -> list[str]:
@@ -60,6 +68,20 @@ def _extract_positions(payload: Any) -> list[dict]:
     return out
 
 
+def _latest_mark_price(asset: str) -> float | None:
+    db = SessionLocal()
+    try:
+        row = (
+            db.query(MarketSnapshotRow)
+            .filter(MarketSnapshotRow.asset == asset)
+            .order_by(MarketSnapshotRow.timestamp.desc())
+            .first()
+        )
+        return float(row.mark_price) if row else None
+    finally:
+        db.close()
+
+
 async def collect_whale_events() -> list[WhaleAlert]:
     """Poll clearinghouseState for tracked traders and emit WhaleAlerts on large changes."""
     if settings.use_mock_data:
@@ -70,6 +92,7 @@ async def collect_whale_events() -> list[WhaleAlert]:
         return store.whale_alerts
 
     alerts: list[WhaleAlert] = []
+    positions_snapshot: list[WhalePosition] = []
     traders_by_addr = {t.address: t for t in store.traders}
 
     for address in addresses:
@@ -87,6 +110,18 @@ async def collect_whale_events() -> list[WhaleAlert]:
             # Approximate USD size by position value; fall back to entry_price * size.
             position_value = pos["position_value"]
             usd_size = abs(position_value)
+
+            positions_snapshot.append(
+                WhalePosition(
+                    trader_address=address,
+                    asset=asset,
+                    side=PositionSide.LONG if size > 0 else PositionSide.SHORT,
+                    size_usd=usd_size,
+                    entry_price=pos["entry_price"],
+                    leverage=pos["leverage"],
+                )
+            )
+
             if usd_size < settings.alert_min_size_usd:
                 _LAST_SIZES[key] = size
                 continue
@@ -117,6 +152,10 @@ async def collect_whale_events() -> list[WhaleAlert]:
             side = PositionSide.LONG if size > 0 else PositionSide.SHORT
             confidence = 75.0
 
+            exit_price = None
+            if alert_type == AlertType.EXIT:
+                exit_price = _latest_mark_price(asset)
+
             alert = WhaleAlert(
                 id=store.new_id("wa"),
                 trader_address=address,
@@ -126,15 +165,17 @@ async def collect_whale_events() -> list[WhaleAlert]:
                 alert_type=alert_type,
                 size_usd=usd_size,
                 entry_price=pos["entry_price"],
-                exit_price=None,
+                exit_price=exit_price,
                 leverage=pos["leverage"],
                 win_rate=win_rate,
                 inferred_strategy=inferred_strategy,
                 confidence_score=confidence,
-                timestamp=store.last_collect_at or store.last_inference_at or None or __import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+                timestamp=store.last_collect_at or store.last_inference_at or _utcnow(),
             )
             alerts.append(alert)
             _LAST_SIZES[key] = size
+
+    store.update_whale_book(positions_snapshot, updated_at=store.last_collect_at or _utcnow())
 
     if alerts:
         with store._lock:

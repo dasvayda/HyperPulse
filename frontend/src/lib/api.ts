@@ -1,5 +1,6 @@
 import type {
   AlertHistoryItem,
+  CoinPulse,
   DashboardStats,
   LiquidationEvent,
   LiquidationZone,
@@ -81,6 +82,11 @@ export function getPipelineStatus(): Promise<PipelineStatus> {
 
 export function getMarketStatus(): Promise<MarketStatus> {
   return fetchApi("/api/v2/market/status");
+}
+
+export function getCoinPulse(assets: string[] = []): Promise<CoinPulse[]> {
+  const qs = assets.length ? `?assets=${assets.map(encodeURIComponent).join("&assets=")}` : "";
+  return fetchApi(`/api/v2/market/coin-pulse${qs}`);
 }
 
 export function formatConfidence(value: number): string {

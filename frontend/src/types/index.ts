@@ -69,11 +69,30 @@ export interface LiquidationEvent {
   tx_hash?: string | null;
 }
 
+export interface CoinPulse {
+  asset: string;
+  whale_long_pct: number;
+  whale_net_notional_usd: number;
+  whale_positioned: number;
+  entries_long_24h: number;
+  entries_short_24h: number;
+  exits_long_24h: number;
+  exits_short_24h: number;
+  liq_long_24h: number;
+  liq_short_24h: number;
+  funding_rate?: number | null;
+  open_interest?: number | null;
+  mark_price?: number | null;
+}
+
 export interface DashboardStats {
   active_whales: number;
   alerts_24h: number;
   total_liquidations_24h: number;
   top_asset: string;
+  whales_positioned?: number | null;
+  whale_long_pct?: number | null;
+  whale_net_bias?: string | null;
   dominant_strategy?: string | null;
   avg_smart_money_score?: number | null;
   telegram_alerts_24h?: number | null;

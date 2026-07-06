@@ -79,11 +79,62 @@ class LiquidationEvent(BaseModel):
     tx_hash: str | None = None
 
 
+class WhalePosition(BaseModel):
+    trader_address: str
+    asset: str
+    side: PositionSide
+    size_usd: float
+    entry_price: float
+    leverage: float
+
+
+class AssetWhaleSummary(BaseModel):
+    asset: str
+    whales: int
+    long_notional_usd: float
+    short_notional_usd: float
+    long_pct: float
+    net_notional_usd: float
+    net_bias: str
+    avg_leverage: float
+
+
+class WhaleBookSummary(BaseModel):
+    tracked: int
+    with_positions: int
+    long_notional_usd: float
+    short_notional_usd: float
+    long_pct: float
+    net_notional_usd: float
+    net_bias: str
+    updated_at: datetime
+    by_asset: dict[str, AssetWhaleSummary]
+
+
+class CoinPulse(BaseModel):
+    asset: str
+    whale_long_pct: float
+    whale_net_notional_usd: float
+    whale_positioned: int
+    entries_long_24h: int
+    entries_short_24h: int
+    exits_long_24h: int
+    exits_short_24h: int
+    liq_long_24h: int
+    liq_short_24h: int
+    funding_rate: float | None = None
+    open_interest: float | None = None
+    mark_price: float | None = None
+
+
 class DashboardStats(BaseModel):
     active_whales: int
     alerts_24h: int
     total_liquidations_24h: float
     top_asset: str
+    whales_positioned: int | None = None
+    whale_long_pct: float | None = None
+    whale_net_bias: str | None = None
     dominant_strategy: str | None = None
     avg_smart_money_score: float | None = None
     telegram_alerts_24h: int | None = None

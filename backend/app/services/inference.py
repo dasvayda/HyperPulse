@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
 from app.config import settings
 from app.models.schemas import MarketInsight, StrategyInference, TraderProfile, WhaleAlert
+from app.db import SessionLocal
+from app.models.orm import MarketSnapshotRow
 from app.services.store import store
 
 logger = logging.getLogger(__name__)
@@ -17,14 +19,53 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _positions_for_trader(address: str):
+    return store.whale_positions_by_trader.get(address, [])
+
+
+def _format_usd_short(value: float) -> str:
+    if value >= 1_000_000_000:
+        return f"${value / 1_000_000_000:.2f}B"
+    if value >= 1_000_000:
+        return f"${value / 1_000_000:.2f}M"
+    if value >= 1_000:
+        return f"${value / 1_000:.2f}K"
+    return f"${value:.0f}"
+
+
 def _heuristic_inference(trader: TraderProfile) -> StrategyInference:
+    positions = _positions_for_trader(trader.address)
+    total_notional = sum(p.size_usd for p in positions)
+    avg_lev = sum(p.leverage for p in positions) / len(positions) if positions else 0.0
+    top_asset = None
+    concentration = 0.0
+    if total_notional > 0:
+        asset_totals: dict[str, float] = {}
+        for pos in positions:
+            asset_totals[pos.asset] = asset_totals.get(pos.asset, 0.0) + pos.size_usd
+        top_asset, top_size = max(asset_totals.items(), key=lambda item: item[1])
+        concentration = top_size / total_notional
+
+    turnover_ratio = 0.0
+    if trader.account_value_usd > 0:
+        turnover_ratio = trader.volume_usd / trader.account_value_usd
+
     tags = [t.lower() for t in trader.strategy_tags]
-    if any("momentum" in t or "breakout" in t for t in tags):
+    if avg_lev >= 20:
+        strategy, style = "Speculative", "High-leverage trader"
+    elif concentration >= 0.8 and total_notional > 0:
+        strategy, style = (
+            "Directional",
+            f"Concentrated {top_asset} exposure" if top_asset else "Concentrated exposure",
+        )
+    elif len(positions) >= 4:
+        strategy, style = "Diversified", "Multi-asset allocator"
+    elif turnover_ratio >= 20:
+        strategy, style = "Scalping", "High turnover trader"
+    elif any("momentum" in t or "breakout" in t for t in tags):
         strategy, style = "Momentum", "Breakout trader"
     elif any("mean" in t or "reversion" in t for t in tags):
         strategy, style = "Mean Reversion", "Counter-trend trader"
-    elif any("scalp" in t or "high frequency" in t for t in tags):
-        strategy, style = "Scalping", "High-frequency trader"
     elif any("funding" in t or "arb" in t for t in tags):
         strategy, style = "Funding Arbitrage", "Market-neutral trader"
     elif any("swing" in t for t in tags):
@@ -45,17 +86,20 @@ def _heuristic_inference(trader: TraderProfile) -> StrategyInference:
         95.0,
         max(
             45.0,
-            trader.win_rate * 0.55
+            trader.win_rate * 0.5
             + min(trader.total_trades, 500) / 500 * 20
+            + min(avg_lev, 30) / 30 * 10
+            + min(len(positions), 5) * 3
             + (100 - abs(trader.risk_score - 60)) * 0.2,
         ),
     )
 
+    assets_label = ", ".join(sorted({p.asset for p in positions})) if positions else "n/a"
     rationale = (
         f"{trader.alias} shows {trader.win_rate:.1f}% win rate across "
         f"{trader.total_trades} trades with avg hold {trader.avg_hold_hours:.1f}h. "
-        f"Preferred assets: {', '.join(trader.preferred_assets)}. "
-        f"PnL momentum {trader.pnl_change_pct:+.1f}% supports {strategy.lower()} classification."
+        f"Avg leverage {avg_lev:.1f}x across {len(positions)} open positions "
+        f"({assets_label}). Turnover ratio {turnover_ratio:.1f}x supports {strategy.lower()} classification."
     )
 
     return StrategyInference(
@@ -87,6 +131,7 @@ async def _llm_inference(trader: TraderProfile, provider: str) -> StrategyInfere
     if not api_key:
         return None
 
+    positions = _positions_for_trader(trader.address)
     prompt = {
         "trader": trader.alias,
         "win_rate": trader.win_rate,
@@ -96,6 +141,15 @@ async def _llm_inference(trader: TraderProfile, provider: str) -> StrategyInfere
         "strategy_tags": trader.strategy_tags,
         "risk_score": trader.risk_score,
         "pnl_change_pct": trader.pnl_change_pct,
+        "account_value_usd": trader.account_value_usd,
+        "volume_usd": trader.volume_usd,
+        "open_positions": len(positions),
+        "avg_leverage": round(
+            sum(p.leverage for p in positions) / len(positions), 2
+        )
+        if positions
+        else 0.0,
+        "position_assets": sorted({p.asset for p in positions}),
     }
 
     system = (
@@ -152,8 +206,11 @@ def _resolve_provider() -> str:
 async def run_inference_pipeline() -> list[StrategyInference]:
     provider = _resolve_provider()
     results: list[StrategyInference] = []
-    limit = max(1, settings.inference_trader_limit)
-    traders = store.traders[:limit]
+    priority_addresses = [a.trader_address for a in store.whale_alerts[:10]]
+    limit = max(1, settings.inference_trader_limit, len(priority_addresses))
+    priority = [t for t in store.traders if t.address in priority_addresses]
+    remainder = [t for t in store.traders if t.address not in priority_addresses]
+    traders = (priority + remainder)[:limit]
 
     for trader in traders:
         item: StrategyInference | None = None
@@ -182,25 +239,61 @@ def _build_market_insights() -> None:
     insights: list[MarketInsight] = []
     now = _utcnow()
 
-    if store.inferences:
-        strategies: dict[str, list[StrategyInference]] = {}
-        for item in store.inferences:
-            strategies.setdefault(item.strategy, []).append(item)
-        top_strategy, items = max(strategies.items(), key=lambda kv: len(kv[1]))
-        avg_conf = sum(i.confidence for i in items) / len(items)
+    if store.whale_summary and store.whale_summary.with_positions > 0:
+        summary = store.whale_summary
+        net_label = _format_usd_short(abs(summary.net_notional_usd))
+        direction = summary.net_bias.upper()
         insights.append(
             MarketInsight(
                 id=store.new_id("mi"),
-                title=f"Smart money leaning {top_strategy}",
+                title=f"Whales leaning {direction}",
                 summary=(
-                    f"{len(items)} tracked whales classified as {top_strategy} "
-                    f"with average confidence {avg_conf:.0f}%."
+                    f"{summary.with_positions} of {summary.tracked} tracked whales hold open positions. "
+                    f"Long notional {_format_usd_short(summary.long_notional_usd)} "
+                    f"({summary.long_pct:.0f}%) vs short {_format_usd_short(summary.short_notional_usd)}."
                 ),
-                confidence=round(avg_conf, 1),
+                confidence=78.0,
                 signals=[
-                    f"Dominant strategy: {top_strategy}",
-                    f"Tracked traders: {len(store.traders)}",
-                    f"Provider: {store.ai_provider}",
+                    f"Positioned: {summary.with_positions}/{summary.tracked}",
+                    f"Long share: {summary.long_pct:.0f}%",
+                    f"Net bias: {direction} ({net_label})",
+                ],
+                created_at=now,
+            )
+        )
+
+    entry_cutoff = now - timedelta(hours=24)
+    entries: dict[str, dict[str, float]] = {}
+    entry_counts: dict[str, dict[str, int]] = {}
+    for alert in store.whale_alerts:
+        if alert.timestamp < entry_cutoff:
+            continue
+        if alert.alert_type.value != "entry":
+            continue
+        bucket = entries.setdefault(alert.asset, {"long": 0.0, "short": 0.0})
+        counts = entry_counts.setdefault(alert.asset, {"long": 0, "short": 0})
+        key = "long" if alert.side.value == "long" else "short"
+        bucket[key] += alert.size_usd
+        counts[key] += 1
+
+    if entries:
+        asset, totals = max(entries.items(), key=lambda item: item[1]["long"] + item[1]["short"])
+        counts = entry_counts.get(asset, {"long": 0, "short": 0})
+        bias = "long" if totals["long"] >= totals["short"] else "short"
+        insights.append(
+            MarketInsight(
+                id=store.new_id("mi"),
+                title=f"Fresh {asset} {bias} bias",
+                summary=(
+                    f"{counts['long']} long vs {counts['short']} short entries over 24h. "
+                    f"Long {_format_usd_short(totals['long'])} vs short {_format_usd_short(totals['short'])}."
+                ),
+                asset=asset,
+                confidence=70.0,
+                signals=[
+                    f"Entries: {counts['long']}L / {counts['short']}S",
+                    f"Long size: {_format_usd_short(totals['long'])}",
+                    f"Short size: {_format_usd_short(totals['short'])}",
                 ],
                 created_at=now,
             )
@@ -208,6 +301,9 @@ def _build_market_insights() -> None:
 
     if store.liquidation_zones:
         largest = max(store.liquidation_zones, key=lambda z: z.size_usd)
+        liq_cutoff = now - timedelta(hours=24)
+        liq_long = len([e for e in store.liquidation_events if e.asset == largest.asset and e.side.value == "long" and e.timestamp >= liq_cutoff])
+        liq_short = len([e for e in store.liquidation_events if e.asset == largest.asset and e.side.value == "short" and e.timestamp >= liq_cutoff])
         insights.append(
             MarketInsight(
                 id=store.new_id("mi"),
@@ -221,36 +317,69 @@ def _build_market_insights() -> None:
                 signals=[
                     f"Distance: {largest.distance_pct:+.1f}%",
                     f"OI share: {largest.open_interest_pct:.1f}%",
-                    f"Side: {largest.side.value}",
+                    f"Liq 24h: {liq_long}L / {liq_short}S",
                 ],
                 created_at=now,
             )
         )
 
-    if store.whale_alerts:
-        recent = store.whale_alerts[0]
+    db = SessionLocal()
+    try:
+        latest_snapshot = (
+            db.query(MarketSnapshotRow)
+            .order_by(MarketSnapshotRow.timestamp.desc())
+            .first()
+        )
+    finally:
+        db.close()
+
+    if latest_snapshot:
+        funding_pct = latest_snapshot.funding_rate * 100
         insights.append(
             MarketInsight(
                 id=store.new_id("mi"),
-                title=f"Whale {recent.alert_type.value} on {recent.asset}",
+                title=f"{latest_snapshot.asset} funding regime",
                 summary=(
-                    f"{recent.trader_alias} {recent.side.value} {recent.alert_type.value} "
-                    f"sized ${recent.size_usd / 1_000_000:.2f}M with "
-                    f"{recent.confidence_score:.0f}% confidence."
+                    f"Funding {funding_pct:+.3f}% with open interest "
+                    f"{_format_usd_short(latest_snapshot.open_interest)}."
                 ),
-                asset=recent.asset,
-                confidence=recent.confidence_score,
+                asset=latest_snapshot.asset,
+                confidence=65.0,
                 signals=[
-                    f"Strategy: {recent.inferred_strategy}",
-                    f"Leverage: {recent.leverage}x",
-                    f"Win rate: {recent.win_rate}%",
+                    f"Funding: {funding_pct:+.3f}%",
+                    f"OI: {_format_usd_short(latest_snapshot.open_interest)}",
+                    f"Mark: ${latest_snapshot.mark_price:,.0f}",
+                ],
+                created_at=now,
+            )
+        )
+
+    if store.inferences:
+        strategies: dict[str, list[StrategyInference]] = {}
+        for item in store.inferences:
+            strategies.setdefault(item.strategy, []).append(item)
+        top_strategy, items = max(strategies.items(), key=lambda kv: len(kv[1]))
+        avg_conf = sum(i.confidence for i in items) / len(items)
+        insights.append(
+            MarketInsight(
+                id=store.new_id("mi"),
+                title=f"Style mix: {top_strategy} heavy",
+                summary=(
+                    f"{len(items)} tracked whales classified as {top_strategy} "
+                    f"with average confidence {avg_conf:.0f}%."
+                ),
+                confidence=round(avg_conf, 1),
+                signals=[
+                    f"Dominant style: {top_strategy}",
+                    f"Tracked traders: {len(store.traders)}",
+                    f"Provider: {store.ai_provider}",
                 ],
                 created_at=now,
             )
         )
 
     with store._lock:
-        store.insights = insights
+        store.insights = insights[:5]
 
 
 def apply_inference_to_alerts(alerts: list[WhaleAlert]) -> list[WhaleAlert]:
@@ -263,6 +392,23 @@ def apply_inference_to_alerts(alerts: list[WhaleAlert]) -> list[WhaleAlert]:
                 update={
                     "inferred_strategy": inference.strategy,
                     "confidence_score": inference.confidence,
+                }
+            )
+        else:
+            positions = _positions_for_trader(alert.trader_address)
+            avg_lev = sum(p.leverage for p in positions) / len(positions) if positions else 0.0
+            if avg_lev >= 20:
+                fallback = "Speculative"
+            elif len(positions) == 1:
+                fallback = "Directional"
+            elif len(positions) >= 4:
+                fallback = "Diversified"
+            else:
+                fallback = "Mixed"
+            alert = alert.model_copy(
+                update={
+                    "inferred_strategy": fallback,
+                    "confidence_score": max(55.0, alert.confidence_score),
                 }
             )
         updated.append(alert)
