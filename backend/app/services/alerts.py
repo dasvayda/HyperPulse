@@ -101,6 +101,27 @@ def _is_recent_duplicate(
     return False
 
 
+def _is_rate_limited(max_per_hour: int) -> bool:
+    if max_per_hour <= 0:
+        return False
+    cutoff = _utcnow() - timedelta(hours=1)
+    recent = 0
+    for existing in store.alerts:
+        created_at = existing.created_at
+        if isinstance(created_at, datetime) and created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        try:
+            if created_at < cutoff:
+                break
+        except TypeError:
+            continue
+        if existing.status in {"sent", "queued"}:
+            recent += 1
+            if recent >= max_per_hour:
+                return True
+    return False
+
+
 def _format_price(value: float | None) -> str | None:
     if value is None:
         return None
@@ -143,6 +164,8 @@ def _book_context_line(asset: str) -> str | None:
 
 async def send_whale_alert(alert: WhaleAlert) -> AlertHistoryItem | None:
     if not settings.alerts_enabled:
+        return None
+    if _is_rate_limited(settings.alert_max_per_hour):
         return None
     if alert.confidence_score < settings.alert_min_confidence:
         return None
@@ -206,6 +229,8 @@ async def send_whale_alert(alert: WhaleAlert) -> AlertHistoryItem | None:
 async def send_squeeze_alert(zone: LiquidationZone) -> AlertHistoryItem | None:
     if not settings.alerts_enabled:
         return None
+    if _is_rate_limited(settings.alert_max_per_hour):
+        return None
     if zone.size_usd < 100_000_000:
         return None
 
@@ -234,6 +259,8 @@ async def send_squeeze_alert(zone: LiquidationZone) -> AlertHistoryItem | None:
 
 async def send_inference_alert(item: StrategyInference) -> AlertHistoryItem | None:
     if not settings.alerts_enabled:
+        return None
+    if _is_rate_limited(settings.alert_max_per_hour):
         return None
     if item.confidence < settings.alert_min_confidence:
         return None

@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     alerts_enabled: bool = True
     alert_min_confidence: float = 70.0
     alert_min_size_usd: float = 500_000.0
+    alert_max_per_hour: int = 12
 
     # Ranking
     ranking_interval_seconds: int = 90
