@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     collector_enabled: bool = True
     collector_interval_seconds: int = 60
     tracked_trader_limit: int = 100
+    whale_fetch_concurrency: int = 20
+    # The leaderboard stats payload is tens of MB (all Hyperliquid traders), so
+    # it is refreshed on its own slower cadence instead of every collector tick.
+    trader_refresh_interval_seconds: int = 900
 
     # Data source
     use_mock_data: bool = False

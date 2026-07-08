@@ -35,6 +35,7 @@ def summarize_whale_book(
     updated_at = updated_at or _utcnow()
     long_total = 0.0
     short_total = 0.0
+    net_by_trader: dict[str, float] = defaultdict(float)
     by_asset: dict[str, dict] = defaultdict(
         lambda: {
             "long": 0.0,
@@ -50,6 +51,8 @@ def summarize_whale_book(
         bucket["whales"].add(pos.trader_address)
         bucket["lev_total"] += pos.leverage
         bucket["count"] += 1
+        signed = pos.size_usd if pos.side.value == "long" else -pos.size_usd
+        net_by_trader[pos.trader_address] += signed
         if pos.side.value == "long":
             long_total += pos.size_usd
             bucket["long"] += pos.size_usd
@@ -60,6 +63,17 @@ def summarize_whale_book(
     total = long_total + short_total
     long_pct = round(long_total / total * 100.0, 1) if total > 0 else 0.0
     net_notional = long_total - short_total
+
+    # Classify each whale by its net exposure across all assets, so the "simple
+    # count" view answers "how many whales are net long vs net short" rather
+    # than counting individual positions (a whale can hold several).
+    long_whale_count = sum(1 for net in net_by_trader.values() if net > 0)
+    short_whale_count = sum(1 for net in net_by_trader.values() if net < 0)
+    neutral_whale_count = sum(1 for net in net_by_trader.values() if net == 0)
+    whale_count_total = long_whale_count + short_whale_count
+    whale_count_long_pct = (
+        round(long_whale_count / whale_count_total * 100.0, 1) if whale_count_total > 0 else 0.0
+    )
 
     assets: dict[str, AssetWhaleSummary] = {}
     for asset, data in by_asset.items():
@@ -86,6 +100,10 @@ def summarize_whale_book(
         long_pct=long_pct,
         net_notional_usd=round(net_notional, 2),
         net_bias=_net_bias(long_total, short_total),
+        long_whale_count=long_whale_count,
+        short_whale_count=short_whale_count,
+        neutral_whale_count=neutral_whale_count,
+        whale_count_long_pct=whale_count_long_pct,
         updated_at=updated_at,
         by_asset=assets,
     )

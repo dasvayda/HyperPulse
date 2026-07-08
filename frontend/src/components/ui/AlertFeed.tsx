@@ -22,12 +22,12 @@ export function AlertFeed({ alerts }: AlertFeedProps) {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-bg-surface divide-y divide-border-subtle">
+    <div className="rounded-xl border border-border bg-bg-surface divide-y divide-border-subtle max-h-[360px] overflow-y-auto">
       {alerts.map((alert) => (
         <div key={alert.id} className="p-4 flex flex-col gap-2">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-medium text-text-primary">{alert.title}</p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <Badge variant={statusVariant[alert.status] ?? "default"}>
                 {alert.status}
               </Badge>
@@ -36,7 +36,7 @@ export function AlertFeed({ alerts }: AlertFeedProps) {
               </span>
             </div>
           </div>
-          <p className="text-xs text-text-muted whitespace-pre-line leading-relaxed">
+          <p className="text-xs text-text-muted leading-relaxed line-clamp-2">
             {alert.message}
           </p>
           <p className="text-xs text-text-dim">

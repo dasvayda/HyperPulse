@@ -107,6 +107,10 @@ class WhaleBookSummary(BaseModel):
     long_pct: float
     net_notional_usd: float
     net_bias: str
+    long_whale_count: int = 0
+    short_whale_count: int = 0
+    neutral_whale_count: int = 0
+    whale_count_long_pct: float = 0.0
     updated_at: datetime
     by_asset: dict[str, AssetWhaleSummary]
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 
 from app.config import settings
 from app.collectors.hyperliquid import collect_market_snapshot
@@ -29,11 +30,22 @@ async def _loop(name: str, interval: int, coro_factory) -> None:
 
 
 async def _collect_cycle() -> None:
-    await collect_top_traders()
     snapshot = await collect_market_snapshot()
     await collect_liquidation_events()
     await collect_whale_events()
     logger.info("Collector cycle complete: %s", snapshot)
+
+
+async def _trader_cycle() -> None:
+    """Refresh the trader leaderboard.
+
+    This payload is tens of MB (the full Hyperliquid leaderboard), so it runs
+    on its own slow interval instead of every collector tick to avoid
+    repeatedly re-downloading/parsing it and delaying other collectors.
+    """
+    t0 = time.monotonic()
+    traders = await collect_top_traders()
+    logger.info("Trader cycle complete: %s traders in %.2fs", len(traders), time.monotonic() - t0)
 
 
 async def _inference_cycle() -> None:
@@ -53,10 +65,39 @@ async def _ranking_cycle() -> None:
 
 
 async def run_bootstrap_pipeline() -> None:
-    """Run one collect pass so the API can serve live data quickly on startup."""
-    await _collect_cycle()
+    """Run one fast collect pass so the API can start serving requests quickly.
+
+    Two slow steps are skipped here and deferred to background loops that
+    start immediately after startup (running concurrently instead of
+    blocking "Application startup complete"):
+    - Trader leaderboard refresh: a single HTTP call but the payload is tens
+      of MB (full Hyperliquid leaderboard), taking 60-80s+ to download/parse.
+      Skipped entirely if we already have traders cached from the DB.
+    - Whale position collection: up to 100 clearinghouseState lookups.
+    """
+    t0 = time.monotonic()
+    if not store.traders:
+        await collect_top_traders()
+        logger.info("Bootstrap: collect_top_traders (cold) took %.2fs", time.monotonic() - t0)
+    else:
+        logger.info(
+            "Bootstrap: using %s cached traders from DB, leaderboard refresh deferred to background",
+            len(store.traders),
+        )
+    t1 = time.monotonic()
+    snapshot = await collect_market_snapshot()
+    t2 = time.monotonic()
+    logger.info("Bootstrap: collect_market_snapshot took %.2fs", t2 - t1)
+    await collect_liquidation_events()
+    t3 = time.monotonic()
+    logger.info("Bootstrap: collect_liquidation_events took %.2fs", t3 - t2)
     await _ranking_cycle()
-    logger.info("Bootstrap pipeline complete (inference/alerts deferred to background)")
+    t4 = time.monotonic()
+    logger.info("Bootstrap: ranking_cycle took %.2fs", t4 - t3)
+    logger.info(
+        "Bootstrap pipeline complete (whales/inference/alerts deferred to background): %s",
+        snapshot,
+    )
 
 
 def start_background_tasks() -> None:
@@ -69,6 +110,11 @@ def start_background_tasks() -> None:
         _tasks.append(
             asyncio.create_task(
                 _loop("collector", settings.collector_interval_seconds, _collect_cycle)
+            )
+        )
+        _tasks.append(
+            asyncio.create_task(
+                _loop("trader_refresh", settings.trader_refresh_interval_seconds, _trader_cycle)
             )
         )
     _tasks.append(

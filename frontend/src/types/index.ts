@@ -69,6 +69,33 @@ export interface LiquidationEvent {
   tx_hash?: string | null;
 }
 
+export interface AssetWhaleSummary {
+  asset: string;
+  whales: number;
+  long_notional_usd: number;
+  short_notional_usd: number;
+  long_pct: number;
+  net_notional_usd: number;
+  net_bias: string;
+  avg_leverage: number;
+}
+
+export interface WhaleBookSummary {
+  tracked: number;
+  with_positions: number;
+  long_notional_usd: number;
+  short_notional_usd: number;
+  long_pct: number;
+  net_notional_usd: number;
+  net_bias: string;
+  long_whale_count: number;
+  short_whale_count: number;
+  neutral_whale_count: number;
+  whale_count_long_pct: number;
+  updated_at: string;
+  by_asset: Record<string, AssetWhaleSummary>;
+}
+
 export interface CoinPulse {
   asset: string;
   whale_long_pct: number;

@@ -12,6 +12,7 @@ import type {
   TraderDetail,
   TraderProfile,
   WhaleAlert,
+  WhaleBookSummary,
 } from "@/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -82,6 +83,10 @@ export function getPipelineStatus(): Promise<PipelineStatus> {
 
 export function getMarketStatus(): Promise<MarketStatus> {
   return fetchApi("/api/v2/market/status");
+}
+
+export function getWhaleBookSummary(): Promise<WhaleBookSummary> {
+  return fetchApi("/api/v2/whale-book/summary");
 }
 
 export function getCoinPulse(assets: string[] = []): Promise<CoinPulse[]> {

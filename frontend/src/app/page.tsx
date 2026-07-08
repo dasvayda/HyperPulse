@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/Badge";
 import { SparkBarBackground } from "@/components/ui/SparkBar";
 import { InsightCard } from "@/components/ui/InsightCard";
 import { AlertFeed } from "@/components/ui/AlertFeed";
+import { WhaleBiasPanel } from "@/components/ui/WhaleBiasPanel";
 import {
   getDashboardStats,
   getWhaleAlerts,
@@ -26,6 +27,7 @@ import {
   getPipelineStatus,
   getMarketStatus,
   getCoinPulse,
+  getWhaleBookSummary,
   formatUsd,
   formatTimeAgo,
   formatConfidence,
@@ -33,18 +35,29 @@ import {
 } from "@/lib/api";
 
 export default async function HomePage() {
-  const [stats, alerts, zones, rankings, insights, alertHistory, pipeline, market, coinPulse] =
-    await Promise.all([
-      getDashboardStats(),
-      getWhaleAlerts(),
-      getLiquidationZones(),
-      getRankings(),
-      getAIInsights(),
-      getAlertsHistory(),
-      getPipelineStatus(),
-      getMarketStatus(),
-      getCoinPulse(),
-    ]);
+  const [
+    stats,
+    alerts,
+    zones,
+    rankings,
+    insights,
+    alertHistory,
+    pipeline,
+    market,
+    coinPulse,
+    whaleSummary,
+  ] = await Promise.all([
+    getDashboardStats(),
+    getWhaleAlerts(),
+    getLiquidationZones(),
+    getRankings(),
+    getAIInsights(),
+    getAlertsHistory(),
+    getPipelineStatus(),
+    getMarketStatus(),
+    getCoinPulse(),
+    getWhaleBookSummary(),
+  ]);
 
   const recentAlerts = alerts.slice(0, 5);
   const topZones = zones.slice(0, 4);
@@ -200,16 +213,21 @@ export default async function HomePage() {
               View all
             </Link>
           </div>
-          <div
-            className={
-              previewInsights.length > 1
-                ? "grid grid-cols-1 md:grid-cols-2 gap-4"
-                : "grid grid-cols-1 gap-4"
-            }
-          >
-            {previewInsights.map((insight) => (
-              <InsightCard key={insight.id} insight={insight} className="w-full" />
-            ))}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <WhaleBiasPanel summary={whaleSummary} />
+            {previewInsights.length > 0 ? (
+              previewInsights
+                .slice(0, 1)
+                .map((insight) => (
+                  <InsightCard key={insight.id} insight={insight} className="w-full" />
+                ))
+            ) : (
+              <div className="rounded-xl border border-border border-dashed bg-bg-surface/50 p-5 flex items-center justify-center text-center">
+                <p className="text-sm text-text-dim">
+                  AI insights will appear here once inference finishes running.
+                </p>
+              </div>
+            )}
           </div>
         </div>
         <div>
@@ -221,7 +239,7 @@ export default async function HomePage() {
               History
             </Link>
           </div>
-          <AlertFeed alerts={alertHistory.slice(0, 4)} />
+          <AlertFeed alerts={alertHistory.slice(0, 3)} />
         </div>
       </div>
 

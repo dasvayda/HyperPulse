@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Tuple
@@ -82,6 +83,18 @@ def _latest_mark_price(asset: str) -> float | None:
         db.close()
 
 
+async def _fetch_clearinghouse_state(
+    address: str, semaphore: asyncio.Semaphore
+) -> tuple[str, Any]:
+    async with semaphore:
+        try:
+            state = await hl_info({"type": "clearinghouseState", "user": address})
+        except Exception as exc:
+            logger.warning("clearinghouseState failed for %s: %s", address, exc)
+            return address, None
+        return address, state
+
+
 async def collect_whale_events() -> list[WhaleAlert]:
     """Poll clearinghouseState for tracked traders and emit WhaleAlerts on large changes."""
     if settings.use_mock_data:
@@ -95,11 +108,15 @@ async def collect_whale_events() -> list[WhaleAlert]:
     positions_snapshot: list[WhalePosition] = []
     traders_by_addr = {t.address: t for t in store.traders}
 
-    for address in addresses:
-        try:
-            state = await hl_info({"type": "clearinghouseState", "user": address})
-        except Exception as exc:
-            logger.warning("clearinghouseState failed for %s: %s", address, exc)
+    # Fetch concurrently (bounded) instead of one-by-one: sequential requests for
+    # 100 tracked addresses were the dominant cause of slow startup/collect cycles.
+    semaphore = asyncio.Semaphore(max(1, settings.whale_fetch_concurrency))
+    results = await asyncio.gather(
+        *[_fetch_clearinghouse_state(address, semaphore) for address in addresses]
+    )
+
+    for address, state in results:
+        if state is None:
             continue
         positions = _extract_positions(state)
         for pos in positions:

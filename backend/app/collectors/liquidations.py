@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -73,16 +74,17 @@ async def collect_liquidation_events() -> list[LiquidationEvent]:
     return store.liquidation_events
 
   coins = _coins_for_liquidations()
-  all_events: list[LiquidationEvent] = []
 
-  for coin in coins:
+  async def _fetch(coin: str) -> list[LiquidationEvent]:
     try:
       raw = await hl_info({"type": "recentTrades", "coin": coin})
     except Exception as exc:
       logger.warning("Failed to fetch recentTrades for %s: %s", coin, exc)
-      continue
-    events = _parse_recent_trades(coin, raw)
-    all_events.extend(events)
+      return []
+    return _parse_recent_trades(coin, raw)
+
+  results = await asyncio.gather(*[_fetch(coin) for coin in coins])
+  all_events: list[LiquidationEvent] = [event for batch in results for event in batch]
 
   if not all_events:
     return store.liquidation_events
