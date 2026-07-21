@@ -10,6 +10,6 @@ echo === Starting HyperPulse frontend ===
 call "%~dp0frontend\start_frontend.bat"
 
 echo.
-echo Backend:  http://127.0.0.1:8000
-echo Frontend: http://localhost:3000
+echo Backend:  http://127.0.0.1:8100
+echo Frontend: http://localhost:3100
 pause

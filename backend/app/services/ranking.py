@@ -92,6 +92,9 @@ def run_ranking_pipeline() -> list[SmartMoneyRank]:
 
     scored: list[SmartMoneyRank] = []
     score_map: dict[str, float] = {}
+    inference_map = {
+        item.trader_address.lower(): item.strategy for item in store.inferences
+    }
 
     for trader in traders:
         score, momentum, consistency = compute_smart_money_score(
@@ -112,6 +115,7 @@ def run_ranking_pipeline() -> list[SmartMoneyRank]:
                 win_rate=trader.win_rate,
                 pnl_change_pct=trader.pnl_change_pct,
                 strategy_tags=trader.strategy_tags,
+                inferred_strategy=inference_map.get(trader.address.lower()),
                 risk_score=trader.risk_score,
                 momentum_score=momentum,
                 consistency_score=consistency,

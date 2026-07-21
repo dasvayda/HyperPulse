@@ -21,7 +21,7 @@ export default async function RankingsPage() {
     <DashboardLayout>
       <PageHeader
         title="Smart Money Ranking"
-        description="Composite ranking from live Hyperliquid PnL, ROI, curve stability, and risk"
+        description="Composite ranking from live Hyperliquid all-time PnL/ROI, curve stability, and risk"
       />
 
       <DataTable>
@@ -29,7 +29,7 @@ export default async function RankingsPage() {
           <DataTableHeaderCell>#</DataTableHeaderCell>
           <DataTableHeaderCell>Trader</DataTableHeaderCell>
           <DataTableHeaderCell>Smart Money Score</DataTableHeaderCell>
-          <DataTableHeaderCell>PnL</DataTableHeaderCell>
+          <DataTableHeaderCell>All-time PnL</DataTableHeaderCell>
           <DataTableHeaderCell>Win Rate</DataTableHeaderCell>
           <DataTableHeaderCell>Momentum</DataTableHeaderCell>
           <DataTableHeaderCell>Consistency</DataTableHeaderCell>
@@ -94,7 +94,9 @@ export default async function RankingsPage() {
               </DataTableCell>
               <DataTableCell>
                 <div className="flex gap-1 flex-wrap">
-                  {rank.strategy_tags.length > 0 ? (
+                  {rank.inferred_strategy ? (
+                    <Badge variant="accent">{rank.inferred_strategy}</Badge>
+                  ) : rank.strategy_tags.length > 0 ? (
                     rank.strategy_tags.map((tag) => (
                       <Badge key={tag} variant="accent">
                         {tag}
@@ -111,7 +113,8 @@ export default async function RankingsPage() {
       </DataTable>
 
       <p className="text-xs text-text-dim mt-4">
-        Live formula: PnL 35% + ROI 30% + curve stability 20% + risk adjustment 15%.
+        Live formula: all-time PnL 35% + ROI 30% + curve stability 20% + risk adjustment 15%.
+        Dollar value is cumulative all-time PnL; green % is all-time ROI (not open-position PnL).
         Win rate is shown only when fill-level stats are available.
       </p>
     </DashboardLayout>

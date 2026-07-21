@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import logging
@@ -7,7 +7,13 @@ from datetime import datetime, timedelta, timezone
 import httpx
 
 from app.config import settings
-from app.models.schemas import MarketInsight, StrategyInference, TraderProfile, WhaleAlert
+from app.models.schemas import (
+    InsightStance,
+    MarketInsight,
+    StrategyInference,
+    TraderProfile,
+    WhaleAlert,
+)
 from app.db import SessionLocal
 from app.models.orm import MarketSnapshotRow
 from app.services.store import store
@@ -20,7 +26,45 @@ def _utcnow() -> datetime:
 
 
 def _positions_for_trader(address: str):
-    return store.whale_positions_by_trader.get(address, [])
+    return store.get_open_positions(address)
+
+
+def _funding_stance(funding_pct: float) -> tuple[InsightStance, str, float]:
+    """Map funding rate (%) to a simple trade stance.
+
+    Positive funding = longs pay shorts (longs crowded).
+    Negative funding = shorts pay longs (shorts crowded).
+    Near-zero funding = no directional edge → HOLD.
+    """
+    if funding_pct >= 0.01:
+        return (
+            InsightStance.SELL,
+            "Funding is elevated - longs look crowded; lean short / reduce long risk.",
+            min(90.0, 60.0 + funding_pct * 800),
+        )
+    if funding_pct <= -0.01:
+        return (
+            InsightStance.BUY,
+            "Funding is deeply negative - shorts look crowded; lean long / cover shorts.",
+            min(90.0, 60.0 + abs(funding_pct) * 800),
+        )
+    if funding_pct >= 0.005:
+        return (
+            InsightStance.HOLD,
+            "Funding mildly positive - slight long crowding, but not a clear short yet.",
+            58.0,
+        )
+    if funding_pct <= -0.005:
+        return (
+            InsightStance.HOLD,
+            "Funding mildly negative - slight short crowding, but not a clear long yet.",
+            58.0,
+        )
+    return (
+        InsightStance.HOLD,
+        "Funding is near flat - no strong directional edge from funding alone.",
+        65.0,
+    )
 
 
 def _format_usd_short(value: float) -> str:
@@ -243,18 +287,29 @@ def _build_market_insights() -> None:
         summary = store.whale_summary
         net_label = _format_usd_short(abs(summary.net_notional_usd))
         direction = summary.net_bias.upper()
+        if summary.long_pct >= 58:
+            whale_stance = InsightStance.BUY
+            whale_action = "Follow whale net-long bias: lean BUY / stay long-biased."
+        elif summary.long_pct <= 42:
+            whale_stance = InsightStance.SELL
+            whale_action = "Follow whale net-short bias: lean SELL / stay short-biased."
+        else:
+            whale_stance = InsightStance.HOLD
+            whale_action = "Whale long/short split is balanced - no clean directional call."
         insights.append(
             MarketInsight(
                 id=store.new_id("mi"),
                 title=f"Whales leaning {direction}",
                 summary=(
-                    f"{summary.with_positions} of {summary.tracked} tracked whales hold open positions. "
-                    f"Long notional {_format_usd_short(summary.long_notional_usd)} "
+                    f"{whale_action} "
+                    f"{summary.with_positions}/{summary.tracked} whales positioned; "
+                    f"long {_format_usd_short(summary.long_notional_usd)} "
                     f"({summary.long_pct:.0f}%) vs short {_format_usd_short(summary.short_notional_usd)}."
                 ),
+                stance=whale_stance,
                 confidence=78.0,
                 signals=[
-                    f"Positioned: {summary.with_positions}/{summary.tracked}",
+                    f"Action: {whale_stance.value.upper()}",
                     f"Long share: {summary.long_pct:.0f}%",
                     f"Net bias: {direction} ({net_label})",
                 ],
@@ -280,20 +335,23 @@ def _build_market_insights() -> None:
         asset, totals = max(entries.items(), key=lambda item: item[1]["long"] + item[1]["short"])
         counts = entry_counts.get(asset, {"long": 0, "short": 0})
         bias = "long" if totals["long"] >= totals["short"] else "short"
+        entry_stance = InsightStance.BUY if bias == "long" else InsightStance.SELL
         insights.append(
             MarketInsight(
                 id=store.new_id("mi"),
                 title=f"Fresh {asset} {bias} bias",
                 summary=(
-                    f"{counts['long']} long vs {counts['short']} short entries over 24h. "
-                    f"Long {_format_usd_short(totals['long'])} vs short {_format_usd_short(totals['short'])}."
+                    f"Lean {entry_stance.value.upper()} on {asset}: "
+                    f"{counts['long']} long vs {counts['short']} short whale entries in 24h "
+                    f"({_format_usd_short(totals['long'])} vs {_format_usd_short(totals['short'])})."
                 ),
                 asset=asset,
+                stance=entry_stance,
                 confidence=70.0,
                 signals=[
+                    f"Action: {entry_stance.value.upper()}",
                     f"Entries: {counts['long']}L / {counts['short']}S",
                     f"Long size: {_format_usd_short(totals['long'])}",
-                    f"Short size: {_format_usd_short(totals['short'])}",
                 ],
                 created_at=now,
             )
@@ -304,19 +362,40 @@ def _build_market_insights() -> None:
         liq_cutoff = now - timedelta(hours=24)
         liq_long = len([e for e in store.liquidation_events if e.asset == largest.asset and e.side.value == "long" and e.timestamp >= liq_cutoff])
         liq_short = len([e for e in store.liquidation_events if e.asset == largest.asset and e.side.value == "short" and e.timestamp >= liq_cutoff])
+        # Long liq cluster below price → downside cascade risk → lean SELL / caution.
+        # Short liq cluster above price → squeeze risk upward → lean BUY.
+        if largest.side.value == "long":
+            liq_stance = InsightStance.SELL
+            liq_action = (
+                f"Lean SELL / tighten longs: large LONG liquidation magnet at "
+                f"${largest.price:,.0f}."
+            )
+        else:
+            liq_stance = InsightStance.BUY
+            liq_action = (
+                f"Lean BUY / cover shorts: large SHORT liquidation magnet at "
+                f"${largest.price:,.0f}."
+            )
+        if abs(largest.distance_pct) > 8:
+            liq_stance = InsightStance.HOLD
+            liq_action = (
+                f"HOLD for now - nearest {largest.side.value.upper()} liq cluster "
+                f"(${largest.price:,.0f}) is still {largest.distance_pct:+.1f}% away."
+            )
         insights.append(
             MarketInsight(
                 id=store.new_id("mi"),
                 title=f"{largest.asset} liquidation cluster risk",
                 summary=(
-                    f"{largest.side.value.upper()} liquidation zone at "
-                    f"${largest.price:,.0f} totaling ${largest.size_usd / 1_000_000:.0f}M."
+                    f"{liq_action} Zone size ${largest.size_usd / 1_000_000:.0f}M "
+                    f"({largest.open_interest_pct:.1f}% of OI)."
                 ),
                 asset=largest.asset,
+                stance=liq_stance,
                 confidence=min(95.0, 50 + largest.open_interest_pct * 1.5),
                 signals=[
+                    f"Action: {liq_stance.value.upper()}",
                     f"Distance: {largest.distance_pct:+.1f}%",
-                    f"OI share: {largest.open_interest_pct:.1f}%",
                     f"Liq 24h: {liq_long}L / {liq_short}S",
                 ],
                 created_at=now,
@@ -335,20 +414,23 @@ def _build_market_insights() -> None:
 
     if latest_snapshot:
         funding_pct = latest_snapshot.funding_rate * 100
+        fund_stance, fund_reason, fund_conf = _funding_stance(funding_pct)
         insights.append(
             MarketInsight(
                 id=store.new_id("mi"),
-                title=f"{latest_snapshot.asset} funding regime",
+                title=f"{latest_snapshot.asset}: {fund_stance.value.upper()} - funding",
                 summary=(
-                    f"Funding {funding_pct:+.3f}% with open interest "
-                    f"{_format_usd_short(latest_snapshot.open_interest)}."
+                    f"{fund_reason} "
+                    f"Funding {funding_pct:+.3f}% | OI {_format_usd_short(latest_snapshot.open_interest)} "
+                    f"| Mark ${latest_snapshot.mark_price:,.0f}."
                 ),
                 asset=latest_snapshot.asset,
-                confidence=65.0,
+                stance=fund_stance,
+                confidence=round(fund_conf, 1),
                 signals=[
+                    f"Action: {fund_stance.value.upper()}",
                     f"Funding: {funding_pct:+.3f}%",
                     f"OI: {_format_usd_short(latest_snapshot.open_interest)}",
-                    f"Mark: ${latest_snapshot.mark_price:,.0f}",
                 ],
                 created_at=now,
             )
@@ -365,13 +447,15 @@ def _build_market_insights() -> None:
                 id=store.new_id("mi"),
                 title=f"Style mix: {top_strategy} heavy",
                 summary=(
-                    f"{len(items)} tracked whales classified as {top_strategy} "
-                    f"with average confidence {avg_conf:.0f}%."
+                    f"HOLD as a market call - this is trader-style context, not a "
+                    f"directional signal. {len(items)} whales tagged {top_strategy} "
+                    f"(avg confidence {avg_conf:.0f}%)."
                 ),
+                stance=InsightStance.HOLD,
                 confidence=round(avg_conf, 1),
                 signals=[
+                    f"Action: HOLD",
                     f"Dominant style: {top_strategy}",
-                    f"Tracked traders: {len(store.traders)}",
                     f"Provider: {store.ai_provider}",
                 ],
                 created_at=now,
@@ -383,10 +467,9 @@ def _build_market_insights() -> None:
 
 
 def apply_inference_to_alerts(alerts: list[WhaleAlert]) -> list[WhaleAlert]:
-    inference_map = {i.trader_address: i for i in store.inferences}
     updated: list[WhaleAlert] = []
     for alert in alerts:
-        inference = inference_map.get(alert.trader_address)
+        inference = store.get_inference(alert.trader_address)
         if inference:
             alert = alert.model_copy(
                 update={
@@ -413,3 +496,23 @@ def apply_inference_to_alerts(alerts: list[WhaleAlert]) -> list[WhaleAlert]:
             )
         updated.append(alert)
     return updated
+
+
+def enrich_rankings_with_inference() -> None:
+    """Attach latest inference strategy onto existing ranking rows."""
+    if not store.rankings:
+        return
+    inference_map = {
+        item.trader_address.lower(): item.strategy for item in store.inferences
+    }
+    with store._lock:
+        store.rankings = [
+            rank.model_copy(
+                update={
+                    "inferred_strategy": inference_map.get(
+                        rank.address.lower(), rank.inferred_strategy
+                    )
+                }
+            )
+            for rank in store.rankings
+        ]

@@ -131,7 +131,7 @@ def _format_price(value: float | None) -> str | None:
 
 
 def _behavior_label(alert: WhaleAlert) -> tuple[str, str, float, int]:
-    positions = store.whale_positions_by_trader.get(alert.trader_address, [])
+    positions = store.get_open_positions(alert.trader_address)
     if not positions:
         return ("Active", "Balanced", alert.leverage, 0)
     avg_lev = sum(p.leverage for p in positions) / len(positions)

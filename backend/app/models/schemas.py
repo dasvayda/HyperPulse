@@ -53,9 +53,30 @@ class TraderProfile(BaseModel):
     sparkline: list[float]
 
 
+class WhalePosition(BaseModel):
+    trader_address: str
+    asset: str
+    side: PositionSide
+    size_usd: float
+    entry_price: float
+    leverage: float
+
+
+class OpenPosition(BaseModel):
+    asset: str
+    side: PositionSide
+    size_usd: float
+    entry_price: float
+    leverage: float
+
+
 class TraderDetail(TraderProfile):
     recent_positions: list[dict]
+    open_positions: list[OpenPosition] = []
     behavior_summary: str
+    inferred_strategy: str | None = None
+    inferred_trading_style: str | None = None
+    inference_confidence: float | None = None
 
 
 class LiquidationZone(BaseModel):
@@ -77,15 +98,6 @@ class LiquidationEvent(BaseModel):
     price: float
     timestamp: datetime
     tx_hash: str | None = None
-
-
-class WhalePosition(BaseModel):
-    trader_address: str
-    asset: str
-    side: PositionSide
-    size_usd: float
-    entry_price: float
-    leverage: float
 
 
 class AssetWhaleSummary(BaseModel):
@@ -167,10 +179,17 @@ class SmartMoneyRank(BaseModel):
     win_rate: float
     pnl_change_pct: float
     strategy_tags: list[str]
+    inferred_strategy: str | None = None
     risk_score: float
     momentum_score: float
     consistency_score: float
     sparkline: list[float]
+
+
+class InsightStance(str, Enum):
+    BUY = "buy"
+    SELL = "sell"
+    HOLD = "hold"
 
 
 class MarketInsight(BaseModel):
@@ -178,6 +197,7 @@ class MarketInsight(BaseModel):
     title: str
     summary: str
     asset: str | None = None
+    stance: InsightStance = InsightStance.HOLD
     confidence: float = Field(ge=0, le=100)
     signals: list[str]
     created_at: datetime

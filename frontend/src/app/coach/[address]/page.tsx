@@ -36,6 +36,10 @@ export default async function CoachPage({ params }: Props) {
           value={trader.preferred_assets.join(", ") || "—"}
         />
         <StatCard
+          label="Inferred Strategy"
+          value={trader.inferred_strategy || "—"}
+        />
+        <StatCard
           label="Strategy Tags"
           value={trader.strategy_tags.join(", ") || "—"}
         />

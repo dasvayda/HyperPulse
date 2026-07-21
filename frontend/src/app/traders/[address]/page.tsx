@@ -14,6 +14,7 @@ import {
 import { Badge } from "@/components/ui/Badge";
 import { SparkBar } from "@/components/ui/SparkBar";
 import {
+  ApiError,
   getTrader,
   formatUsd,
   formatPrice,
@@ -27,13 +28,30 @@ interface Props {
 
 export default async function TraderDetailPage({ params }: Props) {
   const { address } = await params;
+  const decoded = decodeURIComponent(address);
 
   let trader;
   try {
-    trader = await getTrader(decodeURIComponent(address));
-  } catch {
-    notFound();
+    trader = await getTrader(decoded);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      notFound();
+    }
+    return (
+      <DashboardLayout>
+        <PageHeader
+          title="Trader unavailable"
+          description={`Could not load profile for ${decoded}. Backend may be restarting — retry in a moment.`}
+        />
+        <Link href="/traders" className="text-sm text-accent hover:underline">
+          Back to all traders
+        </Link>
+      </DashboardLayout>
+    );
   }
+
+  const openPositions = trader.open_positions ?? [];
+  const openNotional = openPositions.reduce((sum, pos) => sum + pos.size_usd, 0);
 
   return (
     <DashboardLayout>
@@ -55,18 +73,20 @@ export default async function TraderDetailPage({ params }: Props) {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
-          label="Total PnL"
+          label="All-time PnL"
           value={formatUsd(trader.pnl_usd)}
           change={formatPct(trader.pnl_change_pct)}
           positive={trader.pnl_change_pct >= 0}
         />
         <StatCard
-          label="Win Rate"
-          value={trader.win_rate > 0 ? `${trader.win_rate}%` : "—"}
+          label="Open Positions"
+          value={String(openPositions.length)}
+          change={openPositions.length > 0 ? formatUsd(openNotional) : "No live book yet"}
+          positive={openPositions.length > 0}
         />
         <StatCard
-          label="Avg Hold Time"
-          value={trader.avg_hold_hours > 0 ? `${trader.avg_hold_hours}h` : "—"}
+          label="Win Rate"
+          value={trader.win_rate > 0 ? `${trader.win_rate}%` : "—"}
         />
         <StatCard
           label="Total Trades"
@@ -87,6 +107,12 @@ export default async function TraderDetailPage({ params }: Props) {
             {trader.behavior_summary}
           </p>
           <div className="flex gap-2 mt-4 flex-wrap">
+            {trader.inferred_strategy && (
+              <Badge variant="accent">{trader.inferred_strategy}</Badge>
+            )}
+            {trader.inferred_trading_style && (
+              <Badge variant="default">{trader.inferred_trading_style}</Badge>
+            )}
             {trader.strategy_tags.map((tag) => (
               <Badge key={tag} variant="accent">
                 {tag}
@@ -114,9 +140,9 @@ export default async function TraderDetailPage({ params }: Props) {
               <span className="font-medium text-accent">#{trader.rank}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-text-muted">Preferred</span>
+              <span className="text-text-muted">Assets</span>
               <span className="font-medium">
-                {trader.preferred_assets.join(", ")}
+                {trader.preferred_assets.join(", ") || "—"}
               </span>
             </div>
           </div>
@@ -124,7 +150,51 @@ export default async function TraderDetailPage({ params }: Props) {
       </div>
 
       <h3 className="text-base font-semibold text-text-primary mb-4">
-        Recent Trades
+        Open Positions
+      </h3>
+      <DataTable>
+        <DataTableHead>
+          <DataTableHeaderCell>Asset</DataTableHeaderCell>
+          <DataTableHeaderCell>Side</DataTableHeaderCell>
+          <DataTableHeaderCell>Size</DataTableHeaderCell>
+          <DataTableHeaderCell>Entry</DataTableHeaderCell>
+          <DataTableHeaderCell>Leverage</DataTableHeaderCell>
+        </DataTableHead>
+        <DataTableBody>
+          {openPositions.length > 0 ? (
+            openPositions.map((pos) => (
+              <DataTableRow key={`${pos.asset}-${pos.side}-${pos.entry_price}`}>
+                <DataTableCell className="font-medium">{pos.asset}</DataTableCell>
+                <DataTableCell>
+                  <Badge variant={pos.side}>
+                    {pos.side.toUpperCase()}
+                  </Badge>
+                </DataTableCell>
+                <DataTableCell>{formatUsd(pos.size_usd)}</DataTableCell>
+                <DataTableCell>
+                  {pos.entry_price
+                    ? formatPrice(pos.entry_price, pos.asset)
+                    : "—"}
+                </DataTableCell>
+                <DataTableCell>{pos.leverage.toFixed(1)}x</DataTableCell>
+              </DataTableRow>
+            ))
+          ) : (
+            <DataTableRow>
+              <DataTableCell className="text-text-dim">
+                No open positions in the current whale book for this trader.
+              </DataTableCell>
+              <DataTableCell>—</DataTableCell>
+              <DataTableCell>—</DataTableCell>
+              <DataTableCell>—</DataTableCell>
+              <DataTableCell>—</DataTableCell>
+            </DataTableRow>
+          )}
+        </DataTableBody>
+      </DataTable>
+
+      <h3 className="text-base font-semibold text-text-primary mb-4 mt-10">
+        Recent Whale Alerts
       </h3>
       <DataTable>
         <DataTableHead>
@@ -136,28 +206,41 @@ export default async function TraderDetailPage({ params }: Props) {
           <DataTableHeaderCell>Time</DataTableHeaderCell>
         </DataTableHead>
         <DataTableBody>
-          {trader.recent_positions.map((pos, i) => (
-            <DataTableRow key={i}>
-              <DataTableCell className="font-medium">{pos.asset}</DataTableCell>
-              <DataTableCell>
-                <Badge variant={pos.side as "long" | "short"}>
-                  {pos.side.toUpperCase()}
-                </Badge>
+          {trader.recent_positions.length > 0 ? (
+            trader.recent_positions.map((pos, i) => (
+              <DataTableRow key={i}>
+                <DataTableCell className="font-medium">{pos.asset}</DataTableCell>
+                <DataTableCell>
+                  <Badge variant={pos.side as "long" | "short"}>
+                    {pos.side.toUpperCase()}
+                  </Badge>
+                </DataTableCell>
+                <DataTableCell>
+                  <Badge variant={pos.type as "entry" | "exit"}>
+                    {pos.type.toUpperCase()}
+                  </Badge>
+                </DataTableCell>
+                <DataTableCell>{formatUsd(pos.size_usd)}</DataTableCell>
+                <DataTableCell>
+                  {pos.price ? formatPrice(pos.price, pos.asset) : "—"}
+                </DataTableCell>
+                <DataTableCell className="text-text-muted">
+                  {formatTimeAgo(pos.timestamp)}
+                </DataTableCell>
+              </DataTableRow>
+            ))
+          ) : (
+            <DataTableRow>
+              <DataTableCell className="text-text-dim">
+                No large entry/exit alerts yet for this trader.
               </DataTableCell>
-              <DataTableCell>
-                <Badge variant={pos.type as "entry" | "exit"}>
-                  {pos.type.toUpperCase()}
-                </Badge>
-              </DataTableCell>
-              <DataTableCell>{formatUsd(pos.size_usd)}</DataTableCell>
-              <DataTableCell>
-                {pos.price ? formatPrice(pos.price, pos.asset) : "—"}
-              </DataTableCell>
-              <DataTableCell className="text-text-muted">
-                {formatTimeAgo(pos.timestamp)}
-              </DataTableCell>
+              <DataTableCell>—</DataTableCell>
+              <DataTableCell>—</DataTableCell>
+              <DataTableCell>—</DataTableCell>
+              <DataTableCell>—</DataTableCell>
+              <DataTableCell>—</DataTableCell>
             </DataTableRow>
-          ))}
+          )}
         </DataTableBody>
       </DataTable>
 

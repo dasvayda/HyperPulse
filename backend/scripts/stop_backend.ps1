@@ -1,10 +1,10 @@
-Write-Host "Stopping HyperPulse backend on port 8000 ..."
+Write-Host "Stopping HyperPulse backend on port 8100 ..."
 
-$conns = Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue |
+$conns = Get-NetTCPConnection -LocalPort 8100 -ErrorAction SilentlyContinue |
   Select-Object -ExpandProperty OwningProcess -Unique
 
 if (-not $conns) {
-  Write-Host "No process is listening on port 8000."
+  Write-Host "No process is listening on port 8100."
   exit 0
 }
 
@@ -16,4 +16,3 @@ foreach ($procId in $conns) {
     Write-Warning ("Failed to kill PID {0}: {1}" -f $procId, $_.Exception.Message)
   }
 }
-

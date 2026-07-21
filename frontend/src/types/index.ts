@@ -36,6 +36,14 @@ export interface TraderProfile {
   sparkline: number[];
 }
 
+export interface OpenPosition {
+  asset: string;
+  side: PositionSide;
+  size_usd: number;
+  entry_price: number;
+  leverage: number;
+}
+
 export interface TraderDetail extends TraderProfile {
   recent_positions: {
     asset: string;
@@ -45,7 +53,11 @@ export interface TraderDetail extends TraderProfile {
     price: number | null;
     timestamp: string;
   }[];
+  open_positions?: OpenPosition[];
   behavior_summary: string;
+  inferred_strategy?: string | null;
+  inferred_trading_style?: string | null;
+  inference_confidence?: number | null;
 }
 
 export interface LiquidationZone {
@@ -148,17 +160,21 @@ export interface SmartMoneyRank {
   win_rate: number;
   pnl_change_pct: number;
   strategy_tags: string[];
+  inferred_strategy?: string | null;
   risk_score: number;
   momentum_score: number;
   consistency_score: number;
   sparkline: number[];
 }
 
+export type InsightStance = "buy" | "sell" | "hold";
+
 export interface MarketInsight {
   id: string;
   title: string;
   summary: string;
   asset: string | null;
+  stance: InsightStance;
   confidence: number;
   signals: string[];
   created_at: string;

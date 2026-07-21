@@ -10,7 +10,11 @@ from app.collectors.traders import collect_top_traders
 from app.collectors.liquidations import collect_liquidation_events
 from app.collectors.whales import collect_whale_events
 from app.services.alerts import process_alert_triggers
-from app.services.inference import apply_inference_to_alerts, run_inference_pipeline
+from app.services.inference import (
+    apply_inference_to_alerts,
+    enrich_rankings_with_inference,
+    run_inference_pipeline,
+)
 from app.services.ranking import run_ranking_pipeline
 from app.services.store import store
 
@@ -51,6 +55,7 @@ async def _trader_cycle() -> None:
 async def _inference_cycle() -> None:
     results = await run_inference_pipeline()
     store.whale_alerts = apply_inference_to_alerts(store.whale_alerts)
+    enrich_rankings_with_inference()
     await process_alert_triggers(
         whale_alerts=store.whale_alerts[:3],
         zones=[z for z in store.liquidation_zones if z.size_usd >= 100_000_000][:2],

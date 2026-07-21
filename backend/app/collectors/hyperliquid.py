@@ -80,6 +80,13 @@ def _simulate_market_tick() -> None:
         side = random.choice([PositionSide.LONG, PositionSide.SHORT])
         alert_type = random.choice([AlertType.ENTRY, AlertType.EXIT])
         size = random.uniform(400_000, 4_500_000)
+        inference = store.get_inference(trader.address)
+        if inference:
+            inferred_strategy = inference.strategy
+        elif trader.strategy_tags:
+            inferred_strategy = trader.strategy_tags[0]
+        else:
+            inferred_strategy = "Mixed"
         alert = WhaleAlert(
             id=store.new_id("wa"),
             trader_address=trader.address,
@@ -92,7 +99,7 @@ def _simulate_market_tick() -> None:
             exit_price=round(random.uniform(20, 100_000), 2) if alert_type == AlertType.EXIT else None,
             leverage=round(random.uniform(3, 15), 1),
             win_rate=trader.win_rate,
-            inferred_strategy=trader.strategy_tags[0] if trader.strategy_tags else "Mixed",
+            inferred_strategy=inferred_strategy,
             confidence_score=round(random.uniform(60, 92), 1),
             timestamp=now - timedelta(minutes=random.randint(1, 20)),
         )

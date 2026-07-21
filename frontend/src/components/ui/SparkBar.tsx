@@ -41,26 +41,31 @@ export function SparkBarBackground({
   children,
   color = "accent",
 }: SparkBarBackgroundProps) {
-  const max = Math.max(...values, 1);
+  const max = Math.max(...values.map((v) => Math.abs(v)), 1);
 
   const barColor = {
-    accent: "bg-accent/15",
-    positive: "bg-positive/15",
-    negative: "bg-negative/15",
+    accent: "bg-accent/45",
+    positive: "bg-positive/45",
+    negative: "bg-negative/45",
   }[color];
 
   return (
-    <div className="relative flex items-center gap-3">
-      <div className="absolute inset-0 flex items-end gap-px opacity-60 pointer-events-none">
+    <div className="relative flex min-h-8 min-w-[5.5rem] items-center gap-3">
+      <div className="absolute inset-0 flex items-end gap-0.5 opacity-90 pointer-events-none">
         {values.map((v, i) => (
           <div
             key={i}
             className={clsx("flex-1 rounded-sm", barColor)}
-            style={{ height: `${(v / max) * 60}%`, minHeight: 2 }}
+            style={{
+              height: `${Math.max(12, (Math.abs(v) / max) * 85)}%`,
+              minHeight: 4,
+            }}
           />
         ))}
       </div>
-      <div className="relative z-10">{children}</div>
+      <div className="relative z-10 drop-shadow-[0_0_6px_rgba(0,0,0,0.85)]">
+        {children}
+      </div>
     </div>
   );
 }

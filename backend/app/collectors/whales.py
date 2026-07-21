@@ -164,7 +164,13 @@ async def collect_whale_events() -> list[WhaleAlert]:
             trader = traders_by_addr.get(address)
             alias = trader.alias if trader else f"{address[:6]}...{address[-4:]}"
             win_rate = trader.win_rate if trader else 0.0
-            inferred_strategy = trader.strategy_tags[0] if trader and trader.strategy_tags else "Unknown"
+            inference = store.get_inference(address)
+            if inference:
+                inferred_strategy = inference.strategy
+            elif trader and trader.strategy_tags:
+                inferred_strategy = trader.strategy_tags[0]
+            else:
+                inferred_strategy = "Unknown"
 
             side = PositionSide.LONG if size > 0 else PositionSide.SHORT
             confidence = 75.0

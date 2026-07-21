@@ -9,9 +9,9 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 class Settings(BaseSettings):
     database_url: str = "sqlite:///./hyperpulse.db"
     redis_url: str = "redis://localhost:6379/0"
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:3100"
     api_host: str = "0.0.0.0"
-    api_port: int = 8000
+    api_port: int = 8100
 
     # Hyperliquid
     hyperliquid_api_url: str = "https://api.hyperliquid.xyz"

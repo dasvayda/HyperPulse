@@ -1,6 +1,7 @@
 Set-Location "$PSScriptRoot\.."
 
-Write-Host "Stopping any existing HyperPulse backend on port 8000 ..."
+$port = 8100
+Write-Host "Stopping any existing HyperPulse backend on port $port ..."
 Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
   Where-Object { $_.CommandLine -match 'uvicorn|app\.main' } |
   ForEach-Object {
@@ -12,7 +13,7 @@ Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
     }
   }
 
-$conns = Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue |
+$conns = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue |
   Select-Object -ExpandProperty OwningProcess -Unique
 
 foreach ($procId in $conns) {
@@ -27,21 +28,22 @@ foreach ($procId in $conns) {
 Start-Sleep -Seconds 1
 
 try {
-  $health = Invoke-RestMethod -Uri "http://127.0.0.1:8000/health" -TimeoutSec 2
+  $health = Invoke-RestMethod -Uri "http://127.0.0.1:$port/health" -TimeoutSec 2
   if ($health.status -eq "ok") {
-    Write-Host "Backend already running on http://127.0.0.1:8000"
+    Write-Host "Backend already running on http://127.0.0.1:$port"
     exit 0
   }
 } catch {
   # Port free or server not ready; continue to start.
 }
 
-Write-Host "Starting HyperPulse backend on http://127.0.0.1:8000 ..."
+Write-Host "Starting HyperPulse backend on http://127.0.0.1:$port ..."
 if (-not (Test-Path ".venv")) {
   Write-Error "Python venv (.venv) not found. Run 'python -m venv .venv' in backend first."
   exit 1
 }
 
 $env:PYTHONPATH = "."
+$env:API_PORT = "$port"
 # No --reload: avoids zombie reloader processes and port conflicts on Windows.
-.venv\Scripts\uvicorn.exe app.main:app --host 127.0.0.1 --port 8000
+.venv\Scripts\uvicorn.exe app.main:app --host 127.0.0.1 --port $port

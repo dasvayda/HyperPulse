@@ -338,11 +338,17 @@ export default async function HomePage() {
                 </DataTableCell>
                 <DataTableCell>
                   <div className="flex gap-1 flex-wrap">
-                    {rank.strategy_tags.slice(0, 2).map((tag) => (
-                      <Badge key={tag} variant="accent">
-                        {tag}
-                      </Badge>
-                    ))}
+                    {rank.inferred_strategy ? (
+                      <Badge variant="accent">{rank.inferred_strategy}</Badge>
+                    ) : rank.strategy_tags.length > 0 ? (
+                      rank.strategy_tags.slice(0, 2).map((tag) => (
+                        <Badge key={tag} variant="accent">
+                          {tag}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-xs text-text-dim">—</span>
+                    )}
                   </div>
                 </DataTableCell>
               </DataTableRow>

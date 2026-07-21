@@ -108,3 +108,10 @@ curl -X POST http://localhost:8000/api/v2/pipeline/run
 - Portfolio intelligence
 - Predictive analytics
 - Full Hyperliquid account WebSocket collectors
+
+## writing code rule (코드작성 규칙)
+- 모듈화를 원칙으로 하되, 파편화는 경계한다.
+- 인간과 AI 모두에게 합리적이고, 우아한 코드를 작성한다.
+
+## Design rule
+- 프론트 엔드의 UI는 User 관점에서 친화적이고, 의미있는 내용인지 검증하고 완료한다.

@@ -15,14 +15,28 @@ import type {
   WhaleBookSummary,
 } from "@/types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8100";
 
-async function fetchApi<T>(path: string): Promise<T> {
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+async function fetchApi<T>(
+  path: string,
+  init?: RequestInit & { next?: { revalidate?: number | false } },
+): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     next: { revalidate: 30 },
+    ...init,
   });
   if (!res.ok) {
-    throw new Error(`API error: ${res.status}`);
+    throw new ApiError(res.status, `API error: ${res.status}`);
   }
   return res.json();
 }
@@ -47,7 +61,9 @@ export function getTraders(): Promise<TraderProfile[]> {
 }
 
 export function getTrader(address: string): Promise<TraderDetail> {
-  return fetchApi(`/api/v1/traders/${encodeURIComponent(address)}`);
+  return fetchApi(`/api/v1/traders/${encodeURIComponent(address)}`, {
+    cache: "no-store",
+  });
 }
 
 export function getLiquidationZones(asset?: string): Promise<LiquidationZone[]> {

@@ -73,7 +73,7 @@ export default async function InsightsPage() {
       <h2 className="text-base font-semibold text-text-primary mb-4">
         Market Insights
       </h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-10">
+      <div className="mb-10 grid gap-4 grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))]">
         {insights.map((insight) => (
           <InsightCard key={insight.id} insight={insight} />
         ))}

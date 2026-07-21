@@ -24,6 +24,7 @@ from app.models.schemas import (
     LiquidationEvent,
     LiquidationZone,
     MarketInsight,
+    OpenPosition,
     PipelineStatus,
     SmartMoneyRank,
     StrategyInference,
@@ -259,42 +260,92 @@ class StateStore:
                 updated_at=updated_at,
             )
 
+    def get_inference(self, address: str) -> StrategyInference | None:
+        needle = address.lower()
+        for item in self.inferences:
+            if item.trader_address.lower() == needle:
+                return item
+        return None
+
+    def get_open_positions(self, address: str) -> list[WhalePosition]:
+        needle = address.lower()
+        direct = self.whale_positions_by_trader.get(address)
+        if direct is not None:
+            return direct
+        for key, positions in self.whale_positions_by_trader.items():
+            if key.lower() == needle:
+                return positions
+        return []
+
     def get_trader_detail(self, address: str) -> TraderDetail | None:
+        needle = address.lower()
         for trader in self.traders:
-            if trader.address == address:
-                recent = [a for a in self.whale_alerts if a.trader_address == address][:5]
-                positions = [
-                    {
-                        "asset": a.asset,
-                        "side": a.side.value,
-                        "type": a.alert_type.value,
-                        "size_usd": a.size_usd,
-                        "price": a.entry_price or a.exit_price,
-                        "timestamp": a.timestamp.isoformat(),
-                    }
-                    for a in recent
-                ]
-                inference = next(
-                    (i for i in self.inferences if i.trader_address == address),
-                    None,
+            if trader.address.lower() != needle:
+                continue
+            recent = [
+                a for a in self.whale_alerts if a.trader_address.lower() == needle
+            ][:5]
+            recent_positions = [
+                {
+                    "asset": a.asset,
+                    "side": a.side.value,
+                    "type": a.alert_type.value,
+                    "size_usd": a.size_usd,
+                    "price": a.entry_price or a.exit_price,
+                    "timestamp": a.timestamp.isoformat(),
+                }
+                for a in recent
+            ]
+            open_raw = self.get_open_positions(trader.address)
+            open_positions = [
+                OpenPosition(
+                    asset=p.asset,
+                    side=p.side,
+                    size_usd=p.size_usd,
+                    entry_price=p.entry_price,
+                    leverage=p.leverage,
                 )
-                primary_tag = trader.strategy_tags[0] if trader.strategy_tags else "active"
+                for p in sorted(open_raw, key=lambda p: p.size_usd, reverse=True)
+            ]
+            preferred = trader.preferred_assets or sorted(
+                {p.asset for p in open_positions}
+            )
+            inference = self.get_inference(trader.address)
+            if inference:
+                primary_label = inference.strategy
+            elif trader.strategy_tags:
+                primary_label = trader.strategy_tags[0]
+            else:
+                primary_label = "active"
+            assets_label = ", ".join(preferred) if preferred else "n/a"
+            summary = (
+                f"{trader.alias} is a {primary_label.lower()} trader "
+                f"with {trader.win_rate}% win rate over {trader.total_trades} trades. "
+                f"Prefers {assets_label} with avg hold time "
+                f"of {trader.avg_hold_hours}h."
+            )
+            if open_positions:
+                open_notional = sum(p.size_usd for p in open_positions)
                 summary = (
-                    f"{trader.alias} is a {primary_tag.lower()} trader "
-                    f"with {trader.win_rate}% win rate over {trader.total_trades} trades. "
-                    f"Prefers {', '.join(trader.preferred_assets)} with avg hold time "
-                    f"of {trader.avg_hold_hours}h."
+                    f"{summary} Currently holds {len(open_positions)} open position(s) "
+                    f"totaling ${open_notional:,.0f}."
                 )
-                if inference:
-                    summary = (
-                        f"{summary} AI classifies style as {inference.trading_style} "
-                        f"({inference.strategy}) with {inference.confidence:.0f}% confidence."
-                    )
-                return TraderDetail(
-                    **trader.model_dump(),
-                    recent_positions=positions,
-                    behavior_summary=summary,
+            if inference:
+                summary = (
+                    f"{summary} AI classifies style as {inference.trading_style} "
+                    f"({inference.strategy}) with {inference.confidence:.0f}% confidence."
                 )
+            data = trader.model_dump()
+            data["preferred_assets"] = preferred
+            return TraderDetail(
+                **data,
+                recent_positions=recent_positions,
+                open_positions=open_positions,
+                behavior_summary=summary,
+                inferred_strategy=inference.strategy if inference else None,
+                inferred_trading_style=inference.trading_style if inference else None,
+                inference_confidence=inference.confidence if inference else None,
+            )
         return None
 
     def refresh_dashboard(self) -> DashboardStats:
