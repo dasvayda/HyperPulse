@@ -139,6 +139,8 @@ class StateStore:
         self.whale_positions: list[WhalePosition] = []
         self.whale_positions_by_trader: dict[str, list[WhalePosition]] = {}
         self.whale_summary: WhaleBookSummary | None = None
+        # Latest per-asset Hyperliquid ctx (volume/funding/mark) for live Coin Pulse.
+        self.market_ticks: dict[str, dict] = {}
         self.last_collect_at: datetime | None = None
         self.last_inference_at: datetime | None = None
         self.last_ranking_at: datetime | None = None

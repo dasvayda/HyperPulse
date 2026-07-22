@@ -6,6 +6,37 @@ HyperPulse provides whale tracking, smart money analysis, liquidation radar, and
 
 ---
 
+## Product Goals
+
+HyperPulse is **not** a historical data warehouse or a paid raw-data API business.
+
+**North star:** deliver a **strong insight for the current moment** — something a trader can use on the next decision, not a dense archive to explore.
+
+### What we optimize for
+
+| Principle | Meaning |
+|-----------|---------|
+| Now > history | Prefer live whale bias, open positions, funding/liq skew, and actionable stance over long backfill charts |
+| Simple > exhaustive | Few trustworthy signals beat many competing metrics |
+| Reliable > novel | Every number should be explainable from Hyperliquid state we collect ourselves |
+| Actionable > decorative | UI and alerts should answer *what matters now* and *what to do / watch* |
+| Interpretation > dump | AI/heuristics turn metrics into short insight (buy/sell/hold, risk, style) — not another spreadsheet |
+
+### What we deliberately avoid
+
+- Selling accumulated datasets or competing as a full-market data vendor
+- Dense scanner UIs that surface every cohort, window, and sparkline by default
+- Metrics we cannot verify or that exist only to look “complete”
+- Feature sprawl that dilutes trust in the few signals we do show
+
+Persistence still exists (alerts, traders, snapshots) for product continuity — it is a **means**, not the product.
+
+Design implications are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#product-goals--design-constraints).
+
+Feature backlog (benchmark + checklist): [docs/PRODUCT_BACKLOG.md](docs/PRODUCT_BACKLOG.md).
+
+---
+
 ## Phase Status
 
 | Phase | Feature | Status | Route / API |

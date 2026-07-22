@@ -66,6 +66,8 @@ class MarketSnapshotRow(Base):
     mark_price: Mapped[float] = mapped_column(Float)
     open_interest: Mapped[float] = mapped_column(Float, default=0.0)
     funding_rate: Mapped[float] = mapped_column(Float, default=0.0)
+    day_volume_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    prev_day_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

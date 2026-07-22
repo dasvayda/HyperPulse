@@ -48,3 +48,10 @@ def _migrate_sqlite() -> None:
             conn.execute(text("ALTER TABLE traders ADD COLUMN account_value_usd FLOAT DEFAULT 0"))
         if "volume_usd" not in trader_names:
             conn.execute(text("ALTER TABLE traders ADD COLUMN volume_usd FLOAT DEFAULT 0"))
+
+        snap_columns = conn.execute(text("PRAGMA table_info(market_snapshots)")).fetchall()
+        snap_names = {row[1] for row in snap_columns}
+        if "day_volume_usd" not in snap_names:
+            conn.execute(text("ALTER TABLE market_snapshots ADD COLUMN day_volume_usd FLOAT DEFAULT 0"))
+        if "prev_day_price" not in snap_names:
+            conn.execute(text("ALTER TABLE market_snapshots ADD COLUMN prev_day_price FLOAT"))

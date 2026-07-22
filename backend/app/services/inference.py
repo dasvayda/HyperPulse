@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import logging
@@ -302,9 +302,169 @@ async def run_inference_pipeline() -> list[StrategyInference]:
     return results
 
 
+def _whale_bias_vote(long_pct: float) -> tuple[InsightStance, str]:
+    if long_pct >= 58:
+        return InsightStance.BUY, f"Whales {long_pct:.0f}% long"
+    if long_pct <= 42:
+        return InsightStance.SELL, f"Whales {long_pct:.0f}% long ({100 - long_pct:.0f}% short)"
+    return InsightStance.HOLD, f"Whales balanced ({long_pct:.0f}% long)"
+
+
+def _liq_skew_vote(liq_long: int, liq_short: int) -> tuple[InsightStance, str] | None:
+    total = liq_long + liq_short
+    if total < 3:
+        return None
+    # More long liquidations → downside cascade pressure → lean SELL.
+    # More short liquidations → squeeze risk up → lean BUY.
+    if liq_long >= liq_short * 1.5 and liq_long >= 3:
+        return InsightStance.SELL, f"Liq 24h {liq_long}L / {liq_short}S (long flush)"
+    if liq_short >= liq_long * 1.5 and liq_short >= 3:
+        return InsightStance.BUY, f"Liq 24h {liq_long}L / {liq_short}S (short flush)"
+    return InsightStance.HOLD, f"Liq 24h {liq_long}L / {liq_short}S (mixed)"
+
+
+def _combine_stance_votes(
+    votes: list[InsightStance],
+) -> InsightStance:
+    score = 0
+    for vote in votes:
+        if vote == InsightStance.BUY:
+            score += 1
+        elif vote == InsightStance.SELL:
+            score -= 1
+    if score >= 2:
+        return InsightStance.BUY
+    if score <= -2:
+        return InsightStance.SELL
+    if score > 0:
+        return InsightStance.BUY
+    if score < 0:
+        return InsightStance.SELL
+    return InsightStance.HOLD
+
+
+def _latest_snapshots_by_asset(assets: list[str]) -> dict[str, MarketSnapshotRow]:
+    if not assets:
+        return {}
+    db = SessionLocal()
+    try:
+        out: dict[str, MarketSnapshotRow] = {}
+        for asset in assets:
+            row = (
+                db.query(MarketSnapshotRow)
+                .filter(MarketSnapshotRow.asset == asset)
+                .order_by(MarketSnapshotRow.timestamp.desc())
+                .first()
+            )
+            if row:
+                out[asset] = row
+        return out
+    finally:
+        db.close()
+
+
+def _build_coin_stance_insights(now: datetime) -> list[MarketInsight]:
+    """BL-02: per-coin actionable stance from whale bias + funding + liq skew.
+
+    Only emit a card when at least two signal families are available so the
+    call is more than a single-metric echo of the whale book panel.
+    """
+    summary = store.whale_summary
+    if not summary or not summary.by_asset:
+        return []
+
+    ranked = sorted(
+        summary.by_asset.values(),
+        key=lambda a: a.long_notional_usd + a.short_notional_usd,
+        reverse=True,
+    )[:5]
+    assets = [a.asset for a in ranked]
+    snapshots = _latest_snapshots_by_asset(assets)
+
+    cutoff = now - timedelta(hours=24)
+    liq_counts: dict[str, dict[str, int]] = {}
+    for event in store.liquidation_events:
+        if event.timestamp < cutoff:
+            continue
+        bucket = liq_counts.setdefault(event.asset, {"long": 0, "short": 0})
+        key = "long" if event.side.value == "long" else "short"
+        bucket[key] += 1
+
+    cards: list[MarketInsight] = []
+    for asset_summary in ranked:
+        if len(cards) >= 3:
+            break
+        asset = asset_summary.asset
+        votes: list[InsightStance] = []
+        signal_labels: list[str] = []
+        reason_bits: list[str] = []
+
+        whale_stance, whale_label = _whale_bias_vote(asset_summary.long_pct)
+        votes.append(whale_stance)
+        signal_labels.append(
+            f"Whale L/S: {asset_summary.long_pct:.0f}% / "
+            f"{max(0.0, 100.0 - asset_summary.long_pct):.0f}%"
+        )
+        reason_bits.append(whale_label)
+
+        snapshot = snapshots.get(asset)
+        if snapshot is not None:
+            funding_pct = float(snapshot.funding_rate) * 100.0
+            fund_stance, fund_reason, _ = _funding_stance(funding_pct)
+            votes.append(fund_stance)
+            signal_labels.append(f"Funding: {funding_pct:+.3f}%")
+            reason_bits.append(fund_reason.rstrip("."))
+
+        liq = liq_counts.get(asset, {"long": 0, "short": 0})
+        liq_vote = _liq_skew_vote(liq["long"], liq["short"])
+        if liq_vote is not None:
+            liq_stance, liq_label = liq_vote
+            votes.append(liq_stance)
+            signal_labels.append(f"Liq 24h: {liq['long']}L / {liq['short']}S")
+            reason_bits.append(liq_label)
+
+        # Need whale + at least one other family (funding and/or liq).
+        if len(votes) < 2:
+            continue
+
+        stance = _combine_stance_votes(votes)
+        agree = sum(1 for v in votes if v == stance)
+        confidence = min(92.0, 55.0 + agree * 12.0 + min(15.0, asset_summary.whales))
+        net_label = _format_usd_short(abs(asset_summary.net_notional_usd))
+        net_side = "long" if asset_summary.net_notional_usd >= 0 else "short"
+        action = {
+            InsightStance.BUY: "Lean BUY / favor longs",
+            InsightStance.SELL: "Lean SELL / favor shorts",
+            InsightStance.HOLD: "HOLD - signals conflict or are soft",
+        }[stance]
+
+        cards.append(
+            MarketInsight(
+                id=store.new_id("mi"),
+                title=f"{asset}: {stance.value.upper()} - whale book",
+                summary=(
+                    f"{action}. {'; '.join(reason_bits)}. "
+                    f"Net whale {net_side} {net_label} across {asset_summary.whales} wallets."
+                ),
+                asset=asset,
+                stance=stance,
+                confidence=round(confidence, 1),
+                signals=[
+                    f"Action: {stance.value.upper()}",
+                    *signal_labels[:3],
+                ],
+                created_at=now,
+            )
+        )
+    return cards
+
+
 def _build_market_insights() -> None:
     insights: list[MarketInsight] = []
     now = _utcnow()
+
+    # BL-02 primary: multi-signal per-coin stance cards (max 3).
+    insights.extend(_build_coin_stance_insights(now))
 
     if store.whale_summary and store.whale_summary.with_positions > 0:
         summary = store.whale_summary
@@ -322,7 +482,7 @@ def _build_market_insights() -> None:
         insights.append(
             MarketInsight(
                 id=store.new_id("mi"),
-                title=f"Whales leaning {direction}",
+                title=f"Book-wide: whales leaning {direction}",
                 summary=(
                     f"{whale_action} "
                     f"{summary.with_positions}/{summary.tracked} whales positioned; "
@@ -330,7 +490,7 @@ def _build_market_insights() -> None:
                     f"({summary.long_pct:.0f}%) vs short {_format_usd_short(summary.short_notional_usd)}."
                 ),
                 stance=whale_stance,
-                confidence=78.0,
+                confidence=72.0,
                 signals=[
                     f"Action: {whale_stance.value.upper()}",
                     f"Long share: {summary.long_pct:.0f}%",
@@ -354,39 +514,56 @@ def _build_market_insights() -> None:
         bucket[key] += alert.size_usd
         counts[key] += 1
 
+    # Skip fresh-entry card if that asset already has a multi-signal stance card.
+    covered = {i.asset for i in insights if i.asset}
     if entries:
         asset, totals = max(entries.items(), key=lambda item: item[1]["long"] + item[1]["short"])
-        counts = entry_counts.get(asset, {"long": 0, "short": 0})
-        bias = "long" if totals["long"] >= totals["short"] else "short"
-        entry_stance = InsightStance.BUY if bias == "long" else InsightStance.SELL
-        insights.append(
-            MarketInsight(
-                id=store.new_id("mi"),
-                title=f"Fresh {asset} {bias} bias",
-                summary=(
-                    f"Lean {entry_stance.value.upper()} on {asset}: "
-                    f"{counts['long']} long vs {counts['short']} short whale entries in 24h "
-                    f"({_format_usd_short(totals['long'])} vs {_format_usd_short(totals['short'])})."
-                ),
-                asset=asset,
-                stance=entry_stance,
-                confidence=70.0,
-                signals=[
-                    f"Action: {entry_stance.value.upper()}",
-                    f"Entries: {counts['long']}L / {counts['short']}S",
-                    f"Long size: {_format_usd_short(totals['long'])}",
-                ],
-                created_at=now,
+        if asset not in covered:
+            counts = entry_counts.get(asset, {"long": 0, "short": 0})
+            bias = "long" if totals["long"] >= totals["short"] else "short"
+            entry_stance = InsightStance.BUY if bias == "long" else InsightStance.SELL
+            insights.append(
+                MarketInsight(
+                    id=store.new_id("mi"),
+                    title=f"Fresh {asset} {bias} bias",
+                    summary=(
+                        f"Lean {entry_stance.value.upper()} on {asset}: "
+                        f"{counts['long']} long vs {counts['short']} short whale entries in 24h "
+                        f"({_format_usd_short(totals['long'])} vs {_format_usd_short(totals['short'])})."
+                    ),
+                    asset=asset,
+                    stance=entry_stance,
+                    confidence=70.0,
+                    signals=[
+                        f"Action: {entry_stance.value.upper()}",
+                        f"Entries: {counts['long']}L / {counts['short']}S",
+                        f"Long size: {_format_usd_short(totals['long'])}",
+                    ],
+                    created_at=now,
+                )
             )
-        )
 
     if store.liquidation_zones:
         largest = max(store.liquidation_zones, key=lambda z: z.size_usd)
         liq_cutoff = now - timedelta(hours=24)
-        liq_long = len([e for e in store.liquidation_events if e.asset == largest.asset and e.side.value == "long" and e.timestamp >= liq_cutoff])
-        liq_short = len([e for e in store.liquidation_events if e.asset == largest.asset and e.side.value == "short" and e.timestamp >= liq_cutoff])
-        # Long liq cluster below price → downside cascade risk → lean SELL / caution.
-        # Short liq cluster above price → squeeze risk upward → lean BUY.
+        liq_long = len(
+            [
+                e
+                for e in store.liquidation_events
+                if e.asset == largest.asset
+                and e.side.value == "long"
+                and e.timestamp >= liq_cutoff
+            ]
+        )
+        liq_short = len(
+            [
+                e
+                for e in store.liquidation_events
+                if e.asset == largest.asset
+                and e.side.value == "short"
+                and e.timestamp >= liq_cutoff
+            ]
+        )
         if largest.side.value == "long":
             liq_stance = InsightStance.SELL
             liq_action = (
@@ -420,40 +597,6 @@ def _build_market_insights() -> None:
                     f"Action: {liq_stance.value.upper()}",
                     f"Distance: {largest.distance_pct:+.1f}%",
                     f"Liq 24h: {liq_long}L / {liq_short}S",
-                ],
-                created_at=now,
-            )
-        )
-
-    db = SessionLocal()
-    try:
-        latest_snapshot = (
-            db.query(MarketSnapshotRow)
-            .order_by(MarketSnapshotRow.timestamp.desc())
-            .first()
-        )
-    finally:
-        db.close()
-
-    if latest_snapshot:
-        funding_pct = latest_snapshot.funding_rate * 100
-        fund_stance, fund_reason, fund_conf = _funding_stance(funding_pct)
-        insights.append(
-            MarketInsight(
-                id=store.new_id("mi"),
-                title=f"{latest_snapshot.asset}: {fund_stance.value.upper()} - funding",
-                summary=(
-                    f"{fund_reason} "
-                    f"Funding {funding_pct:+.3f}% | OI {_format_usd_short(latest_snapshot.open_interest)} "
-                    f"| Mark ${latest_snapshot.mark_price:,.0f}."
-                ),
-                asset=latest_snapshot.asset,
-                stance=fund_stance,
-                confidence=round(fund_conf, 1),
-                signals=[
-                    f"Action: {fund_stance.value.upper()}",
-                    f"Funding: {funding_pct:+.3f}%",
-                    f"OI: {_format_usd_short(latest_snapshot.open_interest)}",
                 ],
                 created_at=now,
             )

@@ -4,6 +4,8 @@
 
 HyperPulse is an AI-powered intelligence platform for Hyperliquid traders.
 
+**Product goal:** strong *current-moment* insights that are simple, reliable, and actionable for trading — not selling accumulated data or dense metric dumps. See `README.md` (Product Goals), `docs/ARCHITECTURE.md` (constraints), and `docs/PRODUCT_BACKLOG.md` (canonical backlog + checkboxes).
+
 - **Phase 1**: Whale Alerts, Trader Profiles, Basic Liquidation Radar
 - **Phase 2**: Collectors, persistence, AI strategy inference, smart money ranking, Telegram alerts
 

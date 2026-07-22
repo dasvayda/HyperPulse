@@ -1,6 +1,7 @@
 import type {
   AlertHistoryItem,
   CoinPulse,
+  BiggestPosition,
   DashboardStats,
   LiquidationEvent,
   LiquidationZone,
@@ -115,6 +116,10 @@ export function getCoinPulse(assets: string[] = []): Promise<CoinPulse[]> {
   return fetchApi(`/api/v2/market/coin-pulse${qs}`);
 }
 
+export function getBiggestPositions(limit = 8): Promise<BiggestPosition[]> {
+  return fetchApi(`/api/v2/whale-book/biggest-positions?limit=${limit}`);
+}
+
 export function formatConfidence(value: number): string {
   return `${value.toFixed(0)}%`;
 }
@@ -137,6 +142,13 @@ export function formatPrice(value: number, asset: string): string {
 export function formatPct(value: number): string {
   const sign = value >= 0 ? "+" : "";
   return `${sign}${value.toFixed(1)}%`;
+}
+
+/** Funding is usually a tiny decimal rate; show more precision. */
+export function formatFundingPct(rate: number): string {
+  const pct = rate * 100;
+  const sign = pct >= 0 ? "+" : "";
+  return `${sign}${pct.toFixed(4)}%`;
 }
 
 export function formatTimeAgo(iso: string): string {

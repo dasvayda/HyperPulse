@@ -18,8 +18,26 @@ def _utcnow() -> datetime:
 
 
 def _coins_for_liquidations() -> list[str]:
-  # Prefer assets already visible in zones; fallback to a core set.
+  """Prefer high-volume live markets so Coin Pulse liq columns stay populated."""
+  ticks = store.market_ticks or {}
+  if ticks:
+    ranked = sorted(
+      ticks.values(),
+      key=lambda t: float(t.get("day_volume_usd") or 0.0),
+      reverse=True,
+    )
+    top = [str(t["asset"]) for t in ranked[:12]]
+    if top:
+      return top
+
   assets = {z.asset for z in store.liquidation_zones}
+  if store.whale_summary and store.whale_summary.by_asset:
+    heavy = sorted(
+      store.whale_summary.by_asset.values(),
+      key=lambda a: a.long_notional_usd + a.short_notional_usd,
+      reverse=True,
+    )[:8]
+    assets.update(a.asset for a in heavy)
   if not assets:
     assets = {"BTC", "ETH", "SOL", "HYPE"}
   return sorted(assets)

@@ -10,6 +10,38 @@ AI services generate insights and inferred trader strategies.
 
 ---
 
+## Product Goals & Design Constraints
+
+Canonical product goals also live in [README.md](../README.md#product-goals). Architecture must follow them.
+
+### Goal
+
+Ship **current-moment, high-signal insights** for Hyperliquid trading decisions.
+
+We are **not** building a business around accumulated historical data sales, full-network warehouses, or API tiers that expose raw archives.
+
+### Design constraints
+
+| Constraint | Architectural consequence |
+|------------|---------------------------|
+| Insight over archive | Pipelines optimize for fresh whale book, rankings, inference, and alerts — not multi-year research warehouses |
+| Simple, reliable metrics | Prefer fewer collectors and derived fields we can validate from Hyperliquid `info` / leaderboard / recent trades |
+| Actionable output | Ranking, inference, and alert layers exist to compress state into stance, risk, and copy-worthiness |
+| Scoped universe | Track top / whale traders deeply rather than index every wallet on the network |
+| Persistence is support | DB/Redis store continuity and short-window context; they are not the product surface |
+
+### Feature filter (use when adding work)
+
+Add a feature only if it improves **now-insight** quality for a trader. Reject or defer if it mainly:
+
+- increases metric count without a decision use
+- requires full-market historical indexing to be meaningful
+- duplicates a dense “scanner” without an interpretation layer
+
+Tracked work items and completion checkboxes: [PRODUCT_BACKLOG.md](./PRODUCT_BACKLOG.md).
+
+---
+
 # High-Level Architecture
 
                     ┌─────────────────┐

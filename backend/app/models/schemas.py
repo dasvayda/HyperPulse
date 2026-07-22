@@ -132,18 +132,43 @@ class WhaleBookSummary(BaseModel):
 
 class CoinPulse(BaseModel):
     asset: str
-    whale_long_pct: float
-    whale_net_notional_usd: float
-    whale_positioned: int
-    entries_long_24h: int
-    entries_short_24h: int
-    exits_long_24h: int
-    exits_short_24h: int
-    liq_long_24h: int
-    liq_short_24h: int
+    mark_price: float | None = None
+    change_pct_24h: float | None = None
+    day_volume_usd: float | None = None
     funding_rate: float | None = None
     open_interest: float | None = None
+    open_interest_usd: float | None = None
+    whale_long_pct: float | None = None
+    whale_net_notional_usd: float | None = None
+    whale_positioned: int = 0
+    whale_avg_leverage: float | None = None
+    whale_bias_label: str | None = None
+    whale_oi_pct: float | None = None
+    asset_tag: str | None = None
+    liq_long_usd_24h: float = 0.0
+    liq_short_usd_24h: float = 0.0
+    liq_long_24h: int = 0
+    liq_short_24h: int = 0
+    liq_timeline: list[dict] = []
+    # Legacy fields kept optional so older clients do not break.
+    entries_long_24h: int = 0
+    entries_short_24h: int = 0
+    exits_long_24h: int = 0
+    exits_short_24h: int = 0
+
+
+class BiggestPosition(BaseModel):
+    rank: int
+    trader_address: str
+    trader_alias: str
+    asset: str
+    side: PositionSide
+    size_usd: float
+    entry_price: float
+    leverage: float
     mark_price: float | None = None
+    roi_pct: float | None = None
+    unrealized_pnl_usd: float | None = None
 
 
 class DashboardStats(BaseModel):

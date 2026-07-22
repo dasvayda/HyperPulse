@@ -3,7 +3,13 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime, timezone
 
-from app.models.schemas import AssetWhaleSummary, WhaleBookSummary, WhalePosition
+from app.models.schemas import (
+    AssetWhaleSummary,
+    BiggestPosition,
+    PositionSide,
+    WhaleBookSummary,
+    WhalePosition,
+)
 
 
 def _utcnow() -> datetime:
@@ -107,3 +113,99 @@ def summarize_whale_book(
         updated_at=updated_at,
         by_asset=assets,
     )
+
+
+def whale_bias_label(long_pct: float | None) -> str | None:
+    """Tracked-whale long share label — keep wording distinct from competitor copy."""
+    if long_pct is None:
+        return None
+    if long_pct >= 70:
+        return "Long heavy"
+    if long_pct >= 58:
+        return "Lean long"
+    if long_pct <= 30:
+        return "Short heavy"
+    if long_pct <= 42:
+        return "Lean short"
+    return "Balanced"
+
+
+def asset_market_tag(asset: str) -> str | None:
+    """Cheap tag for non-crypto / HIP-style names without a full meta parse."""
+    upper = asset.upper()
+    if upper.startswith("XYZ"):
+        return "xyz"
+    # Common HIP-3 / tradfi-style symbols seen on Hyperliquid boards.
+    tradfi = {
+        "SP500",
+        "SKHX",
+        "BRENTOIL",
+        "GOLD",
+        "SILVER",
+        "EUR",
+        "JPY",
+        "TSLA",
+        "NVDA",
+        "AAPL",
+        "MSFT",
+        "AMZN",
+        "META",
+        "GOOGL",
+        "COIN",
+        "MSTR",
+        "HOOD",
+        "PLTR",
+        "CRCL",
+        "XYZ100",
+    }
+    if upper in tradfi:
+        return "xyz"
+    return None
+
+
+def list_biggest_positions(
+    positions: list[WhalePosition],
+    *,
+    traders_by_addr: dict[str, str],
+    marks: dict[str, float] | None = None,
+    limit: int = 8,
+) -> list[BiggestPosition]:
+    """Tracked-universe biggest open positions by notional (BL-04)."""
+    from app.services.store import _position_roi
+
+    marks = marks or {}
+    ranked = sorted(positions, key=lambda p: p.size_usd, reverse=True)[: max(1, limit)]
+    out: list[BiggestPosition] = []
+    for idx, pos in enumerate(ranked, start=1):
+        mark = marks.get(pos.asset)
+        roi_pct = None
+        upnl = None
+        if mark and mark > 0:
+            roi_pct, upnl = _position_roi(
+                side=pos.side,
+                entry_price=pos.entry_price,
+                mark_price=mark,
+                size_usd=pos.size_usd,
+                leverage=pos.leverage,
+            )
+        alias = traders_by_addr.get(pos.trader_address) or (
+            f"{pos.trader_address[:6]}...{pos.trader_address[-4:]}"
+            if len(pos.trader_address) > 12
+            else pos.trader_address
+        )
+        out.append(
+            BiggestPosition(
+                rank=idx,
+                trader_address=pos.trader_address,
+                trader_alias=alias,
+                asset=pos.asset,
+                side=pos.side,
+                size_usd=round(pos.size_usd, 2),
+                entry_price=pos.entry_price,
+                leverage=pos.leverage,
+                mark_price=mark,
+                roi_pct=roi_pct,
+                unrealized_pnl_usd=upnl,
+            )
+        )
+    return out

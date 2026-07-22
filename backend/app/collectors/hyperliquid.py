@@ -121,16 +121,46 @@ def _simulate_market_tick() -> None:
 
 
 def _apply_live_meta(data: list | dict) -> None:
-    """Anchor liquidation zones around live mark prices."""
+    """Anchor liquidation zones and refresh in-memory market ticks from live ctx."""
     try:
         meta, contexts = data[0], data[1]
         universe = meta.get("universe", [])
         price_map: dict[str, float] = {}
+        ticks: dict[str, dict] = {}
+        now = _utcnow()
         for idx, ctx in enumerate(contexts):
             name = universe[idx].get("name") if idx < len(universe) else None
-            mark = ctx.get("markPx")
-            if name and mark:
-                price_map[name] = float(mark)
+            if not name or not isinstance(ctx, dict):
+                continue
+            mark_raw = ctx.get("markPx")
+            if mark_raw is None:
+                continue
+            try:
+                mark = float(mark_raw)
+                oi = float(ctx.get("openInterest") or 0)
+                funding = float(ctx.get("funding") or 0)
+                day_vol = float(ctx.get("dayNtlVlm") or 0)
+                prev_raw = ctx.get("prevDayPx")
+                prev_day = float(prev_raw) if prev_raw not in (None, "") else None
+            except (TypeError, ValueError):
+                continue
+            price_map[name] = mark
+            change_pct = None
+            if prev_day and prev_day > 0:
+                change_pct = (mark - prev_day) / prev_day * 100.0
+            ticks[name] = {
+                "asset": name,
+                "mark_price": mark,
+                "open_interest": oi,
+                "funding_rate": funding,
+                "day_volume_usd": day_vol,
+                "prev_day_price": prev_day,
+                "change_pct_24h": round(change_pct, 3) if change_pct is not None else None,
+                "updated_at": now,
+            }
+
+        with store._lock:
+            store.market_ticks = ticks
 
         # Keep relative offsets stable per asset side so zones track the market.
         offsets: dict[tuple[str, str], float] = {}
@@ -195,11 +225,19 @@ async def collect_market_snapshot() -> dict:
                     continue
                 oi = ctx.get("openInterest") or ctx.get("openInterest", "0")
                 funding = ctx.get("funding") or "0"
+                day_vol = ctx.get("dayNtlVlm") or "0"
+                prev_raw = ctx.get("prevDayPx")
+                try:
+                    prev_day = float(prev_raw) if prev_raw not in (None, "") else None
+                except (TypeError, ValueError):
+                    prev_day = None
                 snapshot = MarketSnapshotRow(
                     asset=name,
                     mark_price=float(mark),
                     open_interest=float(oi),
                     funding_rate=float(funding),
+                    day_volume_usd=float(day_vol),
+                    prev_day_price=prev_day,
                     timestamp=now,
                 )
                 db.add(snapshot)

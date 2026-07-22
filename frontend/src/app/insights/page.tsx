@@ -36,7 +36,7 @@ export default async function InsightsPage() {
     <DashboardLayout>
       <PageHeader
         title="AI Strategy Inference"
-        description="Strategy classification, risk profiles, and market commentary"
+        description="Per-coin trade stance from whale bias + funding + liq skew, plus strategy classification"
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

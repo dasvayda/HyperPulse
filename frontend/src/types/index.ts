@@ -113,18 +113,42 @@ export interface WhaleBookSummary {
 
 export interface CoinPulse {
   asset: string;
-  whale_long_pct: number;
-  whale_net_notional_usd: number;
-  whale_positioned: number;
-  entries_long_24h: number;
-  entries_short_24h: number;
-  exits_long_24h: number;
-  exits_short_24h: number;
-  liq_long_24h: number;
-  liq_short_24h: number;
+  mark_price?: number | null;
+  change_pct_24h?: number | null;
+  day_volume_usd?: number | null;
   funding_rate?: number | null;
   open_interest?: number | null;
+  open_interest_usd?: number | null;
+  whale_long_pct?: number | null;
+  whale_net_notional_usd?: number | null;
+  whale_positioned?: number;
+  whale_avg_leverage?: number | null;
+  whale_bias_label?: string | null;
+  whale_oi_pct?: number | null;
+  asset_tag?: string | null;
+  liq_long_usd_24h?: number;
+  liq_short_usd_24h?: number;
+  liq_long_24h?: number;
+  liq_short_24h?: number;
+  liq_timeline?: { long: number; short: number }[];
+  entries_long_24h?: number;
+  entries_short_24h?: number;
+  exits_long_24h?: number;
+  exits_short_24h?: number;
+}
+
+export interface BiggestPosition {
+  rank: number;
+  trader_address: string;
+  trader_alias: string;
+  asset: string;
+  side: PositionSide;
+  size_usd: number;
+  entry_price: number;
+  leverage: number;
   mark_price?: number | null;
+  roi_pct?: number | null;
+  unrealized_pnl_usd?: number | null;
 }
 
 export interface DashboardStats {
