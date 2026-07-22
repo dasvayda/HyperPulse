@@ -105,6 +105,7 @@ def run_ranking_pipeline() -> list[SmartMoneyRank]:
             roi_high=roi_high,
         )
         score_map[trader.address] = score
+        open_roi_pct, open_unrealized_pnl_usd = store.summarize_open_pnl(trader.address)
         scored.append(
             SmartMoneyRank(
                 address=trader.address,
@@ -116,6 +117,8 @@ def run_ranking_pipeline() -> list[SmartMoneyRank]:
                 pnl_change_pct=trader.pnl_change_pct,
                 strategy_tags=trader.strategy_tags,
                 inferred_strategy=inference_map.get(trader.address.lower()),
+                open_roi_pct=open_roi_pct,
+                open_unrealized_pnl_usd=open_unrealized_pnl_usd,
                 risk_score=trader.risk_score,
                 momentum_score=momentum,
                 consistency_score=consistency,

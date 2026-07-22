@@ -42,6 +42,9 @@ export interface OpenPosition {
   size_usd: number;
   entry_price: number;
   leverage: number;
+  mark_price?: number | null;
+  roi_pct?: number | null;
+  unrealized_pnl_usd?: number | null;
 }
 
 export interface TraderDetail extends TraderProfile {
@@ -161,6 +164,8 @@ export interface SmartMoneyRank {
   pnl_change_pct: number;
   strategy_tags: string[];
   inferred_strategy?: string | null;
+  open_roi_pct?: number | null;
+  open_unrealized_pnl_usd?: number | null;
   risk_score: number;
   momentum_score: number;
   consistency_score: number;

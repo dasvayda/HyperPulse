@@ -10,6 +10,7 @@ from app.config import settings
 from app.models.schemas import (
     InsightStance,
     MarketInsight,
+    SmartMoneyRank,
     StrategyInference,
     TraderProfile,
     WhaleAlert,
@@ -499,20 +500,26 @@ def apply_inference_to_alerts(alerts: list[WhaleAlert]) -> list[WhaleAlert]:
 
 
 def enrich_rankings_with_inference() -> None:
-    """Attach latest inference strategy onto existing ranking rows."""
+    """Attach latest inference strategy and refresh open ROI on ranking rows."""
     if not store.rankings:
         return
     inference_map = {
         item.trader_address.lower(): item.strategy for item in store.inferences
     }
-    with store._lock:
-        store.rankings = [
+    # Compute outside the lock — summarize_open_pnl hits the DB.
+    refreshed: list[SmartMoneyRank] = []
+    for rank in list(store.rankings):
+        open_roi_pct, open_unrealized_pnl_usd = store.summarize_open_pnl(rank.address)
+        refreshed.append(
             rank.model_copy(
                 update={
                     "inferred_strategy": inference_map.get(
                         rank.address.lower(), rank.inferred_strategy
-                    )
+                    ),
+                    "open_roi_pct": open_roi_pct,
+                    "open_unrealized_pnl_usd": open_unrealized_pnl_usd,
                 }
             )
-            for rank in store.rankings
-        ]
+        )
+    with store._lock:
+        store.rankings = refreshed

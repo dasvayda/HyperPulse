@@ -11,8 +11,25 @@ import {
   TrendValue,
 } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { SparkBarBackground } from "@/components/ui/SparkBar";
 import { getRankings, formatUsd, formatConfidence } from "@/lib/api";
+
+const SMART_MONEY_SCORE_HELP = (
+  <>
+    <p className="mb-2 font-medium text-text-primary">Live mode formula (0–100)</p>
+    <ul className="mb-2 list-disc space-y-1 pl-4">
+      <li>All-time PnL (log-normalized among peers): 35%</li>
+      <li>All-time ROI / momentum: 30%</li>
+      <li>PnL curve consistency (sparkline): 20%</li>
+      <li>Risk adjustment (100 − risk score): 15%</li>
+    </ul>
+    <p className="text-text-dim">
+      When fill-level win rate / trade counts exist, the score also blends win
+      rate (20%) and reweights the other terms. Higher is better.
+    </p>
+  </>
+);
 
 export default async function RankingsPage() {
   const rankings = await getRankings();
@@ -28,12 +45,35 @@ export default async function RankingsPage() {
         <DataTableHead>
           <DataTableHeaderCell>#</DataTableHeaderCell>
           <DataTableHeaderCell>Trader</DataTableHeaderCell>
-          <DataTableHeaderCell>Smart Money Score</DataTableHeaderCell>
+          <DataTableHeaderCell>
+            <InfoTooltip label="Smart Money Score">{SMART_MONEY_SCORE_HELP}</InfoTooltip>
+          </DataTableHeaderCell>
           <DataTableHeaderCell>All-time PnL</DataTableHeaderCell>
-          <DataTableHeaderCell>Win Rate</DataTableHeaderCell>
-          <DataTableHeaderCell>Momentum</DataTableHeaderCell>
-          <DataTableHeaderCell>Consistency</DataTableHeaderCell>
-          <DataTableHeaderCell>Risk</DataTableHeaderCell>
+          <DataTableHeaderCell>
+            <InfoTooltip label="Open ROI">
+              Current open-position ROI vs entry, side-aware and leverage-scaled.
+              Portfolio value is margin-weighted (sum uPnL / sum notional÷leverage).
+              Shows — when the trader has no priced open positions in the whale book.
+            </InfoTooltip>
+          </DataTableHeaderCell>
+          <DataTableHeaderCell>
+            <InfoTooltip label="Momentum">
+              All-time ROI normalized against the current peer set (same input
+              used at 30% weight in the live Smart Money Score).
+            </InfoTooltip>
+          </DataTableHeaderCell>
+          <DataTableHeaderCell>
+            <InfoTooltip label="Consistency">
+              Stability of the account / PnL sparkline (trend + low volatility).
+              Used at 20% weight in the live Smart Money Score.
+            </InfoTooltip>
+          </DataTableHeaderCell>
+          <DataTableHeaderCell>
+            <InfoTooltip label="Risk">
+              Higher = riskier. Score uses risk adjustment = 100 − risk (15%
+              weight in live mode).
+            </InfoTooltip>
+          </DataTableHeaderCell>
           <DataTableHeaderCell>Strategy</DataTableHeaderCell>
         </DataTableHead>
         <DataTableBody>
@@ -68,8 +108,28 @@ export default async function RankingsPage() {
                   pct={rank.pnl_change_pct}
                 />
               </DataTableCell>
-              <DataTableCell className="text-positive font-medium">
-                {rank.win_rate > 0 ? `${rank.win_rate}%` : "—"}
+              <DataTableCell>
+                {rank.open_roi_pct != null ? (
+                  <div className="flex flex-col">
+                    <span
+                      className={
+                        rank.open_roi_pct >= 0
+                          ? "text-positive font-medium"
+                          : "text-negative font-medium"
+                      }
+                    >
+                      {rank.open_roi_pct >= 0 ? "+" : ""}
+                      {rank.open_roi_pct.toFixed(2)}%
+                    </span>
+                    {rank.open_unrealized_pnl_usd != null && (
+                      <span className="text-xs text-text-dim">
+                        {formatUsd(rank.open_unrealized_pnl_usd)}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-xs text-text-dim">—</span>
+                )}
               </DataTableCell>
               <DataTableCell>{formatConfidence(rank.momentum_score)}</DataTableCell>
               <DataTableCell>
@@ -113,9 +173,10 @@ export default async function RankingsPage() {
       </DataTable>
 
       <p className="text-xs text-text-dim mt-4">
-        Live formula: all-time PnL 35% + ROI 30% + curve stability 20% + risk adjustment 15%.
-        Dollar value is cumulative all-time PnL; green % is all-time ROI (not open-position PnL).
-        Win rate is shown only when fill-level stats are available.
+        Live formula: all-time PnL 35% + ROI/momentum 30% + curve consistency 20% +
+        risk adjustment 15%. Hover the ⓘ next to Smart Money Score for details.
+        All-time PnL $ is cumulative; green % under it is all-time ROI.
+        Open ROI is current unrealized ROI on open positions (not win rate).
       </p>
     </DashboardLayout>
   );

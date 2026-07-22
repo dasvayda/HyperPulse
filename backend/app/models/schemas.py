@@ -68,6 +68,9 @@ class OpenPosition(BaseModel):
     size_usd: float
     entry_price: float
     leverage: float
+    mark_price: float | None = None
+    roi_pct: float | None = None
+    unrealized_pnl_usd: float | None = None
 
 
 class TraderDetail(TraderProfile):
@@ -176,8 +179,10 @@ class SmartMoneyRank(BaseModel):
     rank: int
     smart_money_score: float
     pnl_usd: float
-    win_rate: float
+    win_rate: float = 0.0
     pnl_change_pct: float
+    open_roi_pct: float | None = None
+    open_unrealized_pnl_usd: float | None = None
     strategy_tags: list[str]
     inferred_strategy: str | None = None
     risk_score: float

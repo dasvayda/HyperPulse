@@ -17,7 +17,14 @@ from app.data.seed import (
     WHALE_ALERTS,
 )
 from app.db import SessionLocal
-from app.models.orm import AlertRow, InferenceRow, LiquidationRow, PositionRow, TraderRow
+from app.models.orm import (
+    AlertRow,
+    InferenceRow,
+    LiquidationRow,
+    MarketSnapshotRow,
+    PositionRow,
+    TraderRow,
+)
 from app.models.schemas import (
     AlertHistoryItem,
     DashboardStats,
@@ -26,6 +33,7 @@ from app.models.schemas import (
     MarketInsight,
     OpenPosition,
     PipelineStatus,
+    PositionSide,
     SmartMoneyRank,
     StrategyInference,
     TraderDetail,
@@ -39,6 +47,56 @@ from app.services.whale_book import index_positions_by_trader, summarize_whale_b
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _latest_mark_prices(assets: set[str]) -> dict[str, float]:
+    if not assets:
+        return {}
+    db = SessionLocal()
+    try:
+        marks: dict[str, float] = {}
+        for asset in assets:
+            row = (
+                db.query(MarketSnapshotRow)
+                .filter(MarketSnapshotRow.asset == asset)
+                .order_by(MarketSnapshotRow.timestamp.desc())
+                .first()
+            )
+            if row is not None:
+                marks[asset] = float(row.mark_price)
+        return marks
+    finally:
+        db.close()
+
+
+def _position_roi(
+    *,
+    side: PositionSide,
+    entry_price: float,
+    mark_price: float,
+    size_usd: float,
+    leverage: float,
+) -> tuple[float | None, float | None]:
+    """Return (roi_pct, unrealized_pnl_usd).
+
+    ROI is side-aware entry-vs-mark price move, scaled by leverage
+    (approx. margin ROI). uPnL assumes size_usd is current notional.
+    """
+    if entry_price <= 0 or mark_price <= 0 or size_usd <= 0:
+        return None, None
+    price_move = (mark_price - entry_price) / entry_price
+    if side == PositionSide.SHORT:
+        price_move = -price_move
+    lev = leverage if leverage > 0 else 1.0
+    roi_pct = round(price_move * lev * 100.0, 2)
+    # size_usd ~= qty * mark  =>  qty = size_usd / mark
+    # long pnl = qty * (mark - entry); short pnl = qty * (entry - mark)
+    qty = size_usd / mark_price
+    if side == PositionSide.LONG:
+        unrealized = qty * (mark_price - entry_price)
+    else:
+        unrealized = qty * (entry_price - mark_price)
+    return roi_pct, round(unrealized, 2)
 
 
 _ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
@@ -277,6 +335,42 @@ class StateStore:
                 return positions
         return []
 
+    def summarize_open_pnl(self, address: str) -> tuple[float | None, float | None]:
+        """Return (open_roi_pct, open_unrealized_pnl_usd) for a trader.
+
+        Portfolio ROI approximates margin ROI: sum(uPnL) / sum(notional/leverage).
+        """
+        positions = self.get_open_positions(address)
+        if not positions:
+            return None, None
+        marks = _latest_mark_prices({p.asset for p in positions})
+        total_upnl = 0.0
+        total_margin = 0.0
+        priced = 0
+        for pos in positions:
+            mark = marks.get(pos.asset)
+            if mark is None:
+                continue
+            roi_pct, upnl = _position_roi(
+                side=pos.side,
+                entry_price=pos.entry_price,
+                mark_price=mark,
+                size_usd=pos.size_usd,
+                leverage=pos.leverage,
+            )
+            if upnl is None:
+                continue
+            total_upnl += upnl
+            lev = pos.leverage if pos.leverage > 0 else 1.0
+            total_margin += pos.size_usd / lev
+            priced += 1
+        if priced == 0:
+            return None, None
+        if total_margin <= 0:
+            return None, round(total_upnl, 2)
+        open_roi = round(total_upnl / total_margin * 100.0, 2)
+        return open_roi, round(total_upnl, 2)
+
     def get_trader_detail(self, address: str) -> TraderDetail | None:
         needle = address.lower()
         for trader in self.traders:
@@ -297,16 +391,32 @@ class StateStore:
                 for a in recent
             ]
             open_raw = self.get_open_positions(trader.address)
-            open_positions = [
-                OpenPosition(
-                    asset=p.asset,
-                    side=p.side,
-                    size_usd=p.size_usd,
-                    entry_price=p.entry_price,
-                    leverage=p.leverage,
+            marks = _latest_mark_prices({p.asset for p in open_raw})
+            open_positions: list[OpenPosition] = []
+            for p in sorted(open_raw, key=lambda pos: pos.size_usd, reverse=True):
+                mark = marks.get(p.asset)
+                roi_pct = None
+                unrealized = None
+                if mark is not None:
+                    roi_pct, unrealized = _position_roi(
+                        side=p.side,
+                        entry_price=p.entry_price,
+                        mark_price=mark,
+                        size_usd=p.size_usd,
+                        leverage=p.leverage,
+                    )
+                open_positions.append(
+                    OpenPosition(
+                        asset=p.asset,
+                        side=p.side,
+                        size_usd=p.size_usd,
+                        entry_price=p.entry_price,
+                        leverage=p.leverage,
+                        mark_price=mark,
+                        roi_pct=roi_pct,
+                        unrealized_pnl_usd=unrealized,
+                    )
                 )
-                for p in sorted(open_raw, key=lambda p: p.size_usd, reverse=True)
-            ]
             preferred = trader.preferred_assets or sorted(
                 {p.asset for p in open_positions}
             )

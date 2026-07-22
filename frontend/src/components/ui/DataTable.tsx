@@ -96,7 +96,11 @@ export function StatCard({ label, value, change, positive }: StatCardProps) {
         <p
           className={clsx(
             "text-xs mt-1 font-medium",
-            positive ? "text-positive" : "text-negative",
+            positive === undefined
+              ? "text-text-muted"
+              : positive
+                ? "text-positive"
+                : "text-negative",
           )}
         >
           {change}

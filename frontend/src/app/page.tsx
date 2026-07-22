@@ -13,6 +13,7 @@ import {
   TrendValue,
 } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { SparkBarBackground } from "@/components/ui/SparkBar";
 import { InsightCard } from "@/components/ui/InsightCard";
 import { AlertFeed } from "@/components/ui/AlertFeed";
@@ -304,8 +305,20 @@ export default async function HomePage() {
           <DataTableHead>
             <DataTableHeaderCell>#</DataTableHeaderCell>
             <DataTableHeaderCell>Trader</DataTableHeaderCell>
-            <DataTableHeaderCell>Score</DataTableHeaderCell>
-            <DataTableHeaderCell>Win Rate</DataTableHeaderCell>
+            <DataTableHeaderCell>
+              <InfoTooltip label="Score">
+                <p className="mb-1 font-medium text-text-primary">Smart Money Score</p>
+                <p>
+                  Live: PnL 35% + ROI/momentum 30% + consistency 20% + risk adj 15%.
+                  Hover ⓘ on the full rankings page for the complete breakdown.
+                </p>
+              </InfoTooltip>
+            </DataTableHeaderCell>
+            <DataTableHeaderCell>
+              <InfoTooltip label="Open ROI">
+                Current open-position ROI (entry vs mark, leverage-scaled).
+              </InfoTooltip>
+            </DataTableHeaderCell>
             <DataTableHeaderCell>Momentum</DataTableHeaderCell>
             <DataTableHeaderCell>Strategy</DataTableHeaderCell>
           </DataTableHead>
@@ -330,8 +343,21 @@ export default async function HomePage() {
                     </span>
                   </SparkBarBackground>
                 </DataTableCell>
-                <DataTableCell className="text-positive">
-                  {rank.win_rate}%
+                <DataTableCell>
+                  {rank.open_roi_pct != null ? (
+                    <span
+                      className={
+                        rank.open_roi_pct >= 0
+                          ? "text-positive font-medium"
+                          : "text-negative font-medium"
+                      }
+                    >
+                      {rank.open_roi_pct >= 0 ? "+" : ""}
+                      {rank.open_roi_pct.toFixed(1)}%
+                    </span>
+                  ) : (
+                    <span className="text-xs text-text-dim">—</span>
+                  )}
                 </DataTableCell>
                 <DataTableCell>
                   {formatConfidence(rank.momentum_score)}

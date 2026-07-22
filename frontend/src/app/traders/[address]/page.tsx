@@ -52,6 +52,11 @@ export default async function TraderDetailPage({ params }: Props) {
 
   const openPositions = trader.open_positions ?? [];
   const openNotional = openPositions.reduce((sum, pos) => sum + pos.size_usd, 0);
+  const unrealizedPnl = openPositions.reduce(
+    (sum, pos) => sum + (pos.unrealized_pnl_usd ?? 0),
+    0,
+  );
+  const hasUnrealized = openPositions.some((pos) => pos.unrealized_pnl_usd != null);
 
   return (
     <DashboardLayout>
@@ -73,28 +78,39 @@ export default async function TraderDetailPage({ params }: Props) {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
+          label="Unrealized PnL"
+          value={hasUnrealized ? formatUsd(unrealizedPnl) : "—"}
+          change={
+            hasUnrealized
+              ? `${openPositions.length} open position${openPositions.length === 1 ? "" : "s"}`
+              : "Waiting for mark prices"
+          }
+          positive={hasUnrealized ? unrealizedPnl >= 0 : undefined}
+        />
+        <StatCard
           label="All-time PnL"
           value={formatUsd(trader.pnl_usd)}
           change={formatPct(trader.pnl_change_pct)}
           positive={trader.pnl_change_pct >= 0}
         />
         <StatCard
-          label="Open Positions"
-          value={String(openPositions.length)}
-          change={openPositions.length > 0 ? formatUsd(openNotional) : "No live book yet"}
+          label="Open Notional"
+          value={openPositions.length > 0 ? formatUsd(openNotional) : "—"}
+          change={
+            openPositions.length > 0
+              ? `${openPositions.length} position${openPositions.length === 1 ? "" : "s"}`
+              : "No live book yet"
+          }
           positive={openPositions.length > 0}
         />
         <StatCard
-          label="Win Rate"
-          value={trader.win_rate > 0 ? `${trader.win_rate}%` : "—"}
-        />
-        <StatCard
-          label="Total Trades"
+          label="Account Value"
           value={
-            trader.total_trades > 0
-              ? trader.total_trades.toLocaleString()
+            trader.account_value_usd && trader.account_value_usd > 0
+              ? formatUsd(trader.account_value_usd)
               : "—"
           }
+          change="Hyperliquid account equity"
         />
       </div>
 
@@ -158,6 +174,9 @@ export default async function TraderDetailPage({ params }: Props) {
           <DataTableHeaderCell>Side</DataTableHeaderCell>
           <DataTableHeaderCell>Size</DataTableHeaderCell>
           <DataTableHeaderCell>Entry</DataTableHeaderCell>
+          <DataTableHeaderCell>Mark</DataTableHeaderCell>
+          <DataTableHeaderCell>ROI</DataTableHeaderCell>
+          <DataTableHeaderCell>Unrealized PnL</DataTableHeaderCell>
           <DataTableHeaderCell>Leverage</DataTableHeaderCell>
         </DataTableHead>
         <DataTableBody>
@@ -176,6 +195,40 @@ export default async function TraderDetailPage({ params }: Props) {
                     ? formatPrice(pos.entry_price, pos.asset)
                     : "—"}
                 </DataTableCell>
+                <DataTableCell>
+                  {pos.mark_price
+                    ? formatPrice(pos.mark_price, pos.asset)
+                    : "—"}
+                </DataTableCell>
+                <DataTableCell>
+                  {pos.roi_pct != null ? (
+                    <span
+                      className={
+                        pos.roi_pct >= 0 ? "text-positive font-medium" : "text-negative font-medium"
+                      }
+                    >
+                      {pos.roi_pct >= 0 ? "+" : ""}
+                      {pos.roi_pct.toFixed(2)}%
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </DataTableCell>
+                <DataTableCell>
+                  {pos.unrealized_pnl_usd != null ? (
+                    <span
+                      className={
+                        pos.unrealized_pnl_usd >= 0
+                          ? "text-positive font-medium"
+                          : "text-negative font-medium"
+                      }
+                    >
+                      {formatUsd(pos.unrealized_pnl_usd)}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </DataTableCell>
                 <DataTableCell>{pos.leverage.toFixed(1)}x</DataTableCell>
               </DataTableRow>
             ))
@@ -188,10 +241,18 @@ export default async function TraderDetailPage({ params }: Props) {
               <DataTableCell>—</DataTableCell>
               <DataTableCell>—</DataTableCell>
               <DataTableCell>—</DataTableCell>
+              <DataTableCell>—</DataTableCell>
+              <DataTableCell>—</DataTableCell>
+              <DataTableCell>—</DataTableCell>
             </DataTableRow>
           )}
         </DataTableBody>
       </DataTable>
+      <p className="text-xs text-text-dim mt-2 mb-2">
+        ROI is entry-vs-mark price move, side-aware and scaled by leverage.
+        Unrealized PnL is the open position profit/loss vs entry (not realized).
+        Mark prices come from the latest Hyperliquid market snapshot.
+      </p>
 
       <h3 className="text-base font-semibold text-text-primary mb-4 mt-10">
         Recent Whale Alerts
