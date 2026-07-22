@@ -7,6 +7,12 @@ from datetime import datetime, timezone
 from app.models.schemas import SmartMoneyRank, TraderProfile
 from app.services.store import store
 
+# Smart Money: largest accounts by account value, then score-sorted.
+SMART_MONEY_SIZE = 15
+# Performance Ranking: aim for ~N names via |PnL| or |uPnL| threshold.
+PERFORMANCE_TARGET = 30
+PERFORMANCE_BASE_THRESHOLD_USD = 1_000_000.0
+
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -113,6 +119,7 @@ def run_ranking_pipeline() -> list[SmartMoneyRank]:
                 rank=0,
                 smart_money_score=score,
                 pnl_usd=trader.pnl_usd,
+                account_value_usd=trader.account_value_usd,
                 win_rate=trader.win_rate,
                 pnl_change_pct=trader.pnl_change_pct,
                 strategy_tags=trader.strategy_tags,
@@ -130,6 +137,7 @@ def run_ranking_pipeline() -> list[SmartMoneyRank]:
     for idx, item in enumerate(scored, start=1):
         item.rank = idx
 
+    # Keep trader.rank aligned with full score order (internal / detail links).
     rank_map = {item.address: item.rank for item in scored}
     updated_traders = []
     for trader in traders:
@@ -144,3 +152,84 @@ def run_ranking_pipeline() -> list[SmartMoneyRank]:
     store.persist_traders(updated_traders, score_map)
     store.refresh_dashboard()
     return scored
+
+
+def _eligibility_usd(rank: SmartMoneyRank) -> float:
+    """Max of |all-time PnL| and |open uPnL| — used as Ranking inclusion metric."""
+    return max(abs(rank.pnl_usd), abs(rank.open_unrealized_pnl_usd or 0.0))
+
+
+def select_smart_money_ranks(
+    ranks: list[SmartMoneyRank] | None = None,
+    *,
+    size: int = SMART_MONEY_SIZE,
+) -> list[SmartMoneyRank]:
+    """Largest accounts by account value, then sorted by smart money score."""
+    source = ranks if ranks is not None else store.rankings
+    if not source:
+        return []
+    by_size = sorted(source, key=lambda r: r.account_value_usd, reverse=True)[:size]
+    ordered = sorted(
+        by_size,
+        key=lambda r: (r.smart_money_score, r.pnl_usd, r.account_value_usd),
+        reverse=True,
+    )
+    return [
+        item.model_copy(update={"rank": idx})
+        for idx, item in enumerate(ordered, start=1)
+    ]
+
+
+def resolve_performance_threshold(
+    ranks: list[SmartMoneyRank],
+    *,
+    target: int = PERFORMANCE_TARGET,
+    base_threshold: float = PERFORMANCE_BASE_THRESHOLD_USD,
+) -> float:
+    """Pick |PnL| or |uPnL| floor so ~`target` names qualify.
+
+    Starts from `base_threshold` ($1M). If too many qualify, raise to the
+    target-th metric; if too few, lower to the target-th metric (or 0).
+    """
+    if not ranks:
+        return base_threshold
+    metrics = sorted((_eligibility_usd(r) for r in ranks), reverse=True)
+    if len(metrics) >= target:
+        target_cut = metrics[target - 1]
+    else:
+        target_cut = 0.0
+    qualified_at_base = sum(1 for m in metrics if m >= base_threshold)
+    if qualified_at_base >= target:
+        return max(base_threshold, target_cut)
+    return target_cut
+
+
+def select_performance_ranks(
+    ranks: list[SmartMoneyRank] | None = None,
+    *,
+    target: int = PERFORMANCE_TARGET,
+    base_threshold: float = PERFORMANCE_BASE_THRESHOLD_USD,
+) -> tuple[list[SmartMoneyRank], float]:
+    """Performance Ranking: filter by size threshold, sort Open ROI then PnL."""
+    source = ranks if ranks is not None else store.rankings
+    if not source:
+        return [], base_threshold
+    threshold = resolve_performance_threshold(
+        source, target=target, base_threshold=base_threshold
+    )
+    eligible = [r for r in source if _eligibility_usd(r) >= threshold]
+    eligible.sort(
+        key=lambda r: (
+            r.open_roi_pct is not None,
+            r.open_roi_pct if r.open_roi_pct is not None else float("-inf"),
+            r.pnl_usd,
+            abs(r.open_unrealized_pnl_usd or 0.0),
+        ),
+        reverse=True,
+    )
+    trimmed = eligible[:target]
+    items = [
+        item.model_copy(update={"rank": idx})
+        for idx, item in enumerate(trimmed, start=1)
+    ]
+    return items, threshold

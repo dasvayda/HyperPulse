@@ -44,7 +44,7 @@ export default async function TraderDetailPage({ params }: Props) {
           description={`Could not load profile for ${decoded}. Backend may be restarting — retry in a moment.`}
         />
         <Link href="/traders" className="text-sm text-accent hover:underline">
-          Back to all traders
+          Back to Ranking
         </Link>
       </DashboardLayout>
     );
@@ -310,7 +310,7 @@ export default async function TraderDetailPage({ params }: Props) {
           href="/traders"
           className="text-sm text-accent hover:underline"
         >
-          Back to all traders
+          Back to Ranking
         </Link>
       </div>
     </DashboardLayout>

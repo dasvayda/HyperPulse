@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 
+from app.collectors.whales import fetch_live_open_positions
 from app.models.schemas import (
     DashboardStats,
     LiquidationEvent,
@@ -40,8 +41,9 @@ def list_traders(
 
 
 @router.get("/traders/{address}", response_model=TraderDetail)
-def get_trader(address: str) -> TraderDetail:
-    trader = store.get_trader_detail(address)
+async def get_trader(address: str) -> TraderDetail:
+    live_positions = await fetch_live_open_positions(address)
+    trader = store.get_trader_detail(address, open_positions=live_positions)
     if not trader:
         raise HTTPException(status_code=404, detail="Trader not found")
     return trader

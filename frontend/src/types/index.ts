@@ -160,6 +160,7 @@ export interface SmartMoneyRank {
   rank: number;
   smart_money_score: number;
   pnl_usd: number;
+  account_value_usd?: number;
   win_rate: number;
   pnl_change_pct: number;
   strategy_tags: string[];
@@ -170,6 +171,13 @@ export interface SmartMoneyRank {
   momentum_score: number;
   consistency_score: number;
   sparkline: number[];
+}
+
+export interface PerformanceRankingResponse {
+  threshold_usd: number;
+  target_count: number;
+  base_threshold_usd: number;
+  items: SmartMoneyRank[];
 }
 
 export type InsightStance = "buy" | "sell" | "hold";

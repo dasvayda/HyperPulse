@@ -8,7 +8,7 @@ from typing import Any, Dict, Tuple
 from app.collectors.hyperliquid_client import info as hl_info
 from app.config import settings
 from app.models.schemas import AlertType, PositionSide, WhaleAlert
-from app.models.schemas import WhalePosition
+from app.models.schemas import OpenPosition, WhalePosition
 from app.db import SessionLocal
 from app.models.orm import MarketSnapshotRow
 from app.services.store import store
@@ -64,9 +64,133 @@ def _extract_positions(payload: Any) -> list[dict]:
                 "entry_price": entry_price,
                 "position_value": position_value,
                 "leverage": leverage,
+                "unrealized_pnl": _safe_float(pos.get("unrealizedPnl") or pos.get("unrealized_pnl")),
             }
         )
     return out
+
+
+def _safe_float(value: Any) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except Exception:
+        return None
+
+
+async def fetch_live_positions(
+    address: str,
+    *,
+    update_store: bool = True,
+) -> list[WhalePosition]:
+    """Fetch current open positions from Hyperliquid clearinghouseState.
+
+    Used by trader detail so the UI is not stuck on a stale whale-book cache.
+    On failure, falls back to whatever is already in the in-memory whale book.
+    """
+    if settings.use_mock_data:
+        return store.get_open_positions(address)
+
+    try:
+        state = await hl_info({"type": "clearinghouseState", "user": address})
+    except Exception as exc:
+        logger.warning("live clearinghouseState failed for %s: %s", address, exc)
+        return store.get_open_positions(address)
+
+    if state is None:
+        return store.get_open_positions(address)
+
+    positions: list[WhalePosition] = []
+    for pos in _extract_positions(state):
+        size = pos["size"]
+        if abs(size) < 1e-12:
+            continue
+        positions.append(
+            WhalePosition(
+                trader_address=address,
+                asset=pos["asset"],
+                side=PositionSide.LONG if size > 0 else PositionSide.SHORT,
+                size_usd=abs(float(pos["position_value"])),
+                entry_price=float(pos["entry_price"]),
+                leverage=float(pos["leverage"] or 1.0),
+            )
+        )
+
+    if update_store:
+        store.upsert_trader_positions(address, positions)
+    return positions
+
+
+async def fetch_live_open_positions(address: str) -> list[OpenPosition]:
+    """Live clearinghouse positions enriched with mark / ROI for trader detail."""
+    from app.services.store import _latest_mark_prices, _position_roi
+
+    if settings.use_mock_data:
+        detail = store.get_trader_detail(address)
+        return detail.open_positions if detail else []
+
+    try:
+        state = await hl_info({"type": "clearinghouseState", "user": address})
+    except Exception as exc:
+        logger.warning("live clearinghouseState failed for %s: %s", address, exc)
+        return []
+
+    if not isinstance(state, dict):
+        return []
+
+    raw = _extract_positions(state)
+    whale_positions: list[WhalePosition] = []
+    assets = {str(p["asset"]) for p in raw}
+    marks = _latest_mark_prices(assets)
+    open_positions: list[OpenPosition] = []
+
+    for pos in sorted(raw, key=lambda p: abs(float(p["position_value"])), reverse=True):
+        size = float(pos["size"])
+        if abs(size) < 1e-12:
+            continue
+        asset = str(pos["asset"])
+        size_usd = abs(float(pos["position_value"]))
+        entry = float(pos["entry_price"])
+        leverage = float(pos["leverage"] or 1.0)
+        side = PositionSide.LONG if size > 0 else PositionSide.SHORT
+        implied_mark = abs(float(pos["position_value"]) / size)
+        mark = marks.get(asset) or implied_mark
+        roi_pct, unrealized = _position_roi(
+            side=side,
+            entry_price=entry,
+            mark_price=mark,
+            size_usd=size_usd,
+            leverage=leverage,
+        )
+        if unrealized is None and pos.get("unrealized_pnl") is not None:
+            unrealized = round(float(pos["unrealized_pnl"]), 2)
+
+        whale_positions.append(
+            WhalePosition(
+                trader_address=address,
+                asset=asset,
+                side=side,
+                size_usd=size_usd,
+                entry_price=entry,
+                leverage=leverage,
+            )
+        )
+        open_positions.append(
+            OpenPosition(
+                asset=asset,
+                side=side,
+                size_usd=size_usd,
+                entry_price=entry,
+                leverage=leverage,
+                mark_price=round(mark, 6) if mark else None,
+                roi_pct=roi_pct,
+                unrealized_pnl_usd=unrealized,
+            )
+        )
+
+    store.upsert_trader_positions(address, whale_positions)
+    return open_positions
 
 
 def _latest_mark_price(asset: str) -> float | None:

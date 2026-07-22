@@ -10,6 +10,7 @@ from app.models.schemas import (
     CoinPulse,
     MarketInsight,
     MarketStatus,
+    PerformanceRankingResponse,
     PipelineStatus,
     SmartMoneyRank,
     StrategyInference,
@@ -17,7 +18,14 @@ from app.models.schemas import (
 )
 from app.services.alerts import process_alert_triggers
 from app.services.inference import run_inference_pipeline
-from app.services.ranking import run_ranking_pipeline
+from app.services.ranking import (
+    PERFORMANCE_BASE_THRESHOLD_USD,
+    PERFORMANCE_TARGET,
+    SMART_MONEY_SIZE,
+    run_ranking_pipeline,
+    select_performance_ranks,
+    select_smart_money_ranks,
+)
 from app.services.store import store
 from app.services.whale_book import summarize_whale_book
 
@@ -25,10 +33,28 @@ router = APIRouter(prefix="/api/v2", tags=["v2"])
 
 
 @router.get("/rankings", response_model=list[SmartMoneyRank])
-def list_rankings(limit: int = Query(default=50, le=100)) -> list[SmartMoneyRank]:
+def list_rankings(limit: int = Query(default=SMART_MONEY_SIZE, le=100)) -> list[SmartMoneyRank]:
+    """Smart Money: top accounts by size, ordered by smart money score."""
     if not store.rankings:
         run_ranking_pipeline()
-    return store.rankings[:limit]
+    items = select_smart_money_ranks()
+    return items[:limit]
+
+
+@router.get("/performance", response_model=PerformanceRankingResponse)
+def list_performance_rankings(
+    target: int = Query(default=PERFORMANCE_TARGET, ge=5, le=100),
+) -> PerformanceRankingResponse:
+    """Performance Ranking: Open ROI / PnL among names above auto-tuned |PnL| or |uPnL| floor."""
+    if not store.rankings:
+        run_ranking_pipeline()
+    items, threshold = select_performance_ranks(target=target)
+    return PerformanceRankingResponse(
+        threshold_usd=threshold,
+        target_count=target,
+        base_threshold_usd=PERFORMANCE_BASE_THRESHOLD_USD,
+        items=items,
+    )
 
 
 @router.get("/insights", response_model=list[MarketInsight])

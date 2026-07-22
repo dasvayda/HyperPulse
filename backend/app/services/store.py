@@ -318,6 +318,23 @@ class StateStore:
                 updated_at=updated_at,
             )
 
+    def upsert_trader_positions(self, address: str, positions: list[WhalePosition]) -> None:
+        """Replace one trader's open positions inside the whale book cache."""
+        needle = address.lower()
+        with self._lock:
+            for key in [k for k in list(self.whale_positions_by_trader) if k.lower() == needle]:
+                self.whale_positions_by_trader.pop(key, None)
+            if positions:
+                canonical = positions[0].trader_address
+                self.whale_positions_by_trader[canonical] = list(positions)
+            self.whale_positions = [
+                p for ps in self.whale_positions_by_trader.values() for p in ps
+            ]
+            self.whale_summary = summarize_whale_book(
+                positions=self.whale_positions,
+                tracked=len(self.traders),
+            )
+
     def get_inference(self, address: str) -> StrategyInference | None:
         needle = address.lower()
         for item in self.inferences:
@@ -371,7 +388,13 @@ class StateStore:
         open_roi = round(total_upnl / total_margin * 100.0, 2)
         return open_roi, round(total_upnl, 2)
 
-    def get_trader_detail(self, address: str) -> TraderDetail | None:
+    def get_trader_detail(
+        self,
+        address: str,
+        *,
+        open_positions: list[OpenPosition] | None = None,
+        open_positions_raw: list[WhalePosition] | None = None,
+    ) -> TraderDetail | None:
         needle = address.lower()
         for trader in self.traders:
             if trader.address.lower() != needle:
@@ -390,33 +413,38 @@ class StateStore:
                 }
                 for a in recent
             ]
-            open_raw = self.get_open_positions(trader.address)
-            marks = _latest_mark_prices({p.asset for p in open_raw})
-            open_positions: list[OpenPosition] = []
-            for p in sorted(open_raw, key=lambda pos: pos.size_usd, reverse=True):
-                mark = marks.get(p.asset)
-                roi_pct = None
-                unrealized = None
-                if mark is not None:
-                    roi_pct, unrealized = _position_roi(
-                        side=p.side,
-                        entry_price=p.entry_price,
-                        mark_price=mark,
-                        size_usd=p.size_usd,
-                        leverage=p.leverage,
-                    )
-                open_positions.append(
-                    OpenPosition(
-                        asset=p.asset,
-                        side=p.side,
-                        size_usd=p.size_usd,
-                        entry_price=p.entry_price,
-                        leverage=p.leverage,
-                        mark_price=mark,
-                        roi_pct=roi_pct,
-                        unrealized_pnl_usd=unrealized,
-                    )
+            if open_positions is None:
+                open_raw = (
+                    open_positions_raw
+                    if open_positions_raw is not None
+                    else self.get_open_positions(trader.address)
                 )
+                marks = _latest_mark_prices({p.asset for p in open_raw})
+                open_positions = []
+                for p in sorted(open_raw, key=lambda pos: pos.size_usd, reverse=True):
+                    mark = marks.get(p.asset)
+                    roi_pct = None
+                    unrealized = None
+                    if mark is not None:
+                        roi_pct, unrealized = _position_roi(
+                            side=p.side,
+                            entry_price=p.entry_price,
+                            mark_price=mark,
+                            size_usd=p.size_usd,
+                            leverage=p.leverage,
+                        )
+                    open_positions.append(
+                        OpenPosition(
+                            asset=p.asset,
+                            side=p.side,
+                            size_usd=p.size_usd,
+                            entry_price=p.entry_price,
+                            leverage=p.leverage,
+                            mark_price=mark,
+                            roi_pct=roi_pct,
+                            unrealized_pnl_usd=unrealized,
+                        )
+                    )
             preferred = trader.preferred_assets or sorted(
                 {p.asset for p in open_positions}
             )
@@ -428,23 +456,37 @@ class StateStore:
             else:
                 primary_label = "active"
             assets_label = ", ".join(preferred) if preferred else "n/a"
-            summary = (
-                f"{trader.alias} is a {primary_label.lower()} trader "
-                f"with {trader.win_rate}% win rate over {trader.total_trades} trades. "
-                f"Prefers {assets_label} with avg hold time "
-                f"of {trader.avg_hold_hours}h."
+            parts = [f"{trader.alias} is a {primary_label.lower()} trader."]
+            # Win rate / trade count / hold time are only meaningful when collected.
+            # Live Hyperliquid leaderboard does not provide them (stay at 0).
+            if trader.total_trades > 0:
+                hold = (
+                    f", avg hold {trader.avg_hold_hours:.1f}h"
+                    if trader.avg_hold_hours > 0
+                    else ""
+                )
+                parts.append(
+                    f"Recorded {trader.win_rate:.1f}% win rate over "
+                    f"{trader.total_trades} trades{hold}."
+                )
+            parts.append(
+                f"All-time PnL ${trader.pnl_usd:,.0f} "
+                f"({trader.pnl_change_pct:+.1f}% ROI)."
             )
+            if preferred:
+                parts.append(f"Active on {assets_label}.")
             if open_positions:
                 open_notional = sum(p.size_usd for p in open_positions)
-                summary = (
-                    f"{summary} Currently holds {len(open_positions)} open position(s) "
+                parts.append(
+                    f"Currently holds {len(open_positions)} open position(s) "
                     f"totaling ${open_notional:,.0f}."
                 )
             if inference:
-                summary = (
-                    f"{summary} AI classifies style as {inference.trading_style} "
+                parts.append(
+                    f"AI classifies style as {inference.trading_style} "
                     f"({inference.strategy}) with {inference.confidence:.0f}% confidence."
                 )
+            summary = " ".join(parts)
             data = trader.model_dump()
             data["preferred_assets"] = preferred
             return TraderDetail(

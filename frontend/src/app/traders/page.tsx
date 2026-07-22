@@ -10,20 +10,26 @@ import {
   PageHeader,
   TrendValue,
 } from "@/components/ui/DataTable";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { SparkBarBackground } from "@/components/ui/SparkBar";
-import { getTraders, getPipelineStatus, formatUsd } from "@/lib/api";
+import {
+  getPerformanceRankings,
+  getPipelineStatus,
+  formatUsd,
+} from "@/lib/api";
 
-export default async function TradersPage() {
-  const [traders, pipeline] = await Promise.all([
-    getTraders(),
+export default async function RankingPage() {
+  const [performance, pipeline] = await Promise.all([
+    getPerformanceRankings(),
     getPipelineStatus(),
   ]);
+  const { items, threshold_usd, target_count, base_threshold_usd } = performance;
 
   return (
     <DashboardLayout>
       <PageHeader
-        title="Traders"
-        description="Top traders from the Hyperliquid leaderboard"
+        title="Ranking"
+        description="Open ROI and PnL among traders above an auto-tuned |PnL| or |uPnL| floor"
         actions={
           <span className="text-xs text-text-dim border border-border rounded-full px-3 py-1">
             Data source: {pipeline.data_source}
@@ -35,68 +41,91 @@ export default async function TradersPage() {
         <DataTableHead>
           <DataTableHeaderCell>#</DataTableHeaderCell>
           <DataTableHeaderCell>Trader</DataTableHeaderCell>
-          <DataTableHeaderCell>Account Value</DataTableHeaderCell>
+          <DataTableHeaderCell>
+            <InfoTooltip label="Open ROI">
+              Current open-position ROI (entry vs mark, leverage-scaled). Primary
+              sort key for this list.
+            </InfoTooltip>
+          </DataTableHeaderCell>
           <DataTableHeaderCell>All-time PnL</DataTableHeaderCell>
-          <DataTableHeaderCell>Volume</DataTableHeaderCell>
-          <DataTableHeaderCell>Risk</DataTableHeaderCell>
+          <DataTableHeaderCell>
+            <InfoTooltip label="Open uPnL">
+              Sum of unrealized PnL on open positions. Eligibility uses max(|PnL|,
+              |uPnL|).
+            </InfoTooltip>
+          </DataTableHeaderCell>
+          <DataTableHeaderCell>Account Value</DataTableHeaderCell>
           <DataTableHeaderCell>PnL Curve</DataTableHeaderCell>
         </DataTableHead>
         <DataTableBody>
-          {traders.map((trader) => (
-            <DataTableRow key={trader.address}>
+          {items.map((rank) => (
+            <DataTableRow key={rank.address}>
               <DataTableCell className="text-text-muted font-mono">
-                {trader.rank}
+                {rank.rank}
               </DataTableCell>
               <DataTableCell>
                 <Link
-                  href={`/traders/${encodeURIComponent(trader.address)}`}
+                  href={`/traders/${encodeURIComponent(rank.address)}`}
                   className="flex flex-col"
                 >
                   <span className="text-accent hover:underline font-medium">
-                    {trader.alias}
+                    {rank.alias}
                   </span>
                   <span className="text-xs text-text-dim font-mono">
-                    {trader.address}
+                    {rank.address.slice(0, 10)}…
                   </span>
                 </Link>
               </DataTableCell>
-              <DataTableCell className="font-medium">
-                {formatUsd(trader.account_value_usd)}
+              <DataTableCell>
+                {rank.open_roi_pct != null ? (
+                  <div className="flex flex-col">
+                    <span
+                      className={
+                        rank.open_roi_pct >= 0
+                          ? "text-positive font-medium"
+                          : "text-negative font-medium"
+                      }
+                    >
+                      {rank.open_roi_pct >= 0 ? "+" : ""}
+                      {rank.open_roi_pct.toFixed(2)}%
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-xs text-text-dim">—</span>
+                )}
               </DataTableCell>
               <DataTableCell>
                 <TrendValue
-                  value={formatUsd(trader.pnl_usd)}
-                  pct={trader.pnl_change_pct}
+                  value={formatUsd(rank.pnl_usd)}
+                  pct={rank.pnl_change_pct}
                 />
               </DataTableCell>
-              <DataTableCell className="text-text-muted">
-                {trader.volume_usd > 0 ? formatUsd(trader.volume_usd) : "—"}
-              </DataTableCell>
               <DataTableCell>
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-1.5 rounded-full bg-bg-elevated overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${
-                        trader.risk_score > 70
-                          ? "bg-negative"
-                          : trader.risk_score > 50
-                            ? "bg-accent"
-                            : "bg-positive"
-                      }`}
-                      style={{ width: `${trader.risk_score}%` }}
-                    />
-                  </div>
-                  <span className="text-xs text-text-muted">
-                    {trader.risk_score}
+                {rank.open_unrealized_pnl_usd != null ? (
+                  <span
+                    className={
+                      rank.open_unrealized_pnl_usd >= 0
+                        ? "text-positive font-medium"
+                        : "text-negative font-medium"
+                    }
+                  >
+                    {formatUsd(rank.open_unrealized_pnl_usd)}
                   </span>
-                </div>
+                ) : (
+                  <span className="text-xs text-text-dim">—</span>
+                )}
+              </DataTableCell>
+              <DataTableCell className="text-text-muted">
+                {rank.account_value_usd != null
+                  ? formatUsd(rank.account_value_usd)
+                  : "—"}
               </DataTableCell>
               <DataTableCell>
                 <SparkBarBackground
-                  values={trader.sparkline}
-                  color={trader.pnl_change_pct >= 0 ? "positive" : "negative"}
+                  values={rank.sparkline}
+                  color={rank.pnl_change_pct >= 0 ? "positive" : "negative"}
                 >
-                  <span className="text-xs text-text-dim">day → all-time</span>
+                  <span className="text-xs text-text-dim">curve</span>
                 </SparkBarBackground>
               </DataTableCell>
             </DataTableRow>
@@ -105,9 +134,10 @@ export default async function TradersPage() {
       </DataTable>
 
       <p className="text-xs text-text-dim mt-4">
-        Live leaderboard fields: account value, all-time PnL/ROI, trading volume,
-        window PnL curve, and ROI volatility risk. Win rate, hold time, assets, and
-        strategy require fill-level analytics and are shown on detail pages when available.
+        Inclusion: max(|all-time PnL|, |open uPnL|) ≥ {formatUsd(threshold_usd)}{" "}
+        (auto-tuned near {formatUsd(base_threshold_usd)} so ~{target_count} names
+        appear). Sorted by Open ROI, then all-time PnL. Smart Money (large-account
+        score board) lives under Smart Money in the sidebar.
       </p>
     </DashboardLayout>
   );

@@ -55,8 +55,14 @@ export function WhaleBiasPanel({ summary, className = "" }: WhaleBiasPanelProps)
       {hasPositions ? (
         <>
           <div className="flex items-center justify-between text-xs font-medium">
-            <span className="text-positive">Long {longPct.toFixed(0)}%</span>
-            <span className="text-negative">Short {shortPct.toFixed(0)}%</span>
+            <span className="text-positive">
+              Long {longPct.toFixed(0)}%
+              {mode === "value" ? " by $" : " of whales"}
+            </span>
+            <span className="text-negative">
+              Short {shortPct.toFixed(0)}%
+              {mode === "value" ? " by $" : " of whales"}
+            </span>
           </div>
           <div className="h-3 w-full rounded-full overflow-hidden bg-bg-elevated flex">
             <div
@@ -72,8 +78,8 @@ export function WhaleBiasPanel({ summary, className = "" }: WhaleBiasPanelProps)
             {mode === "value"
               ? `${formatUsd(summary.long_notional_usd)} long vs ${formatUsd(
                   summary.short_notional_usd,
-                )} short`
-              : `${summary.long_whale_count} whales long vs ${summary.short_whale_count} short`}
+                )} short (notional)`
+              : `${summary.long_whale_count} whales net-long vs ${summary.short_whale_count} net-short`}
           </p>
           <p className="text-xs text-text-dim">
             {summary.with_positions}/{summary.tracked} tracked whales positioned

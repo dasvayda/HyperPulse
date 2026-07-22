@@ -37,8 +37,8 @@ export default async function RankingsPage() {
   return (
     <DashboardLayout>
       <PageHeader
-        title="Smart Money Ranking"
-        description="Composite ranking from live Hyperliquid all-time PnL/ROI, curve stability, and risk"
+        title="Smart Money"
+        description="Top 15 accounts by asset size, ordered by Smart Money Score"
       />
 
       <DataTable>
@@ -48,6 +48,7 @@ export default async function RankingsPage() {
           <DataTableHeaderCell>
             <InfoTooltip label="Smart Money Score">{SMART_MONEY_SCORE_HELP}</InfoTooltip>
           </DataTableHeaderCell>
+          <DataTableHeaderCell>Account Value</DataTableHeaderCell>
           <DataTableHeaderCell>All-time PnL</DataTableHeaderCell>
           <DataTableHeaderCell>
             <InfoTooltip label="Open ROI">
@@ -91,7 +92,7 @@ export default async function RankingsPage() {
                     {rank.alias}
                   </span>
                   <span className="text-xs text-text-dim font-mono">
-                    {rank.address}
+                    {rank.address.slice(0, 10)}…
                   </span>
                 </Link>
               </DataTableCell>
@@ -101,6 +102,11 @@ export default async function RankingsPage() {
                     {rank.smart_money_score}
                   </span>
                 </SparkBarBackground>
+              </DataTableCell>
+              <DataTableCell className="font-medium">
+                {rank.account_value_usd != null
+                  ? formatUsd(rank.account_value_usd)
+                  : "—"}
               </DataTableCell>
               <DataTableCell>
                 <TrendValue
@@ -173,10 +179,9 @@ export default async function RankingsPage() {
       </DataTable>
 
       <p className="text-xs text-text-dim mt-4">
-        Live formula: all-time PnL 35% + ROI/momentum 30% + curve consistency 20% +
-        risk adjustment 15%. Hover the ⓘ next to Smart Money Score for details.
-        All-time PnL $ is cumulative; green % under it is all-time ROI.
-        Open ROI is current unrealized ROI on open positions (not win rate).
+        Universe: top 15 traders by account value. Sort: Smart Money Score
+        (PnL 35% + ROI/momentum 30% + consistency 20% + risk adj 15%). For Open
+        ROI / PnL performance board, see Ranking.
       </p>
     </DashboardLayout>
   );

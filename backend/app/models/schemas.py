@@ -179,6 +179,7 @@ class SmartMoneyRank(BaseModel):
     rank: int
     smart_money_score: float
     pnl_usd: float
+    account_value_usd: float = 0.0
     win_rate: float = 0.0
     pnl_change_pct: float
     open_roi_pct: float | None = None
@@ -189,6 +190,15 @@ class SmartMoneyRank(BaseModel):
     momentum_score: float
     consistency_score: float
     sparkline: list[float]
+
+
+class PerformanceRankingResponse(BaseModel):
+    """Open ROI / PnL ranking with an auto-tuned eligibility threshold."""
+
+    threshold_usd: float
+    target_count: int
+    base_threshold_usd: float
+    items: list[SmartMoneyRank]
 
 
 class InsightStance(str, Enum):

@@ -13,6 +13,7 @@ import type {
   TraderProfile,
   WhaleAlert,
   WhaleBookSummary,
+  PerformanceRankingResponse,
 } from "@/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8100";
@@ -78,6 +79,10 @@ export function getLiquidationEvents(asset?: string): Promise<LiquidationEvent[]
 
 export function getRankings(): Promise<SmartMoneyRank[]> {
   return fetchApi("/api/v2/rankings");
+}
+
+export function getPerformanceRankings(): Promise<PerformanceRankingResponse> {
+  return fetchApi("/api/v2/performance");
 }
 
 export function getAIInsights(): Promise<MarketInsight[]> {

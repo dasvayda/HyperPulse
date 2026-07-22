@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from app.collectors.hyperliquid_client import info as hl_info
+from app.collectors.whales import fetch_live_open_positions
 from app.models.schemas import MarketInsight, StrategyInference, TraderDetail
 from app.services.inference import run_inference_pipeline
 from app.services.store import store
@@ -11,7 +11,8 @@ router = APIRouter(prefix="/api/v3", tags=["v3"])
 @router.get("/portfolio/{address}", response_model=TraderDetail)
 async def portfolio(address: str) -> TraderDetail:
     """Return a simple portfolio view backed by current trader detail."""
-    detail = store.get_trader_detail(address)
+    live_positions = await fetch_live_open_positions(address)
+    detail = store.get_trader_detail(address, open_positions=live_positions)
     if not detail:
         raise HTTPException(status_code=404, detail="Trader not found")
     return detail

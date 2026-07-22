@@ -18,8 +18,8 @@ import {
 const NAV_ITEMS = [
   { href: "/", label: "Home", icon: Home },
   { href: "/whale-alerts", label: "Whale Alerts", icon: Bell },
-  { href: "/traders", label: "Traders", icon: Users },
-  { href: "/rankings", label: "Rankings", icon: Trophy },
+  { href: "/traders", label: "Ranking", icon: Trophy },
+  { href: "/rankings", label: "Smart Money", icon: Users },
   { href: "/insights", label: "AI Insights", icon: Brain },
   { href: "/liquidations", label: "Liquidations", icon: Flame },
   { href: "/alerts", label: "Alerts", icon: Send },

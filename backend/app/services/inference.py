@@ -127,12 +127,20 @@ def _heuristic_inference(trader: TraderProfile) -> StrategyInference:
     else:
         risk = "Conservative"
 
+    # Prefer live signals (positions, leverage, PnL/ROI, risk). Win-rate inputs
+    # only contribute when collectors actually populate trade stats.
+    has_trade_stats = trader.total_trades > 0
+    trade_stats_boost = (
+        trader.win_rate * 0.5 + min(trader.total_trades, 500) / 500 * 20
+        if has_trade_stats
+        else min(abs(trader.pnl_change_pct), 80) * 0.25
+        + min(abs(trader.pnl_usd) / 1_000_000, 20)
+    )
     confidence = min(
         95.0,
         max(
             45.0,
-            trader.win_rate * 0.5
-            + min(trader.total_trades, 500) / 500 * 20
+            trade_stats_boost
             + min(avg_lev, 30) / 30 * 10
             + min(len(positions), 5) * 3
             + (100 - abs(trader.risk_score - 60)) * 0.2,
@@ -140,9 +148,23 @@ def _heuristic_inference(trader: TraderProfile) -> StrategyInference:
     )
 
     assets_label = ", ".join(sorted({p.asset for p in positions})) if positions else "n/a"
+    if has_trade_stats:
+        stats_line = (
+            f"{trader.alias} shows {trader.win_rate:.1f}% win rate across "
+            f"{trader.total_trades} trades"
+            + (
+                f" with avg hold {trader.avg_hold_hours:.1f}h. "
+                if trader.avg_hold_hours > 0
+                else ". "
+            )
+        )
+    else:
+        stats_line = (
+            f"{trader.alias} has all-time PnL ${trader.pnl_usd:,.0f} "
+            f"({trader.pnl_change_pct:+.1f}% ROI). "
+        )
     rationale = (
-        f"{trader.alias} shows {trader.win_rate:.1f}% win rate across "
-        f"{trader.total_trades} trades with avg hold {trader.avg_hold_hours:.1f}h. "
+        f"{stats_line}"
         f"Avg leverage {avg_lev:.1f}x across {len(positions)} open positions "
         f"({assets_label}). Turnover ratio {turnover_ratio:.1f}x supports {strategy.lower()} classification."
     )

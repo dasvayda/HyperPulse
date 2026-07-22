@@ -88,10 +88,9 @@ export default async function HomePage() {
           }
           change={
             stats.whale_long_pct != null
-              ? `Long ${stats.whale_long_pct.toFixed(0)}%`
+              ? `By $ size · L ${stats.whale_long_pct.toFixed(0)}% / S ${Math.max(0, 100 - stats.whale_long_pct).toFixed(0)}%`
               : `Provider: ${pipeline.ai_provider}`
           }
-          positive
         />
         <StatCard
           label="Whale Bias"
@@ -271,7 +270,9 @@ export default async function HomePage() {
                   </DataTableCell>
                   <DataTableCell>
                     <div className="text-xs text-text-muted">
-                      Long {row.whale_long_pct.toFixed(0)}% · {netLabel}
+                      By $ · L{row.whale_long_pct.toFixed(0)}% / S
+                      {Math.max(0, 100 - row.whale_long_pct).toFixed(0)}% ·{" "}
+                      {netLabel}
                     </div>
                   </DataTableCell>
                   <DataTableCell className="text-xs text-text-muted">
@@ -295,10 +296,10 @@ export default async function HomePage() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold text-text-primary">
-            Smart Money Ranking
+            Smart Money
           </h2>
           <Link href="/rankings" className="text-xs text-accent hover:underline">
-            Full ranking
+            Top 15 by size
           </Link>
         </div>
         <DataTable>
