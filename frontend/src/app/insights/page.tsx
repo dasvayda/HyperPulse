@@ -11,6 +11,7 @@ import {
   StatCard,
 } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { InsightCard } from "@/components/ui/InsightCard";
 import {
   getAIInsights,
@@ -36,7 +37,7 @@ export default async function InsightsPage() {
     <DashboardLayout>
       <PageHeader
         title="AI Strategy Inference"
-        description="Per-coin trade stance from whale bias + funding + liq skew, plus strategy classification"
+        description="Per-coin prefer long / prefer short / wait calls from whale book + funding + liquidations, plus strategy tags"
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -47,7 +48,19 @@ export default async function InsightsPage() {
           positive
         />
         <StatCard
-          label="Avg Confidence"
+          label={
+            <InfoTooltip label="Avg Confidence">
+              <p className="mb-1 font-medium text-text-primary">
+                Average strategy confidence
+              </p>
+              <p>
+                Mean of each tracked whale&apos;s strategy-tag confidence (0–100).
+                Higher = the model/heuristic is more sure the style label (e.g.
+                Momentum) fits. It is not win rate, PnL, or signal strength for
+                BUY/SELL cards.
+              </p>
+            </InfoTooltip>
+          }
           value={formatConfidence(avgConfidence)}
           change="Across tracked whales"
           positive

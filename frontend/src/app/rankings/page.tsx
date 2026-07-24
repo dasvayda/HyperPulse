@@ -12,17 +12,19 @@ import {
 } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
-import { SparkBarBackground } from "@/components/ui/SparkBar";
+import { ScoreMeter, SwingLabel } from "@/components/ui/ScoreMeter";
 import { getRankings, formatUsd, formatConfidence } from "@/lib/api";
 
 const SMART_MONEY_SCORE_HELP = (
   <>
-    <p className="mb-2 font-medium text-text-primary">Live mode formula (0–100)</p>
+    <p className="mb-2 font-medium text-text-primary">
+      Score out of 100 — bar fill = how close to max
+    </p>
     <ul className="mb-2 list-disc space-y-1 pl-4">
       <li>All-time PnL (log-normalized among peers): 35%</li>
       <li>All-time ROI / momentum: 30%</li>
-      <li>PnL curve consistency (sparkline): 20%</li>
-      <li>Risk adjustment (100 − risk score): 15%</li>
+      <li>Day/Week/Month PnL stability: 20%</li>
+      <li>ROI swing adjustment (steadier → higher): 15%</li>
     </ul>
     <p className="text-text-dim">
       When fill-level win rate / trade counts exist, the score also blends win
@@ -46,7 +48,9 @@ export default async function RankingsPage() {
           <DataTableHeaderCell>#</DataTableHeaderCell>
           <DataTableHeaderCell>Trader</DataTableHeaderCell>
           <DataTableHeaderCell>
-            <InfoTooltip label="Smart Money Score">{SMART_MONEY_SCORE_HELP}</InfoTooltip>
+            <InfoTooltip label="Smart Money Score">
+              {SMART_MONEY_SCORE_HELP}
+            </InfoTooltip>
           </DataTableHeaderCell>
           <DataTableHeaderCell>Account Value</DataTableHeaderCell>
           <DataTableHeaderCell>All-time PnL</DataTableHeaderCell>
@@ -65,14 +69,16 @@ export default async function RankingsPage() {
           </DataTableHeaderCell>
           <DataTableHeaderCell>
             <InfoTooltip label="Consistency">
-              Stability of the account / PnL sparkline (trend + low volatility).
+              Stability of Day/Week/Month PnL (trend + low volatility).
               Used at 20% weight in the live Smart Money Score.
             </InfoTooltip>
           </DataTableHeaderCell>
           <DataTableHeaderCell>
-            <InfoTooltip label="Risk">
-              Higher = riskier. Score uses risk adjustment = 100 − risk (15%
-              weight in live mode).
+            <InfoTooltip label="Swing">
+              How jumpy Day / Week / Month / All-time ROI is across those
+              windows. Low = steadier, High = big swings. Not leverage and not
+              &quot;risk of ruin.&quot; (Multi-position leverage would need a
+              size-weighted avg — shown on trader detail when we have opens.)
             </InfoTooltip>
           </DataTableHeaderCell>
           <DataTableHeaderCell>Strategy</DataTableHeaderCell>
@@ -97,11 +103,7 @@ export default async function RankingsPage() {
                 </Link>
               </DataTableCell>
               <DataTableCell>
-                <SparkBarBackground values={rank.sparkline}>
-                  <span className="text-lg font-semibold text-accent">
-                    {rank.smart_money_score}
-                  </span>
-                </SparkBarBackground>
+                <ScoreMeter value={rank.smart_money_score} />
               </DataTableCell>
               <DataTableCell className="font-medium">
                 {rank.account_value_usd != null
@@ -142,21 +144,7 @@ export default async function RankingsPage() {
                 {formatConfidence(rank.consistency_score)}
               </DataTableCell>
               <DataTableCell>
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-1.5 rounded-full bg-bg-elevated overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${
-                        rank.risk_score > 70
-                          ? "bg-negative"
-                          : rank.risk_score > 50
-                            ? "bg-accent"
-                            : "bg-positive"
-                      }`}
-                      style={{ width: `${rank.risk_score}%` }}
-                    />
-                  </div>
-                  <span className="text-xs text-text-muted">{rank.risk_score}</span>
-                </div>
+                <SwingLabel riskScore={rank.risk_score} />
               </DataTableCell>
               <DataTableCell>
                 <div className="flex gap-1 flex-wrap">
@@ -180,7 +168,7 @@ export default async function RankingsPage() {
 
       <p className="text-xs text-text-dim mt-4">
         Universe: top 15 traders by account value. Sort: Smart Money Score
-        (PnL 35% + ROI/momentum 30% + consistency 20% + risk adj 15%). For Open
+        (PnL 35% + ROI/momentum 30% + consistency 20% + swing adj 15%). For Open
         ROI / PnL performance board, see Ranking.
       </p>
     </DashboardLayout>

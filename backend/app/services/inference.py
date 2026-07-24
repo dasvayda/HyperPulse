@@ -40,13 +40,13 @@ def _funding_stance(funding_pct: float) -> tuple[InsightStance, str, float]:
     if funding_pct >= 0.01:
         return (
             InsightStance.SELL,
-            "Funding is elevated - longs look crowded; lean short / reduce long risk.",
+            "Funding is elevated - longs look crowded; prefer shorts / cut long risk.",
             min(90.0, 60.0 + funding_pct * 800),
         )
     if funding_pct <= -0.01:
         return (
             InsightStance.BUY,
-            "Funding is deeply negative - shorts look crowded; lean long / cover shorts.",
+            "Funding is deeply negative - shorts look crowded; prefer longs / cover shorts.",
             min(90.0, 60.0 + abs(funding_pct) * 800),
         )
     if funding_pct >= 0.005:
@@ -314,8 +314,8 @@ def _liq_skew_vote(liq_long: int, liq_short: int) -> tuple[InsightStance, str] |
     total = liq_long + liq_short
     if total < 3:
         return None
-    # More long liquidations → downside cascade pressure → lean SELL.
-    # More short liquidations → squeeze risk up → lean BUY.
+    # More long liquidations → downside cascade pressure → prefer shorts.
+    # More short liquidations → squeeze risk up → prefer longs.
     if liq_long >= liq_short * 1.5 and liq_long >= 3:
         return InsightStance.SELL, f"Liq 24h {liq_long}L / {liq_short}S (long flush)"
     if liq_short >= liq_long * 1.5 and liq_short >= 3:
@@ -433,9 +433,9 @@ def _build_coin_stance_insights(now: datetime) -> list[MarketInsight]:
         net_label = _format_usd_short(abs(asset_summary.net_notional_usd))
         net_side = "long" if asset_summary.net_notional_usd >= 0 else "short"
         action = {
-            InsightStance.BUY: "Lean BUY / favor longs",
-            InsightStance.SELL: "Lean SELL / favor shorts",
-            InsightStance.HOLD: "HOLD - signals conflict or are soft",
+            InsightStance.BUY: "Prefer longs",
+            InsightStance.SELL: "Prefer shorts",
+            InsightStance.HOLD: "No clear direction — wait",
         }[stance]
 
         cards.append(
@@ -569,17 +569,17 @@ def _build_market_insights() -> None:
         direction = summary.net_bias.upper()
         if summary.long_pct >= 58:
             whale_stance = InsightStance.BUY
-            whale_action = "Follow whale net-long bias: lean BUY / stay long-biased."
+            whale_action = "Whales are net long: prefer longs."
         elif summary.long_pct <= 42:
             whale_stance = InsightStance.SELL
-            whale_action = "Follow whale net-short bias: lean SELL / stay short-biased."
+            whale_action = "Whales are net short: prefer shorts."
         else:
             whale_stance = InsightStance.HOLD
             whale_action = "Whale long/short split is balanced - no clean directional call."
         insights.append(
             MarketInsight(
                 id=store.new_id("mi"),
-                title=f"Book-wide: whales leaning {direction}",
+                title=f"Book-wide: whales net {direction}",
                 summary=(
                     f"{whale_action} "
                     f"{summary.with_positions}/{summary.tracked} whales positioned; "
@@ -591,7 +591,7 @@ def _build_market_insights() -> None:
                 signals=[
                     f"Action: {whale_stance.value.upper()}",
                     f"Long share: {summary.long_pct:.0f}%",
-                    f"Net bias: {direction} ({net_label})",
+                    f"Net: {direction} ({net_label})",
                 ],
                 created_at=now,
             )
@@ -622,9 +622,9 @@ def _build_market_insights() -> None:
             insights.append(
                 MarketInsight(
                     id=store.new_id("mi"),
-                    title=f"Fresh {asset} {bias} bias",
+                    title=f"Fresh {asset} {bias} entries",
                     summary=(
-                        f"Lean {entry_stance.value.upper()} on {asset}: "
+                        f"{'Prefer longs' if entry_stance == InsightStance.BUY else 'Prefer shorts'} on {asset}: "
                         f"{counts['long']} long vs {counts['short']} short whale entries in 24h "
                         f"({_format_usd_short(totals['long'])} vs {_format_usd_short(totals['short'])})."
                     ),
@@ -664,13 +664,13 @@ def _build_market_insights() -> None:
         if largest.side.value == "long":
             liq_stance = InsightStance.SELL
             liq_action = (
-                f"Lean SELL / tighten longs: large LONG liquidation magnet at "
+                f"Prefer shorts — cut or avoid longs: large LONG liquidation magnet at "
                 f"${largest.price:,.0f}."
             )
         else:
             liq_stance = InsightStance.BUY
             liq_action = (
-                f"Lean BUY / cover shorts: large SHORT liquidation magnet at "
+                f"Prefer longs — cut or avoid shorts: large SHORT liquidation magnet at "
                 f"${largest.price:,.0f}."
             )
         if abs(largest.distance_pct) > 8:

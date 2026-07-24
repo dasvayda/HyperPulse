@@ -116,18 +116,18 @@ def summarize_whale_book(
 
 
 def whale_bias_label(long_pct: float | None) -> str | None:
-    """Tracked-whale long share label — keep wording distinct from competitor copy."""
+    """Tracked-whale long share — retail-friendly long/short wording."""
     if long_pct is None:
         return None
     if long_pct >= 70:
         return "Long heavy"
     if long_pct >= 58:
-        return "Lean long"
+        return "Mostly long"
     if long_pct <= 30:
         return "Short heavy"
     if long_pct <= 42:
-        return "Lean short"
-    return "Balanced"
+        return "Mostly short"
+    return "Mixed"
 
 
 def asset_market_tag(asset: str) -> str | None:

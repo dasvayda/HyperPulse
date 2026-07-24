@@ -81,7 +81,7 @@ export function DataTableCell({
 }
 
 interface StatCardProps {
-  label: string;
+  label: React.ReactNode;
   value: string;
   change?: string;
   positive?: boolean;
@@ -90,7 +90,7 @@ interface StatCardProps {
 export function StatCard({ label, value, change, positive }: StatCardProps) {
   return (
     <div className="rounded-xl border border-border bg-bg-surface p-5">
-      <p className="text-xs text-text-muted mb-1">{label}</p>
+      <div className="text-xs text-text-muted mb-1">{label}</div>
       <p className="text-2xl font-semibold text-text-primary">{value}</p>
       {change && (
         <p

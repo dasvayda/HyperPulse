@@ -11,7 +11,7 @@ import {
   TrendValue,
 } from "@/components/ui/DataTable";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
-import { SparkBarBackground } from "@/components/ui/SparkBar";
+import { WindowPnlBars } from "@/components/ui/SparkBar";
 import {
   getPerformanceRankings,
   getPipelineStatus,
@@ -55,7 +55,13 @@ export default async function RankingPage() {
             </InfoTooltip>
           </DataTableHeaderCell>
           <DataTableHeaderCell>Account Value</DataTableHeaderCell>
-          <DataTableHeaderCell>PnL Curve</DataTableHeaderCell>
+          <DataTableHeaderCell>
+            <InfoTooltip label="D / W / M">
+              Day, Week, Month PnL from the Hyperliquid leaderboard — not an
+              equity curve. Green = profit in that window, red = loss. Bar height
+              compares those three only (all-time is the All-time PnL column).
+            </InfoTooltip>
+          </DataTableHeaderCell>
         </DataTableHead>
         <DataTableBody>
           {items.map((rank) => (
@@ -121,12 +127,7 @@ export default async function RankingPage() {
                   : "—"}
               </DataTableCell>
               <DataTableCell>
-                <SparkBarBackground
-                  values={rank.sparkline}
-                  color={rank.pnl_change_pct >= 0 ? "positive" : "negative"}
-                >
-                  <span className="text-xs text-text-dim">curve</span>
-                </SparkBarBackground>
+                <WindowPnlBars values={rank.sparkline} />
               </DataTableCell>
             </DataTableRow>
           ))}

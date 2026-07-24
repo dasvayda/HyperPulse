@@ -124,6 +124,13 @@ export function formatConfidence(value: number): string {
   return `${value.toFixed(0)}%`;
 }
 
+/** Composite scores on a fixed 0–100 scale (e.g. Smart Money Score). */
+export function formatScore100(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  return `${text} / 100`;
+}
+
 export function formatUsd(value: number): string {
   const sign = value < 0 ? "-" : "";
   const abs = Math.abs(value);

@@ -12,7 +12,8 @@ import {
   StatCard,
 } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
-import { SparkBar } from "@/components/ui/SparkBar";
+import { WindowPnlBars } from "@/components/ui/SparkBar";
+import { SwingLabel } from "@/components/ui/ScoreMeter";
 import {
   ApiError,
   getTrader,
@@ -45,6 +46,10 @@ export default async function TraderDetailPage({ params }: Props) {
         />
         <Link href="/traders" className="text-sm text-accent hover:underline">
           Back to Ranking
+        </Link>
+        <span className="text-text-dim mx-2">·</span>
+        <Link href="/whale-alerts" className="text-sm text-accent hover:underline">
+          Back to Whale Alerts
         </Link>
       </DashboardLayout>
     );
@@ -138,18 +143,17 @@ export default async function TraderDetailPage({ params }: Props) {
         </div>
 
         <div className="rounded-xl border border-border bg-bg-surface p-5">
-          <h3 className="text-sm font-semibold text-text-primary mb-3">
-            Performance Trend
+          <h3 className="text-sm font-semibold text-text-primary mb-1">
+            Day / Week / Month PnL
           </h3>
-          <SparkBar
-            values={trader.sparkline}
-            color={trader.pnl_change_pct >= 0 ? "positive" : "negative"}
-            className="h-16 gap-1"
-          />
+          <p className="text-xs text-text-dim mb-3">
+            Leaderboard windows — green profit, red loss (not an equity curve)
+          </p>
+          <WindowPnlBars values={trader.sparkline} className="min-w-0 max-w-[8rem]" />
           <div className="mt-4 space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-text-muted">Risk Score</span>
-              <span className="font-medium">{trader.risk_score}/100</span>
+              <span className="text-text-muted">ROI swing</span>
+              <SwingLabel riskScore={trader.risk_score} />
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-text-muted">Rank</span>

@@ -18,6 +18,7 @@ import { SparkBarBackground } from "@/components/ui/SparkBar";
 import { InsightCard } from "@/components/ui/InsightCard";
 import { AlertFeed } from "@/components/ui/AlertFeed";
 import { WhaleBiasPanel } from "@/components/ui/WhaleBiasPanel";
+import { ScoreMeter } from "@/components/ui/ScoreMeter";
 import {
   getDashboardStats,
   getWhaleAlerts,
@@ -33,6 +34,7 @@ import {
   formatUsd,
   formatTimeAgo,
   formatConfidence,
+  formatScore100,
   formatPct,
   formatFundingPct,
   formatPrice,
@@ -128,10 +130,10 @@ export default async function HomePage() {
           label="Avg Smart Money"
           value={
             stats.avg_smart_money_score != null
-              ? String(stats.avg_smart_money_score)
+              ? formatScore100(stats.avg_smart_money_score)
               : "—"
           }
-          change="Composite score"
+          change="Out of 100"
           positive
         />
         <StatCard
@@ -142,91 +144,6 @@ export default async function HomePage() {
           }
           positive={pipeline.telegram_configured}
         />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
-        <div className="rounded-xl border border-border bg-bg-surface p-5">
-          <h2 className="text-sm font-semibold text-text-primary mb-3">
-            Hyperliquid Market Status
-          </h2>
-          <dl className="space-y-1 text-xs text-text-muted">
-            <div className="flex justify-between">
-              <dt>Top asset</dt>
-              <dd className="text-text-primary">
-                {market.top_asset ?? stats.top_asset}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt>Last snapshot</dt>
-              <dd>
-                {market.last_snapshot_at
-                  ? formatTimeAgo(market.last_snapshot_at)
-                  : "—"}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt>Last liquidation</dt>
-              <dd>
-                {market.last_liquidation_at
-                  ? formatTimeAgo(market.last_liquidation_at)
-                  : "—"}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt>Liquidations (24h)</dt>
-              <dd>{market.liquidation_events_24h}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt>Source</dt>
-              <dd className={market.has_live_market ? "text-positive" : ""}>
-                {market.has_live_market ? "live" : "no data yet"}
-              </dd>
-            </div>
-          </dl>
-        </div>
-        <div className="rounded-xl border border-border bg-bg-surface p-5">
-          <h2 className="text-sm font-semibold text-text-primary mb-3">
-            Pipeline Status
-          </h2>
-          <dl className="space-y-1 text-xs text-text-muted">
-            <div className="flex justify-between">
-              <dt>Collectors</dt>
-              <dd>
-                {pipeline.last_collect_at
-                  ? formatTimeAgo(pipeline.last_collect_at)
-                  : "—"}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt>Inference</dt>
-              <dd>
-                {pipeline.last_inference_at
-                  ? formatTimeAgo(pipeline.last_inference_at)
-                  : "—"}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt>Ranking</dt>
-              <dd>
-                {pipeline.last_ranking_at
-                  ? formatTimeAgo(pipeline.last_ranking_at)
-                  : "—"}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt>Tracked traders</dt>
-              <dd>{pipeline.traders_tracked}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt>Inferences</dt>
-              <dd>{pipeline.inferences_count}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt>Alerts</dt>
-              <dd>{pipeline.alerts_count}</dd>
-            </div>
-          </dl>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -303,9 +220,9 @@ export default async function HomePage() {
               const biasClass =
                 bias == null
                   ? "text-text-dim"
-                  : bias.includes("long")
+                  : bias.toLowerCase().includes("long")
                     ? "text-positive"
-                    : bias.includes("short")
+                    : bias.toLowerCase().includes("short")
                       ? "text-negative"
                       : "text-text-muted";
               const oiUsd = row.open_interest_usd ?? 0;
@@ -426,7 +343,7 @@ export default async function HomePage() {
                     {row.whale_long_pct != null ? (
                       <div className="flex items-baseline gap-2 whitespace-nowrap">
                         <span className={`text-xs font-medium ${biasClass}`}>
-                          {bias ?? "Balanced"}
+                          {bias ?? "Mixed"}
                         </span>
                         <span className="text-[11px] text-text-dim">
                           L{row.whale_long_pct.toFixed(0)}%
@@ -561,10 +478,13 @@ export default async function HomePage() {
             <DataTableHeaderCell>Trader</DataTableHeaderCell>
             <DataTableHeaderCell>
               <InfoTooltip label="Score">
-                <p className="mb-1 font-medium text-text-primary">Smart Money Score</p>
+                <p className="mb-1 font-medium text-text-primary">
+                  Smart Money Score (out of 100)
+                </p>
                 <p>
-                  Live: PnL 35% + ROI/momentum 30% + consistency 20% + risk adj 15%.
-                  Hover ⓘ on the full rankings page for the complete breakdown.
+                  Live: PnL 35% + ROI/momentum 30% + consistency 20% + swing adj
+                  15%. Bar fill = score / 100. Hover ⓘ on Smart Money for the
+                  full breakdown.
                 </p>
               </InfoTooltip>
             </DataTableHeaderCell>
@@ -591,11 +511,7 @@ export default async function HomePage() {
                   </Link>
                 </DataTableCell>
                 <DataTableCell>
-                  <SparkBarBackground values={rank.sparkline}>
-                    <span className="font-semibold text-accent">
-                      {rank.smart_money_score}
-                    </span>
-                  </SparkBarBackground>
+                  <ScoreMeter value={rank.smart_money_score} size="sm" />
                 </DataTableCell>
                 <DataTableCell>
                   {rank.open_roi_pct != null ? (
@@ -735,6 +651,96 @@ export default async function HomePage() {
               ))}
             </DataTableBody>
           </DataTable>
+        </div>
+      </div>
+
+      <div className="mt-2 mb-2">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-text-dim mb-3">
+          Service health
+        </h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="rounded-xl border border-border bg-bg-surface p-5">
+            <h3 className="text-sm font-semibold text-text-primary mb-3">
+              Hyperliquid Market Status
+            </h3>
+            <dl className="space-y-1 text-xs text-text-muted">
+              <div className="flex justify-between">
+                <dt>Top asset</dt>
+                <dd className="text-text-primary">
+                  {market.top_asset ?? stats.top_asset}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt>Last snapshot</dt>
+                <dd>
+                  {market.last_snapshot_at
+                    ? formatTimeAgo(market.last_snapshot_at)
+                    : "—"}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt>Last liquidation</dt>
+                <dd>
+                  {market.last_liquidation_at
+                    ? formatTimeAgo(market.last_liquidation_at)
+                    : "—"}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt>Liquidations (24h)</dt>
+                <dd>{market.liquidation_events_24h}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt>Source</dt>
+                <dd className={market.has_live_market ? "text-positive" : ""}>
+                  {market.has_live_market ? "live" : "no data yet"}
+                </dd>
+              </div>
+            </dl>
+          </div>
+          <div className="rounded-xl border border-border bg-bg-surface p-5">
+            <h3 className="text-sm font-semibold text-text-primary mb-3">
+              Pipeline Status
+            </h3>
+            <dl className="space-y-1 text-xs text-text-muted">
+              <div className="flex justify-between">
+                <dt>Collectors</dt>
+                <dd>
+                  {pipeline.last_collect_at
+                    ? formatTimeAgo(pipeline.last_collect_at)
+                    : "—"}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt>Inference</dt>
+                <dd>
+                  {pipeline.last_inference_at
+                    ? formatTimeAgo(pipeline.last_inference_at)
+                    : "—"}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt>Ranking</dt>
+                <dd>
+                  {pipeline.last_ranking_at
+                    ? formatTimeAgo(pipeline.last_ranking_at)
+                    : "—"}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt>Tracked traders</dt>
+                <dd>{pipeline.traders_tracked}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt>Inferences</dt>
+                <dd>{pipeline.inferences_count}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt>Alerts</dt>
+                <dd>{pipeline.alerts_count}</dd>
+              </div>
+            </dl>
+          </div>
         </div>
       </div>
     </DashboardLayout>

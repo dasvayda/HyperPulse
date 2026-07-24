@@ -48,8 +48,14 @@ export function Sidebar() {
 
       <nav className="flex-1 px-3 py-4 space-y-1">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          // Exact list routes must not steal focus from nested pages:
+          // /traders/[address] is trader detail, not the Ranking menu.
           const active =
-            href === "/" ? pathname === "/" : pathname.startsWith(href);
+            href === "/"
+              ? pathname === "/"
+              : href === "/traders"
+                ? pathname === "/traders"
+                : pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link
               key={href}

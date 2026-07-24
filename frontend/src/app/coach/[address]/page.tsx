@@ -3,8 +3,8 @@ import {
   PageHeader,
   StatCard,
 } from "@/components/ui/DataTable";
-import { getTrader } from "@/lib/api";
-import { formatPct } from "@/lib/api";
+import { getTrader, formatPct } from "@/lib/api";
+import { swingLevelFromRisk } from "@/lib/score";
 
 interface Props {
   params: Promise<{ address: string }>;
@@ -13,6 +13,7 @@ interface Props {
 export default async function CoachPage({ params }: Props) {
   const { address } = await params;
   const trader = await getTrader(decodeURIComponent(address));
+  const swing = swingLevelFromRisk(trader.risk_score);
 
   return (
     <DashboardLayout>
@@ -28,8 +29,9 @@ export default async function CoachPage({ params }: Props) {
           positive={trader.pnl_change_pct >= 0}
         />
         <StatCard
-          label="Risk Score"
-          value={`${trader.risk_score}/100`}
+          label="ROI Swing"
+          value={swing}
+          positive={swing === "Low"}
         />
         <StatCard
           label="Preferred Assets"

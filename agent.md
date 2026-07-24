@@ -117,3 +117,22 @@ curl -X POST http://localhost:8000/api/v2/pipeline/run
 
 ## Design rule
 - 프론트 엔드의 UI는 User 관점에서 친화적이고, 의미있는 내용인지 검증하고 완료한다.
+
+## Copy & terminology (리테일 트레이더)
+
+User-facing 문자열(UI 라벨, insight/alert 문장, Telegram, stance 설명)은 **리테일 트레이더가 채팅·텔레그램에서 바로 알아듣는 말**로 쓴다. 리서치·애널리스트·기관 톤은 피한다.
+
+적용 범위: `frontend` 카피, `inference` / alert 요약, 테이블·카드 라벨. 내부 변수명·코드 주석에는 강제하지 않는다.
+
+| Prefer (친숙) | Avoid (낯설거나 애매) |
+|---------------|----------------------|
+| Prefer longs / Prefer shorts | Buy bias / Sell bias / Lean BUY·SELL |
+| Mostly long / Mostly short / Long heavy / Short heavy / Mixed | Slightly bullish·bearish, Indecisive, directional bias |
+| Cut longs / Cover shorts / Wait | Crowding thesis, magnet asymmetry (설명 없이) |
+| BUY / SELL / HOLD 배지 + 짧은 행동 문장 | 배지 없이 soft 슬랭만 나열 |
+
+규칙:
+- 한 줄에 **행동**이 드러나야 함 (롱/숏/대기/줄이기).
+- 약어·슬랭은 리테일이 이미 쓰는 것만 (long/short, funding, liq, OI). 새로 만든 제품어는 쓰지 않는다.
+- 경쟁 제품(CMM 등)의 애널리스트형 라벨을 그대로 복제하지 않는다.
+- 문구가 애매하면: “이 문장을 텔레그램에 붙여넣어도 바로 이해되나?”로 검증한다.
