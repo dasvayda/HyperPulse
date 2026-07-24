@@ -29,6 +29,10 @@ class WhaleAlert(BaseModel):
     size_usd: float
     entry_price: float | None = None
     exit_price: float | None = None
+    mark_price: float | None = None
+    unrealized_pnl_usd: float | None = None
+    roi_pct: float | None = None
+    whale_long_pct: float | None = None
     leverage: float
     win_rate: float
     inferred_strategy: str

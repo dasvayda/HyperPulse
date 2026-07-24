@@ -11,7 +11,7 @@ from app.models.schemas import AlertType, PositionSide, WhaleAlert
 from app.models.schemas import OpenPosition, WhalePosition
 from app.db import SessionLocal
 from app.models.orm import MarketSnapshotRow
-from app.services.store import store
+from app.services.store import store, _position_roi
 
 logger = logging.getLogger(__name__)
 
@@ -294,7 +294,20 @@ async def collect_whale_events() -> list[WhaleAlert]:
             elif trader and trader.strategy_tags:
                 inferred_strategy = trader.strategy_tags[0]
             else:
-                inferred_strategy = "Unknown"
+                # Avoid "Unknown" at collect time (BL-05) — same heuristic as apply_inference_to_alerts.
+                avg_lev = (
+                    sum(float(p["leverage"]) for p in positions) / len(positions)
+                    if positions
+                    else float(pos["leverage"] or 1.0)
+                )
+                if avg_lev >= 20:
+                    inferred_strategy = "Speculative"
+                elif len(positions) == 1:
+                    inferred_strategy = "Directional"
+                elif len(positions) >= 4:
+                    inferred_strategy = "Diversified"
+                else:
+                    inferred_strategy = "Mixed"
 
             side = PositionSide.LONG if size > 0 else PositionSide.SHORT
             confidence = 75.0
@@ -302,6 +315,26 @@ async def collect_whale_events() -> list[WhaleAlert]:
             exit_price = None
             if alert_type == AlertType.EXIT:
                 exit_price = _latest_mark_price(asset)
+
+            # BL-05 enrich: mark / uPnL / ROI / book long% (HL provenance).
+            mark_price = _latest_mark_price(asset)
+            if mark_price is None and abs(size) > 1e-12:
+                mark_price = abs(float(pos["position_value"]) / size)
+            roi_pct = None
+            unrealized_pnl_usd = pos.get("unrealized_pnl")
+            if mark_price is not None and pos["entry_price"]:
+                roi_pct, upnl_calc = _position_roi(
+                    side=side,
+                    entry_price=float(pos["entry_price"]),
+                    mark_price=float(mark_price),
+                    size_usd=usd_size,
+                    leverage=float(pos["leverage"] or 1.0),
+                )
+                if unrealized_pnl_usd is None:
+                    unrealized_pnl_usd = upnl_calc
+            whale_long_pct = None
+            if store.whale_summary and asset in store.whale_summary.by_asset:
+                whale_long_pct = store.whale_summary.by_asset[asset].long_pct
 
             alert = WhaleAlert(
                 id=store.new_id("wa"),
@@ -313,6 +346,10 @@ async def collect_whale_events() -> list[WhaleAlert]:
                 size_usd=usd_size,
                 entry_price=pos["entry_price"],
                 exit_price=exit_price,
+                mark_price=mark_price,
+                unrealized_pnl_usd=unrealized_pnl_usd,
+                roi_pct=roi_pct,
+                whale_long_pct=whale_long_pct,
                 leverage=pos["leverage"],
                 win_rate=win_rate,
                 inferred_strategy=inferred_strategy,

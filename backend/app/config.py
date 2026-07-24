@@ -46,7 +46,18 @@ class Settings(BaseSettings):
     alerts_enabled: bool = True
     alert_min_confidence: float = 70.0
     alert_min_size_usd: float = 500_000.0
-    alert_max_per_hour: int = 3
+    # Global ceiling across all types (hard stop).
+    alert_max_per_hour: int = 8
+    # Per-type caps — tighter on noisier streams.
+    # big_trade fires most often (size-based); consensus least (mood + cooldown).
+    alert_limit_big_trade_per_hour: int = 2
+    alert_limit_whale_move_per_hour: int = 3
+    alert_limit_consensus_per_hour: int = 2
+    alert_limit_squeeze_per_hour: int = 1
+    alert_limit_style_per_hour: int = 1
+    # Max events of one type in a single process_alert_triggers cycle.
+    alert_big_trade_per_cycle: int = 1
+    alert_whale_move_per_cycle: int = 1
 
     # Ranking
     ranking_interval_seconds: int = 90

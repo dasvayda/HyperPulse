@@ -459,12 +459,109 @@ def _build_coin_stance_insights(now: datetime) -> list[MarketInsight]:
     return cards
 
 
+def _build_funding_crowdedness_insight(now: datetime) -> list[MarketInsight]:
+    """BL-11: |funding| top-3 callout with longs/shorts pay labels.
+
+    Uses live market_ticks (metaAndAssetCtxs) first; falls back to latest DB snapshots.
+    """
+    rows: list[tuple[str, float]] = []
+    ticks = store.market_ticks or {}
+    for asset, tick in ticks.items():
+        rate = tick.get("funding_rate")
+        if rate is None:
+            continue
+        try:
+            rows.append((str(asset), float(rate) * 100.0))
+        except (TypeError, ValueError):
+            continue
+
+    if len(rows) < 3:
+        # Broaden from recent snapshots when live ticks are thin.
+        extra_assets: list[str] = list({a for a, _ in rows})
+        if store.whale_summary and store.whale_summary.by_asset:
+            extra_assets.extend(list(store.whale_summary.by_asset.keys())[:30])
+        if ticks:
+            extra_assets.extend(list(ticks.keys())[:40])
+        snaps = _latest_snapshots_by_asset(extra_assets)
+        seen = {a for a, _ in rows}
+        for asset, snap in snaps.items():
+            if asset in seen or snap.funding_rate is None:
+                continue
+            try:
+                rows.append((asset, float(snap.funding_rate) * 100.0))
+                seen.add(asset)
+            except (TypeError, ValueError):
+                continue
+
+    if len(rows) < 3:
+        seen = {a for a, _ in rows}
+        db = SessionLocal()
+        try:
+            db_rows = (
+                db.query(MarketSnapshotRow)
+                .order_by(MarketSnapshotRow.timestamp.desc())
+                .limit(800)
+                .all()
+            )
+            for row in db_rows:
+                if row.asset in seen or row.funding_rate is None:
+                    continue
+                try:
+                    rows.append((row.asset, float(row.funding_rate) * 100.0))
+                    seen.add(row.asset)
+                except (TypeError, ValueError):
+                    continue
+                if len(rows) >= 40:
+                    break
+        finally:
+            db.close()
+
+    if not rows:
+        return []
+
+    top = sorted(rows, key=lambda item: abs(item[1]), reverse=True)[:3]
+    if not top:
+        return []
+
+    signal_labels: list[str] = []
+    summary_bits: list[str] = []
+    for asset, funding_pct in top:
+        if funding_pct >= 0:
+            pay = "longs pay shorts"
+        else:
+            pay = "shorts pay longs"
+        signal_labels.append(f"{asset} {funding_pct:+.4f}% ({pay})")
+        summary_bits.append(f"{asset} {funding_pct:+.4f}% — {pay}")
+
+    top_asset, top_pct = top[0]
+    stance, reason, conf = _funding_stance(top_pct)
+    return [
+        MarketInsight(
+            id=store.new_id("mi"),
+            title="Funding crowdedness",
+            summary=(
+                f"{reason} Highest |funding|: {', '.join(summary_bits)}."
+            ),
+            asset=top_asset,
+            stance=stance,
+            confidence=round(min(88.0, conf), 1),
+            signals=[
+                f"Action: {stance.value.upper()}",
+                *signal_labels,
+            ],
+            created_at=now,
+        )
+    ]
+
+
 def _build_market_insights() -> None:
     insights: list[MarketInsight] = []
     now = _utcnow()
 
     # BL-02 primary: multi-signal per-coin stance cards (max 3).
     insights.extend(_build_coin_stance_insights(now))
+    # BL-11: cross-market |funding| top-3 callout.
+    insights.extend(_build_funding_crowdedness_insight(now))
 
     if store.whale_summary and store.whale_summary.with_positions > 0:
         summary = store.whale_summary

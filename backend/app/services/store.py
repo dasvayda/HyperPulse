@@ -145,6 +145,8 @@ class StateStore:
         self.last_inference_at: datetime | None = None
         self.last_ranking_at: datetime | None = None
         self.last_alert_at: datetime | None = None
+        self.last_consensus_label: str | None = None
+        self.last_consensus_at: datetime | None = None
         self.ai_provider: str = "heuristic"
 
     def bootstrap_from_db(self) -> None:

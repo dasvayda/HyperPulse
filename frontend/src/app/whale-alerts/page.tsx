@@ -18,6 +18,14 @@ import {
   formatTimeAgo,
 } from "@/lib/api";
 
+const STALE_MS = 45 * 60 * 1000;
+
+function isStale(timestamp: string): boolean {
+  const t = Date.parse(timestamp);
+  if (Number.isNaN(t)) return false;
+  return Date.now() - t > STALE_MS;
+}
+
 export default async function WhaleAlertsPage() {
   const alerts = await getWhaleAlerts();
 
@@ -35,16 +43,22 @@ export default async function WhaleAlertsPage() {
           <DataTableHeaderCell>Type</DataTableHeaderCell>
           <DataTableHeaderCell>Side</DataTableHeaderCell>
           <DataTableHeaderCell>Size</DataTableHeaderCell>
-          <DataTableHeaderCell>Price</DataTableHeaderCell>
+          <DataTableHeaderCell>Entry / Mark</DataTableHeaderCell>
+          <DataTableHeaderCell>uPnL / ROI</DataTableHeaderCell>
           <DataTableHeaderCell>Leverage</DataTableHeaderCell>
-          <DataTableHeaderCell>Win Rate</DataTableHeaderCell>
+          <DataTableHeaderCell>Book</DataTableHeaderCell>
           <DataTableHeaderCell>Strategy</DataTableHeaderCell>
           <DataTableHeaderCell>Confidence</DataTableHeaderCell>
           <DataTableHeaderCell>Time</DataTableHeaderCell>
         </DataTableHead>
         <DataTableBody>
           {alerts.map((alert) => {
-            const price = alert.entry_price ?? alert.exit_price;
+            const stale = isStale(alert.timestamp);
+            const strategy =
+              alert.inferred_strategy &&
+              alert.inferred_strategy.toLowerCase() !== "unknown"
+                ? alert.inferred_strategy
+                : "—";
             return (
               <DataTableRow key={alert.id}>
                 <DataTableCell>
@@ -56,7 +70,7 @@ export default async function WhaleAlertsPage() {
                       {alert.trader_alias}
                     </span>
                     <span className="text-xs text-text-dim font-mono">
-                      {alert.trader_address}
+                      {alert.trader_address.slice(0, 10)}…
                     </span>
                   </Link>
                 </DataTableCell>
@@ -64,9 +78,12 @@ export default async function WhaleAlertsPage() {
                   <AssetIcon asset={alert.asset} />
                 </DataTableCell>
                 <DataTableCell>
-                  <Badge variant={alert.alert_type}>
-                    {alert.alert_type.toUpperCase()}
-                  </Badge>
+                  <div className="flex flex-col gap-1">
+                    <Badge variant={alert.alert_type}>
+                      {alert.alert_type.toUpperCase()}
+                    </Badge>
+                    {stale && <Badge variant="exit">STALE</Badge>}
+                  </div>
                 </DataTableCell>
                 <DataTableCell>
                   <Badge variant={alert.side}>
@@ -77,17 +94,59 @@ export default async function WhaleAlertsPage() {
                   {formatUsd(alert.size_usd)}
                 </DataTableCell>
                 <DataTableCell>
-                  {price ? formatPrice(price, alert.asset) : "—"}
+                  <div className="flex flex-col text-xs text-text-muted">
+                    <span>
+                      E{" "}
+                      {alert.entry_price != null
+                        ? formatPrice(alert.entry_price, alert.asset)
+                        : "—"}
+                    </span>
+                    <span>
+                      M{" "}
+                      {alert.mark_price != null
+                        ? formatPrice(alert.mark_price, alert.asset)
+                        : "—"}
+                    </span>
+                  </div>
+                </DataTableCell>
+                <DataTableCell>
+                  {alert.unrealized_pnl_usd != null || alert.roi_pct != null ? (
+                    <div className="flex flex-col text-xs">
+                      {alert.unrealized_pnl_usd != null && (
+                        <span
+                          className={
+                            alert.unrealized_pnl_usd >= 0
+                              ? "text-positive font-medium"
+                              : "text-negative font-medium"
+                          }
+                        >
+                          {formatUsd(alert.unrealized_pnl_usd)}
+                        </span>
+                      )}
+                      {alert.roi_pct != null && (
+                        <span
+                          className={
+                            alert.roi_pct >= 0
+                              ? "text-positive"
+                              : "text-negative"
+                          }
+                        >
+                          {alert.roi_pct >= 0 ? "+" : ""}
+                          {alert.roi_pct.toFixed(1)}%
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-text-dim">—</span>
+                  )}
                 </DataTableCell>
                 <DataTableCell>{alert.leverage}x</DataTableCell>
-                <DataTableCell>
-                  <span className="text-positive font-medium">
-                    {alert.win_rate}%
-                  </span>
+                <DataTableCell className="text-xs text-text-muted">
+                  {alert.whale_long_pct != null
+                    ? `${alert.whale_long_pct.toFixed(0)}% L`
+                    : "—"}
                 </DataTableCell>
-                <DataTableCell className="text-text-muted">
-                  {alert.inferred_strategy}
-                </DataTableCell>
+                <DataTableCell className="text-text-muted">{strategy}</DataTableCell>
                 <DataTableCell>
                   <div className="flex items-center gap-2">
                     <div className="w-12 h-1.5 rounded-full bg-bg-elevated overflow-hidden">
@@ -109,6 +168,12 @@ export default async function WhaleAlertsPage() {
           })}
         </DataTableBody>
       </DataTable>
+
+      <p className="text-xs text-text-dim mt-4">
+        Entry/Mark and uPnL/ROI come from clearinghouse + mark ticks. STALE means
+        the event is older than 45 minutes. Book % is tracked-whale long share for
+        that asset.
+      </p>
     </DashboardLayout>
   );
 }

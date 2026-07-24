@@ -68,7 +68,7 @@ export default async function HomePage() {
   const recentAlerts = alerts.slice(0, 5);
   const topZones = zones.slice(0, 4);
   const topRanks = rankings.slice(0, 5);
-  // Prefer multi-signal coin stance cards (BL-02) over book-wide / style-mix context.
+  // Prefer multi-signal coin stance cards (BL-02); also surface funding callout (BL-11).
   const coinStanceInsights = insights.filter(
     (insight) =>
       Boolean(insight.asset) &&
@@ -77,10 +77,15 @@ export default async function HomePage() {
         (s) => s.startsWith("Funding:") || s.startsWith("Liq 24h:")
       )
   );
-  const previewInsights =
-    coinStanceInsights.length > 0
-      ? coinStanceInsights.slice(0, 1)
-      : insights.slice(0, 1);
+  const fundingCallout = insights.find(
+    (insight) => insight.title === "Funding crowdedness"
+  );
+  const previewInsights: typeof insights = [];
+  if (coinStanceInsights[0]) previewInsights.push(coinStanceInsights[0]);
+  if (fundingCallout) previewInsights.push(fundingCallout);
+  if (previewInsights.length === 0 && insights[0]) {
+    previewInsights.push(insights[0]);
+  }
   const pulse = coinPulse.slice(0, 10);
   const maxOiUsd = Math.max(
     ...pulse.map((row) => row.open_interest_usd ?? 0),

@@ -6,7 +6,7 @@
 | | |
 |--|--|
 | 작성 | 2026-07-22 ~ 07-23 |
-| 갱신 | 2026-07-23 (BL-02, BL-04 + Coin Pulse live) |
+| 갱신 | 2026-07-24 (BL-05 Alert quality, BL-11 Funding callout) |
 | 제품 목표 | [README Product Goals](../README.md#product-goals) |
 | 설계 제약 | [ARCHITECTURE](./ARCHITECTURE.md#product-goals--design-constraints) |
 | 벤치마크 참고 | [HyperTracker Perps](https://app.coinmarketman.com/hypertracker/perps), [Docs](https://docs.coinmarketman.com/) (시그널·UX만, API 연동 아님) |
@@ -32,6 +32,9 @@
 - [x] BL-02 Per-coin stance (whale + funding/liq)
 - [x] BL-04 Biggest Positions (tracked notional Top N)
 - [x] Coin Pulse live board (vol sort, OI bar, bias label, liq timeline)
+- [x] BL-05 Alert quality (entry/mark, uPnL/ROI, book %, stale, no Unknown)
+- [x] BL-11 Funding crowdedness callout
+- [x] Telegram alert mix — Consensus / Whale Move / Big Trade (short templates)
 
 ### Active backlog
 
@@ -39,13 +42,13 @@
 - [x] **P0** BL-02 Whale bias → actionable insight card
 - [ ] **P0** BL-03 Liquidation windows (1h / 4h / 24h)
 - [x] **P0** BL-04 Biggest open positions (tracked)
-- [ ] **P0** BL-05 Alert quality pass
+- [x] **P0** BL-05 Alert quality pass
 - [ ] **P1** BL-06 Smart-money vs rest bias
 - [ ] **P1** BL-07 Thin coin × cohort heatmap
 - [ ] **P1** BL-08 Copy-worthiness / due-diligence strip
 - [ ] **P1** BL-09 userFills recent behavior
 - [ ] **P2** BL-10 Market pulse strip (3 cards)
-- [ ] **P2** BL-11 Funding crowdedness callout
+- [x] **P2** BL-11 Funding crowdedness callout
 - [ ] **P2** BL-12 Liquidation proximity (tracked whales)
 
 ### Deferred (의도적 보류)
@@ -176,16 +179,17 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
   - [x] mark 기반 ROI/uPnL (market_ticks)
 
 #### BL-05 · Alert quality pass
-- [ ]
+- [x] Done (2026-07-24)
 - **Why:** 신뢰는 알림 한 줄에서 결정
 - **HL:** entry/mark, uPnL/ROI, asset whale long%
 - **Deliverable:** 템플릿 표준 + rate limit 유지 + stale 표시
 - **Done when:** 샘플 20건 필수 필드 누락 0
 - **Effort:** S
 - 세부:
-  - [ ] 템플릿 필드 체크리스트
-  - [ ] Unknown strategy 비율 개선 확인
-
+  - [x] 템플릿 필드 체크리스트 (entry/mark, uPnL/ROI, book %, strategy)
+  - [x] Unknown strategy 비율 개선 (collect + send heuristic fallback)
+  - [x] STALE (>45m) Telegram title + whale-alerts badge
+  - [x] whale-alerts UI: Entry/Mark, uPnL/ROI, Book (Win Rate 컬럼 제거)
 ---
 
 ### P1 — Smart money 해석
@@ -244,13 +248,13 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
   - [ ] 대시보드 3카드 (메인 테이블화 금지)
 
 #### BL-11 · Funding crowdedness callout
-- [ ]
+- [x] Done (2026-07-24)
 - **HL:** assetCtx funding
 - **Deliverable:** |funding| 상위 3 + longs/shorts pay (BL-02 흡수 가능)
 - **Effort:** S
 - 세부:
-  - [ ] 집계
-  - [ ] callout 또는 BL-02 통합
+  - [x] 집계 (`_build_funding_crowdedness_insight`)
+  - [x] InsightCard callout + homepage preview 노출
 
 #### BL-12 · Liquidation proximity (tracked whales)
 - [ ]
@@ -268,6 +272,7 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
 
 ```text
 BL-05 Alert quality
+  → Telegram alert mix (Consensus / Whale Move / Big Trade)
   → BL-02 Bias insight
   → BL-04 Biggest positions
   → BL-01 Fresh entries

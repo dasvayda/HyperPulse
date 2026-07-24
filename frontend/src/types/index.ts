@@ -12,6 +12,10 @@ export interface WhaleAlert {
   size_usd: number;
   entry_price: number | null;
   exit_price: number | null;
+  mark_price?: number | null;
+  unrealized_pnl_usd?: number | null;
+  roi_pct?: number | null;
+  whale_long_pct?: number | null;
   leverage: number;
   win_rate: number;
   inferred_strategy: string;
