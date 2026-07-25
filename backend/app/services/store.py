@@ -148,6 +148,7 @@ class StateStore:
         self.last_consensus_label: str | None = None
         self.last_consensus_at: datetime | None = None
         self.ai_provider: str = "heuristic"
+        self.market_brief = None  # MarketBrief | None — set after import-safe bootstrap
 
     def bootstrap_from_db(self) -> None:
         db = SessionLocal()
@@ -196,6 +197,13 @@ class StateStore:
                 )
                 for row in alerts
             ]
+
+            try:
+                from app.services.market_brief import load_market_brief_from_db
+
+                self.market_brief = load_market_brief_from_db()
+            except Exception:
+                self.market_brief = None
         finally:
             db.close()
 

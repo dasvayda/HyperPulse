@@ -169,11 +169,13 @@ def _heuristic_inference(trader: TraderProfile) -> StrategyInference:
         f"({assets_label}). Turnover ratio {turnover_ratio:.1f}x supports {strategy.lower()} classification."
     )
 
+    from app.services.market_brief import canonicalize_strategy
+
     return StrategyInference(
         id=store.new_id("inf"),
         trader_address=trader.address,
         trader_alias=trader.alias,
-        strategy=strategy,
+        strategy=canonicalize_strategy(strategy),
         trading_style=style,
         risk_profile=risk,
         confidence=round(confidence, 1),
@@ -222,7 +224,10 @@ async def _llm_inference(trader: TraderProfile, provider: str) -> StrategyInfere
     system = (
         "You classify Hyperliquid trader strategies. "
         "Respond ONLY with JSON keys: strategy, trading_style, risk_profile, "
-        "confidence (0-100), rationale."
+        "confidence (0-100), rationale. "
+        "strategy MUST be exactly one of: Speculative, Directional, Diversified, "
+        "Scalping, Momentum, Mean Reversion, Funding Arbitrage, Swing Trading, "
+        "Trend Following, Mixed."
     )
 
     try:
@@ -243,11 +248,13 @@ async def _llm_inference(trader: TraderProfile, provider: str) -> StrategyInfere
             response.raise_for_status()
             content = response.json()["choices"][0]["message"]["content"]
             data = json.loads(content)
+            from app.services.market_brief import canonicalize_strategy
+
             return StrategyInference(
                 id=store.new_id("inf"),
                 trader_address=trader.address,
                 trader_alias=trader.alias,
-                strategy=str(data.get("strategy", "Mixed")),
+                strategy=canonicalize_strategy(str(data.get("strategy", "Mixed"))),
                 trading_style=str(data.get("trading_style", "Opportunistic trader")),
                 risk_profile=str(data.get("risk_profile", "Balanced")),
                 confidence=float(data.get("confidence", 60)),
@@ -271,6 +278,14 @@ def _resolve_provider() -> str:
 
 
 async def run_inference_pipeline() -> list[StrategyInference]:
+    # Desk brief first so trader LLM spend does not starve the Insights hero.
+    try:
+        from app.services.market_brief import generate_market_brief
+
+        await generate_market_brief()
+    except Exception:
+        logger.exception("Market brief generation failed")
+
     provider = _resolve_provider()
     results: list[StrategyInference] = []
     priority_addresses = [a.trader_address for a in store.whale_alerts[:10]]
@@ -459,88 +474,72 @@ def _build_coin_stance_insights(now: datetime) -> list[MarketInsight]:
     return cards
 
 
-def _build_funding_crowdedness_insight(now: datetime) -> list[MarketInsight]:
-    """BL-11: |funding| top-3 callout with longs/shorts pay labels.
+# BL-11 extreme-funding filter: only liquid coins (top-N by 24h volume) AND
+# an extreme |funding| can trigger the callout, so one thin alt (e.g. STX)
+# can't dominate. Threshold is 2x the "crowded" level in _funding_stance.
+FUNDING_LIQUID_TOP_N = 20
+FUNDING_EXTREME_ABS_PCT = 0.02
 
-    Uses live market_ticks (metaAndAssetCtxs) first; falls back to latest DB snapshots.
+
+def _build_funding_crowdedness_insight(now: datetime) -> list[MarketInsight]:
+    """BL-11: extreme funding among liquid coins (top-N volume ∩ |funding| ≥ threshold).
+
+    Extreme funding flags possible local tops/bottoms: heavily positive means
+    longs are crowded (top / long-flush risk), heavily negative means shorts
+    are crowded (bottom / short-squeeze risk). No callout when nothing is extreme.
     """
-    rows: list[tuple[str, float]] = []
     ticks = store.market_ticks or {}
+    rows: list[tuple[str, float, float]] = []
     for asset, tick in ticks.items():
         rate = tick.get("funding_rate")
         if rate is None:
             continue
         try:
-            rows.append((str(asset), float(rate) * 100.0))
+            funding_pct = float(rate) * 100.0
+            volume_usd = float(tick.get("day_volume_usd") or 0.0)
         except (TypeError, ValueError):
             continue
-
-    if len(rows) < 3:
-        # Broaden from recent snapshots when live ticks are thin.
-        extra_assets: list[str] = list({a for a, _ in rows})
-        if store.whale_summary and store.whale_summary.by_asset:
-            extra_assets.extend(list(store.whale_summary.by_asset.keys())[:30])
-        if ticks:
-            extra_assets.extend(list(ticks.keys())[:40])
-        snaps = _latest_snapshots_by_asset(extra_assets)
-        seen = {a for a, _ in rows}
-        for asset, snap in snaps.items():
-            if asset in seen or snap.funding_rate is None:
-                continue
-            try:
-                rows.append((asset, float(snap.funding_rate) * 100.0))
-                seen.add(asset)
-            except (TypeError, ValueError):
-                continue
-
-    if len(rows) < 3:
-        seen = {a for a, _ in rows}
-        db = SessionLocal()
-        try:
-            db_rows = (
-                db.query(MarketSnapshotRow)
-                .order_by(MarketSnapshotRow.timestamp.desc())
-                .limit(800)
-                .all()
-            )
-            for row in db_rows:
-                if row.asset in seen or row.funding_rate is None:
-                    continue
-                try:
-                    rows.append((row.asset, float(row.funding_rate) * 100.0))
-                    seen.add(row.asset)
-                except (TypeError, ValueError):
-                    continue
-                if len(rows) >= 40:
-                    break
-        finally:
-            db.close()
+        rows.append((str(asset), funding_pct, volume_usd))
 
     if not rows:
         return []
 
-    top = sorted(rows, key=lambda item: abs(item[1]), reverse=True)[:3]
-    if not top:
+    rows.sort(key=lambda item: item[2], reverse=True)
+    liquid = rows[:FUNDING_LIQUID_TOP_N]
+    extreme = [
+        row for row in liquid if abs(row[1]) >= FUNDING_EXTREME_ABS_PCT
+    ]
+    if not extreme:
         return []
+
+    extreme.sort(key=lambda item: abs(item[1]), reverse=True)
+    top = extreme[:3]
 
     signal_labels: list[str] = []
     summary_bits: list[str] = []
-    for asset, funding_pct in top:
+    for asset, funding_pct, _ in top:
         if funding_pct >= 0:
-            pay = "longs pay shorts"
+            pay = "longs pay shorts — longs crowded"
         else:
-            pay = "shorts pay longs"
-        signal_labels.append(f"{asset} {funding_pct:+.4f}% ({pay})")
-        summary_bits.append(f"{asset} {funding_pct:+.4f}% — {pay}")
+            pay = "shorts pay longs — shorts crowded"
+        signal_labels.append(f"{asset} funding {funding_pct:+.4f}% ({pay})")
+        summary_bits.append(f"{asset} funding {funding_pct:+.4f}% ({pay})")
 
-    top_asset, top_pct = top[0]
+    top_asset, top_pct, _ = top[0]
+    hint = (
+        "Possible local top / long-flush risk."
+        if top_pct >= 0
+        else "Possible local bottom / short-squeeze risk."
+    )
     stance, reason, conf = _funding_stance(top_pct)
     return [
         MarketInsight(
             id=store.new_id("mi"),
-            title="Funding crowdedness",
+            title="Extreme funding",
             summary=(
-                f"{reason} Highest |funding|: {', '.join(summary_bits)}."
+                f"{reason} {hint} "
+                f"Extreme among top-{FUNDING_LIQUID_TOP_N} volume coins: "
+                f"{', '.join(summary_bits)}."
             ),
             asset=top_asset,
             stance=stance,
@@ -559,9 +558,45 @@ def _build_market_insights() -> None:
     now = _utcnow()
 
     # BL-02 primary: multi-signal per-coin stance cards (max 3).
-    insights.extend(_build_coin_stance_insights(now))
-    # BL-11: cross-market |funding| top-3 callout.
-    insights.extend(_build_funding_crowdedness_insight(now))
+    coin_cards = _build_coin_stance_insights(now)
+    insights.extend(coin_cards)
+    # BL-11: cross-market extreme funding callout.
+    funding_cards = _build_funding_crowdedness_insight(now)
+    insights.extend(funding_cards)
+
+    # Top3 volume whale consensus — evidence card (not a Dashboard KPI clone).
+    try:
+        from app.services.alerts import compute_market_consensus
+
+        computed = compute_market_consensus()
+        if computed:
+            mood, reason, long_pct = computed
+            if "BULL" in mood:
+                c_stance = InsightStance.BUY
+                action = "Prefer longs"
+            elif "BEAR" in mood:
+                c_stance = InsightStance.SELL
+                action = "Prefer shorts"
+            else:
+                c_stance = InsightStance.HOLD
+                action = "Wait"
+            insights.append(
+                MarketInsight(
+                    id=store.new_id("mi"),
+                    title=f"Top3 Consensus · {mood}",
+                    summary=f"{action}. {reason}",
+                    stance=c_stance,
+                    confidence=min(88.0, 55.0 + abs(50.0 - long_pct) * 0.6),
+                    signals=[
+                        f"Action: {c_stance.value.upper()}",
+                        f"Long share: {long_pct:.0f}%",
+                        f"Mood: {mood}",
+                    ],
+                    created_at=now,
+                )
+            )
+    except Exception:
+        logger.exception("Top3 consensus insight failed")
 
     if store.whale_summary and store.whale_summary.with_positions > 0:
         summary = store.whale_summary
@@ -611,7 +646,6 @@ def _build_market_insights() -> None:
         bucket[key] += alert.size_usd
         counts[key] += 1
 
-    # Skip fresh-entry card if that asset already has a multi-signal stance card.
     covered = {i.asset for i in insights if i.asset}
     if entries:
         asset, totals = max(entries.items(), key=lambda item: item[1]["long"] + item[1]["short"])
@@ -699,34 +733,21 @@ def _build_market_insights() -> None:
             )
         )
 
-    if store.inferences:
-        strategies: dict[str, list[StrategyInference]] = {}
-        for item in store.inferences:
-            strategies.setdefault(item.strategy, []).append(item)
-        top_strategy, items = max(strategies.items(), key=lambda kv: len(kv[1]))
-        avg_conf = sum(i.confidence for i in items) / len(items)
-        insights.append(
-            MarketInsight(
-                id=store.new_id("mi"),
-                title=f"Style mix: {top_strategy} heavy",
-                summary=(
-                    f"HOLD as a market call - this is trader-style context, not a "
-                    f"directional signal. {len(items)} whales tagged {top_strategy} "
-                    f"(avg confidence {avg_conf:.0f}%)."
-                ),
-                stance=InsightStance.HOLD,
-                confidence=round(avg_conf, 1),
-                signals=[
-                    f"Action: HOLD",
-                    f"Dominant style: {top_strategy}",
-                    f"Provider: {store.ai_provider}",
-                ],
-                created_at=now,
-            )
-        )
+    def _priority(card: MarketInsight) -> tuple[int, float]:
+        title = card.title.lower()
+        if card.asset and "whale book" in title:
+            return (0, -card.confidence)
+        if title.startswith("extreme funding"):
+            return (1, -card.confidence)
+        if title.startswith("top3 consensus"):
+            return (2, -card.confidence)
+        if "liquidation cluster" in title:
+            return (3, -card.confidence)
+        return (4, -card.confidence)
 
+    insights.sort(key=_priority)
     with store._lock:
-        store.insights = insights[:5]
+        store.insights = insights[:8]
 
 
 def apply_inference_to_alerts(alerts: list[WhaleAlert]) -> list[WhaleAlert]:

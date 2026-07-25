@@ -97,3 +97,22 @@ class AlertRow(Base):
     status: Mapped[str] = mapped_column(String(32), default="queued")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class MarketBriefRow(Base):
+    """Single latest desk brief (overwrite id='latest')."""
+
+    __tablename__ = "market_briefs"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default="latest")
+    headline: Mapped[str] = mapped_column(String(512), default="")
+    market_status: Mapped[str] = mapped_column(Text, default="")
+    stance: Mapped[str] = mapped_column(String(32), default="wait")
+    suggestions: Mapped[str] = mapped_column(Text, default="[]")
+    risks: Mapped[str] = mapped_column(Text, default="[]")
+    evidence_refs: Mapped[str] = mapped_column(Text, default="[]")
+    provider: Mapped[str] = mapped_column(String(32), default="template")
+    source: Mapped[str] = mapped_column(String(16), default="template")
+    snapshot_hash: Mapped[str] = mapped_column(String(64), default="")
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

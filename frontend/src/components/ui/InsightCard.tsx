@@ -32,7 +32,9 @@ export function InsightCard({ insight, className = "" }: InsightCardProps) {
           </div>
           <h3 className="text-base font-semibold text-text-primary mt-2.5">{insight.title}</h3>
         </div>
-        <Badge variant="accent">{formatConfidence(insight.confidence)}</Badge>
+        <Badge variant="accent" title="Rule vote strength — not win rate">
+        {formatConfidence(insight.confidence)}
+      </Badge>
       </div>
       <p className="text-sm text-text-muted leading-relaxed flex-1">{insight.summary}</p>
       <div className="flex flex-wrap gap-1.5">

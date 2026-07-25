@@ -252,4 +252,21 @@ export interface MarketStatus {
   last_liquidation_at: string | null;
   liquidation_events_24h: number;
   has_live_market: boolean;
+  liq_1h_long_usd?: number;
+  liq_1h_short_usd?: number;
+  liq_1h_total_usd?: number;
+  liq_1h_events?: number;
+}
+
+export interface MarketBrief {
+  headline: string;
+  market_status: string;
+  stance: "prefer_long" | "prefer_short" | "wait";
+  suggestions: string[];
+  risks: string[];
+  evidence_refs: string[];
+  as_of: string;
+  provider: string;
+  source: string;
+  snapshot_hash?: string;
 }

@@ -6,6 +6,12 @@ HyperPulse is an AI-powered intelligence platform for Hyperliquid traders.
 
 **Product goal:** strong *current-moment* insights that are simple, reliable, and actionable for trading — not selling accumulated data or dense metric dumps. See `README.md` (Product Goals), `docs/ARCHITECTURE.md` (constraints), and `docs/PRODUCT_BACKLOG.md` (canonical backlog + checkboxes).
 
+**AI Insights page:** Market Brief (LLM desk commentary on a structured HL snapshot) is the hero. Prefer long/short evidence cards are rule-based. Trader strategy tags are secondary. Dashboard owns numeric KPIs (Top3 Consensus, 1h Liq); Insights owns the full brief.
+
+**LLM usage:** Primary = periodic Market Brief (`market_brief.py`). Secondary = trader strategy labels (canonicalized enums). Market BUY/SELL evidence cards are **not** LLM.
+
+Brief inputs: Top3 whale book (+ per-asset), book-wide, coin stances, Top3 funding (always) + extreme funding, liq 1h/24h, biggest positions, coverage. Prompt includes how-to-read each field + few-shot (prefer_short / wait). `market_status` uses desk inventory tone (signaling / sell pressure / positioning not catalyst); headline+suggestions own Prefer longs/shorts/Wait.
+
 - **Phase 1**: Whale Alerts, Trader Profiles, Basic Liquidation Radar
 - **Phase 2**: Collectors, persistence, AI strategy inference, smart money ranking, Telegram alerts
 
@@ -15,13 +21,13 @@ HyperPulse is an AI-powered intelligence platform for Hyperliquid traders.
 HyperPulse/
 ├── frontend/                 # Next.js 15 + TypeScript + Tailwind
 │   └── src/app/
-│       ├── insights/         # AI strategy inference UI
+│       ├── insights/         # Market Brief hero + rule evidence + style tags
 │       ├── rankings/         # Smart money ranking UI
 │       └── alerts/           # Telegram alert history UI
 ├── backend/
 │   └── app/
 │       ├── collectors/       # Hyperliquid collectors + scheduler
-│       ├── services/         # inference, ranking, alerts, cache, store
+│       ├── services/         # inference, market_brief, ranking, alerts, cache, store
 │       ├── models/           # Pydantic schemas + SQLAlchemy ORM
 │       └── routers/          # api.py (v1), v2.py (phase 2)
 ├── docs/
@@ -82,6 +88,7 @@ curl http://localhost:8000/health
 curl http://localhost:8000/api/v2/pipeline/status
 curl http://localhost:8000/api/v2/rankings
 curl http://localhost:8000/api/v2/insights
+curl http://localhost:8000/api/v2/insights/brief
 curl http://localhost:8000/api/v2/alerts
 
 # Force one pipeline cycle

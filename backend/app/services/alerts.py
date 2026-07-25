@@ -295,75 +295,96 @@ def _alert_is_stale(alert: WhaleAlert, max_age_minutes: int = 45) -> bool:
         return False
 
 
-def _top_funding_line() -> str | None:
+CONSENSUS_TOP_N = 3
+
+
+def _top_assets_by_volume(n: int = CONSENSUS_TOP_N) -> list[str]:
+    """Top-N coins by HL 24h notional volume (usually BTC/ETH/SOL)."""
     ticks = store.market_ticks or {}
     rows: list[tuple[str, float]] = []
     for asset, tick in ticks.items():
-        rate = tick.get("funding_rate")
-        if rate is None:
-            continue
         try:
-            rows.append((str(asset), float(rate) * 100.0))
+            vol = float(tick.get("day_volume_usd") or 0.0)
         except (TypeError, ValueError):
             continue
-    if not rows:
-        return None
-    asset, pct = max(rows, key=lambda item: abs(item[1]))
-    pay = "longs pay" if pct >= 0 else "shorts pay"
-    return f"{asset} {pct:+.3f}% ({pay})"
+        if vol > 0:
+            rows.append((str(asset), vol))
+    rows.sort(key=lambda item: item[1], reverse=True)
+    return [asset for asset, _ in rows[:n]]
+
+
+def _asset_whale_share_line(asset: str, long_pct: float) -> str:
+    """Retail-friendly: this coin's tracked-whale long/short $ share."""
+    short_pct = max(0.0, 100.0 - long_pct)
+    if long_pct >= 55:
+        return f"Tracked {asset} whales: {long_pct:.0f}% long / {short_pct:.0f}% short"
+    if long_pct <= 45:
+        return f"Tracked {asset} whales: {short_pct:.0f}% short / {long_pct:.0f}% long"
+    return f"Tracked {asset} whales: mixed ({long_pct:.0f}% long / {short_pct:.0f}% short)"
+
+
+def _whale_book_share_line(long_pct: float, net_txt: str) -> str:
+    """Lead with the dominant side so FEAR/BEARISH don't open on % long."""
+    short_pct = 100.0 - long_pct
+    if long_pct >= 55:
+        return f"Whales {long_pct:.0f}% long / {short_pct:.0f}% short ({net_txt})"
+    if long_pct <= 45:
+        return f"Whales {short_pct:.0f}% short / {long_pct:.0f}% long ({net_txt})"
+    return (
+        f"Whales roughly balanced "
+        f"({long_pct:.0f}% long / {short_pct:.0f}% short, {net_txt})"
+    )
 
 
 def compute_market_consensus() -> tuple[str, str, float] | None:
     """Return (mood_label, reason_line, long_pct) or None if no book.
 
-    Moods: EXTREME BULLISH | GREED | BULLISH | NEUTRAL | FEAR | BEARISH | EXTREME BEARISH
+    Simplest market-mood read: whale long/short share inside the top-3
+    coins by HL 24h volume (usually BTC/ETH/SOL). Funding is intentionally
+    excluded here — extreme funding is its own callout (BL-11).
+    Moods: EXTREME BULLISH | BULLISH | NEUTRAL | BEARISH | EXTREME BEARISH
     """
     summary = store.whale_summary
     if not summary or summary.with_positions <= 0:
         return None
-    long_pct = float(summary.long_pct)
-    net = summary.net_notional_usd
+
+    top_assets = _top_assets_by_volume()
+    long_usd = 0.0
+    short_usd = 0.0
+    used: list[str] = []
+    for asset in top_assets:
+        asset_summary = summary.by_asset.get(asset)
+        if not asset_summary:
+            continue
+        long_usd += asset_summary.long_notional_usd
+        short_usd += asset_summary.short_notional_usd
+        used.append(asset)
+
+    if used and (long_usd + short_usd) > 0:
+        scope = f"Top3 by volume ({'/'.join(used)})"
+        long_pct = long_usd / (long_usd + short_usd) * 100.0
+        net = long_usd - short_usd
+    else:
+        # No live volume data yet — fall back to the whole tracked book.
+        scope = "Whole whale book"
+        long_pct = float(summary.long_pct)
+        net = summary.net_notional_usd
+
     net_txt = f"{'+' if net >= 0 else '-'}{_format_usd_short(abs(net))} net"
+    book = _whale_book_share_line(long_pct, net_txt)
 
-    funding_line = _top_funding_line()
-    funding_pct = None
-    if funding_line and store.market_ticks:
-        try:
-            rows = [
-                (a, float(t["funding_rate"]) * 100.0)
-                for a, t in store.market_ticks.items()
-                if t.get("funding_rate") is not None
-            ]
-            if rows:
-                funding_pct = max(rows, key=lambda item: abs(item[1]))[1]
-        except Exception:
-            funding_pct = None
-
-    # Crowding override: long book + expensive longs → GREED; short book + shorts paying → FEAR.
-    if long_pct >= 62 and funding_pct is not None and funding_pct >= 0.01:
-        mood = "GREED"
-        reason = f"Whales {long_pct:.0f}% long ({net_txt}); funding crowded — {funding_line}"
-    elif long_pct <= 38 and funding_pct is not None and funding_pct <= -0.01:
-        mood = "FEAR"
-        reason = f"Whales {long_pct:.0f}% long ({net_txt}); shorts crowded — {funding_line}"
-    elif long_pct >= 72:
+    if long_pct >= 72:
         mood = "EXTREME BULLISH"
-        reason = f"Tracked whales {long_pct:.0f}% long ({net_txt})"
     elif long_pct >= 58:
         mood = "BULLISH"
-        reason = f"Tracked whales {long_pct:.0f}% long ({net_txt})"
     elif long_pct <= 28:
         mood = "EXTREME BEARISH"
-        reason = f"Tracked whales {long_pct:.0f}% long ({net_txt})"
     elif long_pct <= 42:
         mood = "BEARISH"
-        reason = f"Tracked whales {long_pct:.0f}% long ({net_txt})"
     else:
         mood = "NEUTRAL"
-        reason = f"Whales balanced at {long_pct:.0f}% long ({net_txt})"
 
-    if funding_line and mood not in {"GREED", "FEAR"}:
-        reason = f"{reason}. Funding: {funding_line}"
+    reason = f"{scope}: {book}"
     return mood, reason, long_pct
 
 
@@ -481,7 +502,7 @@ async def send_big_whale_move(alert: WhaleAlert) -> AlertHistoryItem | None:
 
     bits: list[str] = []
     if alert.whale_long_pct is not None:
-        bits.append(f"Book {alert.whale_long_pct:.0f}% long")
+        bits.append(_asset_whale_share_line(alert.asset, alert.whale_long_pct))
     if alert.roi_pct is not None:
         bits.append(f"ROI {alert.roi_pct:+.1f}%")
     elif alert.unrealized_pnl_usd is not None:
@@ -529,7 +550,7 @@ async def send_big_trade(alert: WhaleAlert) -> AlertHistoryItem | None:
         f"Wallet {_short_addr(alert.trader_address)}",
     ]
     if alert.whale_long_pct is not None:
-        lines.append(f"Asset book {alert.whale_long_pct:.0f}% long among tracked")
+        lines.append(_asset_whale_share_line(alert.asset, alert.whale_long_pct))
 
     return await _dispatch(
         f"big_trade_{alert.alert_type.value}",

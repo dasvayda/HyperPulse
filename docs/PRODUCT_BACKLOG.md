@@ -6,7 +6,7 @@
 | | |
 |--|--|
 | 작성 | 2026-07-22 ~ 07-23 |
-| 갱신 | 2026-07-24 (BL-05 Alert quality, BL-11 Funding callout) |
+| 갱신 | 2026-07-25 (Market Brief / AI Insights redesign) |
 | 제품 목표 | [README Product Goals](../README.md#product-goals) |
 | 설계 제약 | [ARCHITECTURE](./ARCHITECTURE.md#product-goals--design-constraints) |
 | 벤치마크 참고 | [HyperTracker Perps](https://app.coinmarketman.com/hypertracker/perps), [Docs](https://docs.coinmarketman.com/) (시그널·UX만, API 연동 아님) |
@@ -35,6 +35,7 @@
 - [x] BL-05 Alert quality (entry/mark, uPnL/ROI, book %, stale, no Unknown)
 - [x] BL-11 Funding crowdedness callout
 - [x] Telegram alert mix — Consensus / Whale Move / Big Trade (short templates)
+- [x] Market Brief (LLM desk commentary + template fallback) + Insights evidence board
 
 ### Active backlog
 
@@ -122,6 +123,7 @@ Trader & Wallet · Positions (uPnL) · Cohort · Heatmap · Orders · Liquidatio
 | I7 Market pulse | BL-10 | [ ] |
 | I8 Funding + Liq timeline | BL-03, BL-11 / Coin Pulse liq | [~] |
 | Biggest Positions | BL-04 | [x] |
+| Market Brief / Insights hero | (shipped 2026-07-25) | [x] |
 
 ---
 
@@ -156,15 +158,15 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
   - [x] Done when 검증 (unit smoke: card당 ≥2 signal families)
 
 #### BL-03 · Liquidation windows (1h / 4h / 24h)
-- [ ]
+- [~] Partial (2026-07-25: A — dashboard 1h KPI)
 - **Why:** “지금 청산이 어느 쪽인가” 요약
 - **HL:** `recentTrades` liq + 짧은 persist
 - **Deliverable:** 윈도우별 long/short $ + pressure 한 줄
 - **Out of scope:** 30d heatmap, velocity 게이지 복제
 - **Effort:** M
 - 세부:
-  - [ ] 롤업 API/집계
-  - [ ] Liquidations 상단 UI
+  - [x] 1h rollup → `MarketStatus.liq_1h_*` + dashboard StatCard (Latest Consensus 대체)
+  - [ ] 4h / 12h / 24h strip (대시보드 또는 Liquidations 상단)
   - [ ] insight/alert 재사용
 
 #### BL-04 · Biggest open positions (tracked)
@@ -248,13 +250,26 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
   - [ ] 대시보드 3카드 (메인 테이블화 금지)
 
 #### BL-11 · Funding crowdedness callout
-- [x] Done (2026-07-24)
-- **HL:** assetCtx funding
-- **Deliverable:** |funding| 상위 3 + longs/shorts pay (BL-02 흡수 가능)
+- [x] Done (2026-07-24, 2026-07-25 개편)
+- **HL:** assetCtx funding + dayNtlVlm
+- **Deliverable:** 거래대금 Top20 ∩ |funding| ≥ 0.02% 인 코인만 "Extreme funding" callout (바닥/천장 후보). 극단 없으면 callout 없음
 - **Effort:** S
 - 세부:
   - [x] 집계 (`_build_funding_crowdedness_insight`)
   - [x] InsightCard callout + homepage preview 노출
+  - [x] 2026-07-25: 상위 유동성 ∩ 극단 필터로 변경 — thin alt(STX 등)가 callout 독점하는 문제 제거. Consensus는 거래대금 Top3 고래 북만 사용, funding 완전 분리
+
+#### BL-13 · Market Brief (Insights hero)
+- [x] Done (2026-07-25)
+- **Why:** AI는 트레이더 Speculative 태그가 아니라 시장 상태·포지션 제안이어야 함
+- **HL:** Top3 whale book + coin stance + extreme funding + liq 1h/24h + biggest positions (기존 집계만)
+- **Deliverable:** `GET /api/v2/insights/brief` + Insights 히어로 + Dashboard 헤드라인 1줄; Style mix 제거; strategy 라벨 canonicalize
+- **Effort:** M
+- 세부:
+  - [x] `market_brief.py` 스냅샷 + template + LLM 쿨다운/검증
+  - [x] Evidence 보드 (Prefer 정렬 + Top3 Consensus 카드)
+  - [x] Dashboard 티저(헤드라인만) / Insights 전문 분리
+  - [x] agent.md / ARCHITECTURE / PRODUCT_BACKLOG 페이지 소유권·LLM 용도 기록
 
 #### BL-12 · Liquidation proximity (tracked whales)
 - [ ]

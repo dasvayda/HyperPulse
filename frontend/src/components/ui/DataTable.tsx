@@ -85,13 +85,32 @@ interface StatCardProps {
   value: string;
   change?: string;
   positive?: boolean;
+  /** Optional Longs / Shorts style breakdown under the value. */
+  details?: { label: string; value: string; tone?: "positive" | "negative" | "muted" }[];
 }
 
-export function StatCard({ label, value, change, positive }: StatCardProps) {
+export function StatCard({ label, value, change, positive, details }: StatCardProps) {
   return (
     <div className="rounded-xl border border-border bg-bg-surface p-5">
       <div className="text-xs text-text-muted mb-1">{label}</div>
       <p className="text-2xl font-semibold text-text-primary">{value}</p>
+      {details && details.length > 0 && (
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+          {details.map((row) => (
+            <span
+              key={row.label}
+              className={clsx(
+                "text-xs font-medium",
+                row.tone === "positive" && "text-positive",
+                row.tone === "negative" && "text-negative",
+                (row.tone === "muted" || row.tone == null) && "text-text-muted",
+              )}
+            >
+              {row.label} {row.value}
+            </span>
+          ))}
+        </div>
+      )}
       {change && (
         <p
           className={clsx(

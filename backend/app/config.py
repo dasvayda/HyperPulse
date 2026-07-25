@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     langgraph_url: str = ""
     inference_interval_seconds: int = 120
     inference_trader_limit: int = 20
+    market_brief_cooldown_seconds: int = 1200
     ai_provider: str = "auto"  # auto | openai | deepseek | heuristic
 
     # Telegram

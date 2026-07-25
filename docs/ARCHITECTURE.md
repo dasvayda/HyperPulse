@@ -30,6 +30,23 @@ We are **not** building a business around accumulated historical data sales, ful
 | Scoped universe | Track top / whale traders deeply rather than index every wallet on the network |
 | Persistence is support | DB/Redis store continuity and short-window context; they are not the product surface |
 
+### Page ownership (Dashboard vs Insights)
+
+| Surface | Owns | Does not own |
+|---------|------|--------------|
+| **Dashboard** | Numeric KPIs (Top3 Consensus, 1h Liq), Prefer teaser cards (1–2), Market Brief **headline** link only | Full brief body, suggestions/risks dump |
+| **Insights** | Market Brief hero (headline + stance + status + suggestions/risks), rule evidence board, collapsed whale style tags | Duplicate Top3/1h KPI strip, pipeline health cards as hero |
+
+Retail copy: Prefer longs / Prefer shorts / Wait (not Buy/Sell bias).
+
+### LLM usage
+
+| Role | Module | Notes |
+|------|--------|-------|
+| **Primary** | `app/services/market_brief.py` | Periodic desk Brief from structured snapshot (Top3, coin stances, extreme funding, liq, biggest positions). Cooldown ~20m or hash change. Template fallback always available. |
+| **Secondary** | `app/services/inference.py` trader tags | Canonical strategy enum only; Insights shows tags collapsed. |
+| **Not LLM** | Prefer long/short evidence cards | Rule votes from whale book + funding + liq |
+
 ### Feature filter (use when adding work)
 
 Add a feature only if it improves **now-insight** quality for a trader. Reject or defer if it mainly:
@@ -267,18 +284,25 @@ Inputs
 
 Outputs
 
-- Strategy classification
+- Strategy classification (canonical enum via `canonicalize_strategy`)
 - Trading style
 - Risk profile
 
 Possible classifications
 
-- Momentum
-- Trend Following
-- Mean Reversion
-- Scalping
-- Swing Trading
-- Funding Arbitrage
+- Speculative, Directional, Diversified, Scalping, Momentum
+- Mean Reversion, Funding Arbitrage, Swing Trading, Trend Following, Mixed
+
+# Market Brief
+
+Structured snapshot → optional LLM JSON → validate against snapshot allowlist → template fallback.
+
+- Snapshot: Top3 consensus (+ per_asset book), book_wide, coin stances, top3_funding, extreme funding, liq 1h/24h, biggest positions, coverage
+- Prompt: field interpretation guide + 2 few-shot examples (prefer_short / wait)
+- Output: `headline`, `market_status`, `stance` (prefer_long|prefer_short|wait), `suggestions`, `risks`
+- API: `GET /api/v2/insights/brief`
+- Persistence: `market_briefs` (latest row) + in-memory `store.market_brief`
+- Runs **before** per-trader LLM in the inference pipeline so Brief does not compete for budget on failure paths
 
 ---
 
@@ -342,9 +366,10 @@ flowchart LR
 | `app/collectors/scheduler.py` | Async loops for collect / infer / rank |
 | `app/services/store.py` | In-memory state + SQLAlchemy persistence |
 | `app/services/ranking.py` | Smart money composite score |
-| `app/services/inference.py` | OpenAI / DeepSeek / heuristic strategy classification |
+| `app/services/inference.py` | Rule evidence cards + secondary trader strategy tags |
+| `app/services/market_brief.py` | Market Brief snapshot, LLM/template generation, validation |
 | `app/services/alerts.py` | Telegram delivery or local queue |
-| `app/routers/v2.py` | Rankings, insights, inferences, alerts, pipeline status |
+| `app/routers/v2.py` | Rankings, insights, brief, inferences, alerts, pipeline status |
 
 ## Persistence
 
@@ -355,6 +380,7 @@ Default local database is SQLite (`hyperpulse.db`). Tables:
 - `liquidations`
 - `inference_results`
 - `alerts`
+- `market_briefs` (latest Market Brief for restart continuity)
 
 Redis is optional. Cache falls back to process memory when Redis is down.
 

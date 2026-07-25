@@ -15,7 +15,7 @@ import {
 import { Badge } from "@/components/ui/Badge";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { SparkBarBackground } from "@/components/ui/SparkBar";
-import { InsightCard } from "@/components/ui/InsightCard";
+import { InsightCardCarousel } from "@/components/ui/InsightCardCarousel";
 import { AlertFeed } from "@/components/ui/AlertFeed";
 import { WhaleBiasPanel } from "@/components/ui/WhaleBiasPanel";
 import { ScoreMeter } from "@/components/ui/ScoreMeter";
@@ -31,10 +31,10 @@ import {
   getCoinPulse,
   getBiggestPositions,
   getWhaleBookSummary,
+  getMarketBrief,
   formatUsd,
   formatTimeAgo,
   formatConfidence,
-  formatScore100,
   formatPct,
   formatFundingPct,
   formatPrice,
@@ -53,6 +53,7 @@ export default async function HomePage() {
     coinPulse,
     whaleSummary,
     biggestPositions,
+    marketBrief,
   ] = await Promise.all([
     getDashboardStats(),
     getWhaleAlerts(),
@@ -65,12 +66,13 @@ export default async function HomePage() {
     getCoinPulse(),
     getWhaleBookSummary(),
     getBiggestPositions(8),
+    getMarketBrief(),
   ]);
 
   const recentAlerts = alerts.slice(0, 5);
   const topZones = zones.slice(0, 4);
   const topRanks = rankings.slice(0, 5);
-  // Prefer multi-signal coin stance cards (BL-02); also surface funding callout (BL-11).
+  // Prefer teaser carousel: coin stances first, then Extreme funding / Consensus / other.
   const coinStanceInsights = insights.filter(
     (insight) =>
       Boolean(insight.asset) &&
@@ -80,19 +82,71 @@ export default async function HomePage() {
       )
   );
   const fundingCallout = insights.find(
-    (insight) => insight.title === "Funding crowdedness"
+    (insight) => insight.title === "Extreme funding"
   );
+  const consensusCard = insights.find((insight) =>
+    insight.title.toLowerCase().startsWith("top3 consensus")
+  );
+  const seen = new Set<string>();
   const previewInsights: typeof insights = [];
-  if (coinStanceInsights[0]) previewInsights.push(coinStanceInsights[0]);
-  if (fundingCallout) previewInsights.push(fundingCallout);
-  if (previewInsights.length === 0 && insights[0]) {
-    previewInsights.push(insights[0]);
+  for (const card of [
+    ...coinStanceInsights.slice(0, 3),
+    fundingCallout,
+    consensusCard,
+    ...insights.filter(
+      (i) =>
+        !coinStanceInsights.includes(i) &&
+        i !== fundingCallout &&
+        i !== consensusCard
+    ),
+  ]) {
+    if (!card || seen.has(card.id)) continue;
+    seen.add(card.id);
+    previewInsights.push(card);
+    if (previewInsights.length >= 5) break;
   }
   const pulse = coinPulse.slice(0, 10);
   const maxOiUsd = Math.max(
     ...pulse.map((row) => row.open_interest_usd ?? 0),
     1
   );
+
+  // Top-3 by HL volume × whale book — same universe as Consensus alerts.
+  const top3Assets = coinPulse.slice(0, 3).map((row) => row.asset);
+  let top3Long = 0;
+  let top3Short = 0;
+  const top3Used: string[] = [];
+  for (const asset of top3Assets) {
+    const book = whaleSummary?.by_asset?.[asset];
+    if (!book) continue;
+    top3Long += book.long_notional_usd;
+    top3Short += book.short_notional_usd;
+    top3Used.push(asset);
+  }
+  const top3Total = top3Long + top3Short;
+  const top3LongPct = top3Total > 0 ? (top3Long / top3Total) * 100 : null;
+  const top3ShortPct =
+    top3LongPct != null ? Math.max(0, 100 - top3LongPct) : null;
+  const top3Bias =
+    top3LongPct == null
+      ? "—"
+      : top3LongPct >= 55
+        ? "LONG"
+        : top3LongPct <= 45
+          ? "SHORT"
+          : "MIXED";
+  const top3ShareLabel =
+    top3LongPct == null || top3ShortPct == null
+      ? "No Top3 whale book yet"
+      : top3Bias === "SHORT"
+        ? `${top3ShortPct.toFixed(0)}% short · ${top3Used.join("/")}`
+        : top3Bias === "LONG"
+          ? `${top3LongPct.toFixed(0)}% long · ${top3Used.join("/")}`
+          : `${top3LongPct.toFixed(0)}% long / ${top3ShortPct.toFixed(0)}% short · ${top3Used.join("/")}`;
+
+  const liq1hLong = market.liq_1h_long_usd ?? 0;
+  const liq1hShort = market.liq_1h_short_usd ?? 0;
+  const liq1hTotal = market.liq_1h_total_usd ?? liq1hLong + liq1hShort;
 
   return (
     <DashboardLayout>
@@ -127,51 +181,53 @@ export default async function HomePage() {
           positive
         />
         <StatCard
-          label="Avg Smart Money"
-          value={
-            stats.avg_smart_money_score != null
-              ? formatScore100(stats.avg_smart_money_score)
-              : "—"
+          label="Top3 Consensus"
+          value={top3Bias}
+          change={top3ShareLabel}
+          positive={
+            top3Bias === "LONG" ? true : top3Bias === "SHORT" ? false : undefined
           }
-          change="Out of 100"
-          positive
         />
         <StatCard
-          label="Telegram Alerts"
-          value={String(stats.telegram_alerts_24h ?? alertHistory.length)}
-          change={
-            pipeline.telegram_configured ? "Bot connected" : "Queued locally"
-          }
-          positive={pipeline.telegram_configured}
+          label="1h Liquidations"
+          value={liq1hTotal > 0 ? formatUsd(liq1hTotal) : "$0"}
+          details={[
+            { label: "Longs", value: formatUsd(liq1hLong), tone: "negative" },
+            { label: "Shorts", value: formatUsd(liq1hShort), tone: "positive" },
+          ]}
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <div className="lg:col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 items-stretch">
+        <div className="lg:col-span-2 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-text-primary">
               AI Market Insights
             </h2>
             <Link href="/insights" className="text-xs text-accent hover:underline">
-              View all
+              Full brief
             </Link>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <WhaleBiasPanel summary={whaleSummary} />
-            {previewInsights.length > 0 ? (
-              previewInsights.map((insight) => (
-                  <InsightCard key={insight.id} insight={insight} className="w-full" />
-                ))
-            ) : (
-              <div className="rounded-xl border border-border border-dashed bg-bg-surface/50 p-5 flex items-center justify-center text-center">
-                <p className="text-sm text-text-dim">
-                  Coin stance cards appear after whale book + funding/liq signals are ready.
-                </p>
-              </div>
-            )}
+          <Link
+            href="/insights"
+            className="mb-4 block rounded-xl border border-border bg-bg-elevated/40 px-4 py-3 hover:border-accent/40 transition-colors"
+          >
+            <p className="text-[10px] uppercase tracking-wide text-text-dim mb-1">
+              Market Brief
+            </p>
+            <p className="text-sm font-medium text-text-primary line-clamp-2">
+              {marketBrief.headline}
+            </p>
+          </Link>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 items-stretch">
+            <WhaleBiasPanel summary={whaleSummary} className="h-full" />
+            <InsightCardCarousel
+              insights={previewInsights}
+              className="h-full min-h-[200px]"
+            />
           </div>
         </div>
-        <div>
+        <div className="flex flex-col min-h-0">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-text-primary">
               Alert Feed
@@ -180,7 +236,7 @@ export default async function HomePage() {
               History
             </Link>
           </div>
-          <AlertFeed alerts={alertHistory.slice(0, 3)} />
+          <AlertFeed alerts={alertHistory} limit={3} className="flex-1" />
         </div>
       </div>
 

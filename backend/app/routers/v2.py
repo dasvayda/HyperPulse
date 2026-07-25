@@ -9,6 +9,7 @@ from app.models.schemas import (
     AlertHistoryItem,
     BiggestPosition,
     CoinPulse,
+    MarketBrief,
     MarketInsight,
     MarketStatus,
     PerformanceRankingResponse,
@@ -19,6 +20,7 @@ from app.models.schemas import (
 )
 from app.services.alerts import process_alert_triggers
 from app.services.inference import run_inference_pipeline
+from app.services.market_brief import generate_market_brief
 from app.services.ranking import (
     PERFORMANCE_BASE_THRESHOLD_USD,
     PERFORMANCE_TARGET,
@@ -68,6 +70,14 @@ def list_insights(limit: int = Query(default=20, le=50)) -> list[MarketInsight]:
     return store.insights[:limit]
 
 
+@router.get("/insights/brief", response_model=MarketBrief)
+async def get_market_brief(force: bool = Query(default=False)) -> MarketBrief:
+    """Desk-style Market Brief (LLM or template fallback)."""
+    if store.market_brief is not None and not force:
+        return store.market_brief
+    return await generate_market_brief(force=force)
+
+
 @router.get("/inferences", response_model=list[StrategyInference])
 def list_inferences(limit: int = Query(default=50, le=100)) -> list[StrategyInference]:
     return store.inferences[:limit]
@@ -100,6 +110,28 @@ def pipeline_status() -> PipelineStatus:
 @router.get("/market/status", response_model=MarketStatus)
 def market_status() -> MarketStatus:
     """Summarise recent Hyperliquid on-chain market activity."""
+    now = datetime.now(timezone.utc)
+    cutoff_1h = now - timedelta(hours=1)
+    cutoff_24h = now - timedelta(hours=24)
+
+    liq_1h_long = 0.0
+    liq_1h_short = 0.0
+    liq_1h_events = 0
+    for event in store.liquidation_events:
+        ts = event.timestamp
+        if isinstance(ts, datetime) and ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        try:
+            if ts < cutoff_1h:
+                continue
+        except TypeError:
+            continue
+        liq_1h_events += 1
+        if event.side.value == "long":
+            liq_1h_long += event.size_usd
+        else:
+            liq_1h_short += event.size_usd
+
     db: Session = SessionLocal()
     try:
         last_snapshot = (
@@ -112,14 +144,26 @@ def market_status() -> MarketStatus:
             .order_by(LiquidationRow.timestamp.desc())
             .first()
         )
-
-        now = datetime.now(timezone.utc)
-        cutoff = now - timedelta(hours=24)
         liq_24h = (
             db.query(LiquidationRow)
-            .filter(LiquidationRow.timestamp >= cutoff)
+            .filter(LiquidationRow.timestamp >= cutoff_24h)
             .count()
         )
+
+        # Prefer DB rollup when in-memory window is empty (e.g. after restart).
+        if liq_1h_events == 0:
+            db_1h = (
+                db.query(LiquidationRow)
+                .filter(LiquidationRow.timestamp >= cutoff_1h)
+                .all()
+            )
+            for row in db_1h:
+                liq_1h_events += 1
+                side = (row.side or "").lower()
+                if side == "long":
+                    liq_1h_long += float(row.size_usd or 0.0)
+                else:
+                    liq_1h_short += float(row.size_usd or 0.0)
     finally:
         db.close()
 
@@ -132,6 +176,10 @@ def market_status() -> MarketStatus:
         last_liquidation_at=last_liq.timestamp if last_liq else None,
         liquidation_events_24h=liq_24h,
         has_live_market=has_live,
+        liq_1h_long_usd=round(liq_1h_long, 2),
+        liq_1h_short_usd=round(liq_1h_short, 2),
+        liq_1h_total_usd=round(liq_1h_long + liq_1h_short, 2),
+        liq_1h_events=liq_1h_events,
     )
 
 

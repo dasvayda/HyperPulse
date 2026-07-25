@@ -1,163 +1,74 @@
-import Link from "next/link";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import {
-  DataTable,
-  DataTableBody,
-  DataTableCell,
-  DataTableHead,
-  DataTableHeaderCell,
-  DataTableRow,
-  PageHeader,
-  StatCard,
-} from "@/components/ui/DataTable";
-import { Badge } from "@/components/ui/Badge";
+import { PageHeader } from "@/components/ui/DataTable";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { InsightCard } from "@/components/ui/InsightCard";
+import { MarketBriefHero } from "@/components/ui/MarketBriefHero";
+import { WhaleStyleTagsTable } from "@/components/ui/WhaleStyleTagsTable";
 import {
   getAIInsights,
   getInferences,
+  getMarketBrief,
   getPipelineStatus,
-  formatConfidence,
   formatTimeAgo,
 } from "@/lib/api";
 
 export default async function InsightsPage() {
-  const [insights, inferences, pipeline] = await Promise.all([
+  const [insights, inferences, pipeline, brief] = await Promise.all([
     getAIInsights(),
     getInferences(),
     getPipelineStatus(),
+    getMarketBrief(),
   ]);
 
-  const avgConfidence =
-    inferences.length > 0
-      ? inferences.reduce((sum, item) => sum + item.confidence, 0) / inferences.length
-      : 0;
+  const ordered = [...insights].sort((a, b) => {
+    const rank = (stance: string) =>
+      stance === "buy" || stance === "sell" ? 0 : 1;
+    return rank(a.stance) - rank(b.stance);
+  });
 
   return (
     <DashboardLayout>
       <PageHeader
-        title="AI Strategy Inference"
-        description="Per-coin prefer long / prefer short / wait calls from whale book + funding + liquidations, plus strategy tags"
+        title="AI Insights"
+        description="Desk brief from whale book + funding + liquidations — prefer long / short / wait"
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard
-          label="Inferences"
-          value={String(inferences.length)}
-          change={`Provider: ${pipeline.ai_provider}`}
-          positive
-        />
-        <StatCard
-          label={
-            <InfoTooltip label="Avg Confidence">
-              <p className="mb-1 font-medium text-text-primary">
-                Average strategy confidence
-              </p>
-              <p>
-                Mean of each tracked whale&apos;s strategy-tag confidence (0–100).
-                Higher = the model/heuristic is more sure the style label (e.g.
-                Momentum) fits. It is not win rate, PnL, or signal strength for
-                BUY/SELL cards.
-              </p>
-            </InfoTooltip>
-          }
-          value={formatConfidence(avgConfidence)}
-          change="Across tracked whales"
-          positive
-        />
-        <StatCard
-          label="Market Insights"
-          value={String(insights.length)}
-          change="Live pipeline output"
-          positive
-        />
-        <StatCard
-          label="Last Run"
-          value={
-            pipeline.last_inference_at
-              ? formatTimeAgo(pipeline.last_inference_at)
-              : "—"
-          }
-          change="Inference cycle"
-          positive
-        />
-      </div>
+      <MarketBriefHero brief={brief} />
 
-      <h2 className="text-base font-semibold text-text-primary mb-4">
-        Market Insights
-      </h2>
+      <div className="flex items-center justify-between mb-4 gap-3">
+        <h2 className="text-base font-semibold text-text-primary">Evidence</h2>
+        <InfoTooltip label="Rule cards">
+          <p className="mb-1 font-medium text-text-primary">
+            Prefer long / short evidence
+          </p>
+          <p>
+            These cards are built from Hyperliquid whale book, funding, and
+            liquidation rules — not the LLM brief. Confidence is vote strength,
+            not win rate.
+          </p>
+        </InfoTooltip>
+      </div>
       <div className="mb-10 grid gap-4 grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))]">
-        {insights.map((insight) => (
-          <InsightCard key={insight.id} insight={insight} />
-        ))}
+        {ordered.length > 0 ? (
+          ordered.map((insight) => (
+            <InsightCard key={insight.id} insight={insight} />
+          ))
+        ) : (
+          <p className="text-sm text-text-muted">
+            No evidence cards yet — wait for the next inference cycle.
+          </p>
+        )}
       </div>
 
-      <h2 className="text-base font-semibold text-text-primary mb-4">
-        Trader Strategy Classifications
-      </h2>
-      <DataTable>
-        <DataTableHead>
-          <DataTableHeaderCell>Trader</DataTableHeaderCell>
-          <DataTableHeaderCell>Strategy</DataTableHeaderCell>
-          <DataTableHeaderCell>Style</DataTableHeaderCell>
-          <DataTableHeaderCell>Risk</DataTableHeaderCell>
-          <DataTableHeaderCell>Confidence</DataTableHeaderCell>
-          <DataTableHeaderCell>Provider</DataTableHeaderCell>
-          <DataTableHeaderCell>Rationale</DataTableHeaderCell>
-        </DataTableHead>
-        <DataTableBody>
-          {inferences.map((item) => (
-            <DataTableRow key={item.id}>
-              <DataTableCell>
-                <Link
-                  href={`/traders/${encodeURIComponent(item.trader_address)}`}
-                  className="text-accent hover:underline font-medium"
-                >
-                  {item.trader_alias}
-                </Link>
-              </DataTableCell>
-              <DataTableCell>
-                <Badge variant="accent">{item.strategy}</Badge>
-              </DataTableCell>
-              <DataTableCell className="text-text-muted">
-                {item.trading_style}
-              </DataTableCell>
-              <DataTableCell>
-                <Badge
-                  variant={
-                    item.risk_profile === "Aggressive"
-                      ? "short"
-                      : item.risk_profile === "Conservative"
-                        ? "long"
-                        : "default"
-                  }
-                >
-                  {item.risk_profile}
-                </Badge>
-              </DataTableCell>
-              <DataTableCell>
-                <div className="flex items-center gap-2">
-                  <div className="w-12 h-1.5 rounded-full bg-bg-elevated overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-accent"
-                      style={{ width: `${item.confidence}%` }}
-                    />
-                  </div>
-                  <span className="text-xs text-text-muted">
-                    {formatConfidence(item.confidence)}
-                  </span>
-                </div>
-              </DataTableCell>
-              <DataTableCell className="text-text-muted text-xs">
-                {item.provider}
-              </DataTableCell>
-              <DataTableCell className="text-text-muted max-w-md whitespace-normal">
-                {item.rationale}
-              </DataTableCell>
-            </DataTableRow>
-          ))}
-        </DataTableBody>
-      </DataTable>
+      <WhaleStyleTagsTable
+        inferences={inferences}
+        providerLabel={pipeline.ai_provider}
+        lastRunLabel={
+          pipeline.last_inference_at
+            ? formatTimeAgo(pipeline.last_inference_at)
+            : "—"
+        }
+      />
     </DashboardLayout>
   );
 }

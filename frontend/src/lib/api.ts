@@ -5,6 +5,7 @@ import type {
   DashboardStats,
   LiquidationEvent,
   LiquidationZone,
+  MarketBrief,
   MarketInsight,
   MarketStatus,
   PipelineStatus,
@@ -88,6 +89,10 @@ export function getPerformanceRankings(): Promise<PerformanceRankingResponse> {
 
 export function getAIInsights(): Promise<MarketInsight[]> {
   return fetchApi("/api/v2/insights");
+}
+
+export function getMarketBrief(): Promise<MarketBrief> {
+  return fetchApi("/api/v2/insights/brief");
 }
 
 export function getInferences(): Promise<StrategyInference[]> {

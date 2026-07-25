@@ -278,3 +278,29 @@ class MarketStatus(BaseModel):
     last_liquidation_at: datetime | None
     liquidation_events_24h: int
     has_live_market: bool
+    # BL-03 A: last-1h rollup across tracked markets (recentTrades).
+    liq_1h_long_usd: float = 0.0
+    liq_1h_short_usd: float = 0.0
+    liq_1h_total_usd: float = 0.0
+    liq_1h_events: int = 0
+
+
+class BriefStance(str, Enum):
+    PREFER_LONG = "prefer_long"
+    PREFER_SHORT = "prefer_short"
+    WAIT = "wait"
+
+
+class MarketBrief(BaseModel):
+    """Desk-style market commentary built from a structured HL snapshot."""
+
+    headline: str
+    market_status: str
+    stance: BriefStance = BriefStance.WAIT
+    suggestions: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+    evidence_refs: list[str] = Field(default_factory=list)
+    as_of: datetime
+    provider: str = "template"
+    source: str = "template"  # llm | template
+    snapshot_hash: str = ""
