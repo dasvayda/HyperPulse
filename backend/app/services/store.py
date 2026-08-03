@@ -198,6 +198,27 @@ class StateStore:
                 for row in alerts
             ]
 
+            # Consensus pulses only fire on mood change, so a restart must not
+            # replay the mood that was already sent.
+            last_consensus = (
+                db.query(AlertRow)
+                .filter(AlertRow.event_type == "market_consensus")
+                .order_by(AlertRow.created_at.desc())
+                .first()
+            )
+            if last_consensus is not None:
+                mood = None
+                try:
+                    mood = (json.loads(last_consensus.payload or "{}") or {}).get("mood")
+                except (TypeError, ValueError):
+                    mood = None
+                if not mood and last_consensus.title:
+                    _, _, tail = last_consensus.title.partition("·")
+                    mood = tail.strip() or None
+                if mood:
+                    self.last_consensus_label = str(mood)
+                    self.last_consensus_at = last_consensus.created_at
+
             try:
                 from app.services.market_brief import load_market_brief_from_db
 

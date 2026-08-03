@@ -20,8 +20,6 @@ logger = logging.getLogger(__name__)
 BIG_TRADE_MIN_USD = 2_000_000.0
 # Account value heuristic for "known big whale" framing.
 BIG_WHALE_ACCOUNT_MIN_USD = 5_000_000.0
-# Consensus: only re-send same mood after this cooldown.
-CONSENSUS_COOLDOWN = timedelta(hours=2)
 
 
 def _utcnow() -> datetime:
@@ -405,7 +403,7 @@ async def _dispatch(event_type: str, title: str, lines: list[str], payload: dict
 
 
 async def send_market_consensus_alert() -> AlertHistoryItem | None:
-    """Market-wide mood pulse — only on change or after cooldown."""
+    """Market-wide mood pulse — fires only when the mood label changes."""
     computed = compute_market_consensus()
     if not computed:
         return None
@@ -413,18 +411,10 @@ async def send_market_consensus_alert() -> AlertHistoryItem | None:
     if mood == "NEUTRAL":
         return None
 
-    last_label = getattr(store, "last_consensus_label", None)
-    last_at = getattr(store, "last_consensus_at", None)
+    # Same mood as the last sent pulse carries no new information.
+    if getattr(store, "last_consensus_label", None) == mood:
+        return None
     now = _utcnow()
-    if last_label == mood and last_at is not None:
-        at = last_at
-        if isinstance(at, datetime) and at.tzinfo is None:
-            at = at.replace(tzinfo=timezone.utc)
-        try:
-            if now - at < CONSENSUS_COOLDOWN:
-                return None
-        except TypeError:
-            pass
 
     title = f"CONSENSUS · {mood}"
     lines = [

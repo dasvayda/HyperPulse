@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     # Global ceiling across all types (hard stop).
     alert_max_per_hour: int = 8
     # Per-type caps — tighter on noisier streams.
-    # big_trade fires most often (size-based); consensus least (mood + cooldown).
+    # big_trade fires most often (size-based); consensus least (mood change only).
     alert_limit_big_trade_per_hour: int = 2
     alert_limit_whale_move_per_hour: int = 3
     alert_limit_consensus_per_hour: int = 2
