@@ -258,6 +258,12 @@ export interface MarketStatus {
   liq_1h_events?: number;
 }
 
+export interface MarketBriefTldr {
+  now: string;
+  short_read: string;
+  however: string;
+}
+
 export interface MarketBrief {
   headline: string;
   market_status: string;
@@ -265,6 +271,10 @@ export interface MarketBrief {
   suggestions: string[];
   risks: string[];
   evidence_refs: string[];
+  tldr?: MarketBriefTldr | null;
+  asset?: string | null;
+  stale?: boolean;
+  tab_assets?: string[];
   as_of: string;
   provider: string;
   source: string;

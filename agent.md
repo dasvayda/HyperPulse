@@ -6,11 +6,11 @@ HyperPulse is an AI-powered intelligence platform for Hyperliquid traders.
 
 **Product goal:** strong *current-moment* insights that are simple, reliable, and actionable for trading — not selling accumulated data or dense metric dumps. See `README.md` (Product Goals), `docs/ARCHITECTURE.md` (constraints), and `docs/PRODUCT_BACKLOG.md` (canonical backlog + checkboxes).
 
-**AI Insights page:** Market Brief (LLM desk commentary on a structured HL snapshot) is the hero. Prefer long/short evidence cards are rule-based. Trader strategy tags are secondary. Dashboard owns numeric KPIs (Top3 Consensus, 1h Liq); Insights owns the full brief.
+**AI Insights page:** Market Brief hero is a 3-slot TL;DR (now = mark + vs prev day + funding; short = tracked book $/% + sampled 1h liq; however = tension or confirm). Prefer longs/shorts/Wait is a badge, not in the headline. Coin tabs are live volume Top3. Dashboard teaser uses `tldr.now`. Evidence cards stay rule-based. Trader strategy tags are secondary.
 
-**LLM usage:** Primary = periodic Market Brief (`market_brief.py`). Secondary = trader strategy labels (canonicalized enums). Market BUY/SELL evidence cards are **not** LLM.
+**LLM usage:** Primary = periodic market-wide Market Brief (`market_brief.py`). Coin briefs are rule/template only. Secondary = trader strategy labels. Market BUY/SELL evidence cards are **not** LLM.
 
-Brief inputs: Top3 whale book (+ per-asset), book-wide, coin stances, Top3 funding (always) + extreme funding, liq 1h/24h, biggest positions, coverage. Prompt includes how-to-read each field + few-shot (prefer_short / wait). `market_status` uses desk inventory tone (signaling / sell pressure / positioning not catalyst); headline+suggestions own Prefer longs/shorts/Wait.
+Brief inputs: tape (mark, vs prev day, funding), Top3 whale book (+ per-asset), book-wide, coin stances, Top3 funding + extreme funding, sampled liq 1h/24h, biggest positions, coverage. Headline is descriptive; suggestions live in a collapsed "What this implies" block. Tracked-whale sample, not the full market.
 
 - **Phase 1**: Whale Alerts, Trader Profiles, Basic Liquidation Radar
 - **Phase 2**: Collectors, persistence, AI strategy inference, smart money ranking, Telegram alerts

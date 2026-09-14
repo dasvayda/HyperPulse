@@ -15,6 +15,7 @@ from app.config import settings
 from app.db import SessionLocal
 from app.models.orm import MarketBriefRow
 from app.models.schemas import BriefStance, InsightStance, MarketBrief
+from app.services.brief_report import apply_tldr_to_brief, slice_snapshot
 from app.services.store import store
 from app.services.whale_book import list_biggest_positions
 
@@ -92,13 +93,16 @@ def _top_assets_by_volume(n: int = 3) -> list[str]:
     return _top(n)
 
 
-def _liq_window_usd(hours: float) -> dict[str, float | int]:
+def _liq_window_usd(hours: float, asset: str | None = None) -> dict[str, float | int]:
     now = _utcnow()
     cutoff = now - timedelta(hours=hours)
     long_usd = 0.0
     short_usd = 0.0
     events = 0
+    want = asset.upper() if asset else None
     for event in store.liquidation_events:
+        if want and str(event.asset).upper() != want:
+            continue
         ts = event.timestamp
         if isinstance(ts, datetime) and ts.tzinfo is None:
             ts = ts.replace(tzinfo=timezone.utc)
@@ -120,6 +124,60 @@ def _liq_window_usd(hours: float) -> dict[str, float | int]:
     }
 
 
+def _liq_by_asset(hours: float, assets: list[str]) -> dict[str, dict[str, float | int]]:
+    return {asset.upper(): _liq_window_usd(hours, asset) for asset in assets if asset}
+
+
+def _iso(raw: Any) -> str | None:
+    if raw is None:
+        return None
+    if isinstance(raw, datetime):
+        dt = raw if raw.tzinfo else raw.replace(tzinfo=timezone.utc)
+        return dt.isoformat()
+    return str(raw)
+
+
+def _build_tape(assets: list[str]) -> dict[str, dict[str, Any]]:
+    ticks = store.market_ticks or {}
+    out: dict[str, dict[str, Any]] = {}
+    for asset in assets:
+        if not asset:
+            continue
+        tick = ticks.get(asset) or ticks.get(asset.upper()) or {}
+        funding = _asset_funding_pct(asset)
+        mark = tick.get("mark_price")
+        change = tick.get("change_pct_24h")
+        prev = tick.get("prev_day_price")
+        oi = tick.get("open_interest")
+        vol = tick.get("day_volume_usd")
+        if mark is None and funding is None and not tick:
+            continue
+        try:
+            mark_f = float(mark) if mark is not None else None
+        except (TypeError, ValueError):
+            mark_f = None
+        try:
+            change_f = float(change) if change is not None else None
+        except (TypeError, ValueError):
+            change_f = None
+        try:
+            prev_f = float(prev) if prev is not None else None
+        except (TypeError, ValueError):
+            prev_f = None
+        key = str(asset).upper()
+        out[key] = {
+            "asset": key,
+            "mark_price": mark_f,
+            "change_pct_24h": round(change_f, 3) if change_f is not None else None,
+            "prev_day_price": prev_f,
+            "funding_pct": round(funding, 4) if funding is not None else None,
+            "open_interest": float(oi) if oi is not None else None,
+            "day_volume_usd": float(vol) if vol is not None else None,
+            "updated_at": _iso(tick.get("updated_at")),
+        }
+    return out
+
+
 ALLOWED_EVIDENCE_REFS = frozenset(
     {
         "top3_consensus",
@@ -131,6 +189,7 @@ ALLOWED_EVIDENCE_REFS = frozenset(
         "biggest_positions",
         "coverage",
         "book_wide",
+        "tape",
     }
 )
 
@@ -262,7 +321,11 @@ def _coin_stance_summaries() -> list[dict[str, Any]]:
     """Compact stance rows aligned with BL-02 evidence cards."""
     from app.services.inference import _build_coin_stance_insights
 
-    cards = _build_coin_stance_insights(_utcnow())
+    try:
+        cards = _build_coin_stance_insights(_utcnow())
+    except Exception:
+        logger.exception("coin stance summaries failed")
+        return []
     rows: list[dict[str, Any]] = []
     for card in cards:
         action = "wait"
@@ -344,6 +407,11 @@ def build_market_brief_snapshot() -> dict[str, Any]:
 
     consensus = _top3_consensus_block()
     assets = list(consensus.get("assets") or [])
+    tape = _build_tape(assets)
+    summary = store.whale_summary
+    book_updated = _iso(getattr(summary, "updated_at", None)) if summary else None
+    tape_times = [_iso(row.get("updated_at")) for row in tape.values() if row.get("updated_at")]
+    tape_updated = max((t for t in tape_times if t), default=None)
     payload = {
         "as_of": _utcnow().isoformat(),
         "top3_consensus": consensus,
@@ -353,6 +421,11 @@ def build_market_brief_snapshot() -> dict[str, Any]:
         "extreme_funding": _extreme_funding_rows(),
         "liq_1h": _liq_window_usd(1),
         "liq_24h": _liq_window_usd(24),
+        "liq_1h_by_asset": _liq_by_asset(1, assets),
+        "liq_24h_by_asset": _liq_by_asset(24, assets),
+        "tape": tape,
+        "book_updated_at": book_updated,
+        "tape_updated_at": tape_updated,
         "biggest_positions": biggest,
         "coverage": coverage,
     }
@@ -508,12 +581,6 @@ def build_template_brief(snapshot: dict[str, Any]) -> MarketBrief:
     else:
         stance = majority
 
-    stance_label = {
-        BriefStance.PREFER_LONG: "Prefer longs",
-        BriefStance.PREFER_SHORT: "Prefer shorts",
-        BriefStance.WAIT: "Wait",
-    }[stance]
-
     if long_pct is not None:
         if "NEUTRAL" in mood.upper():
             lean_txt = "balanced (no clear lean)"
@@ -523,9 +590,9 @@ def build_template_brief(snapshot: dict[str, Any]) -> MarketBrief:
             lean_txt = "lean short"
         else:
             lean_txt = f"lean {mood.replace('_', ' ').title()}"
-        headline = f"Top3 ({asset_label}) whales {lean_txt} — {stance_label}"
+        headline = f"Top3 ({asset_label}) whales {lean_txt}"
     else:
-        headline = f"Market brief: {stance_label} while whale coverage builds"
+        headline = "Tracked whale coverage still building"
 
     status_bits: list[str] = []
     if long_pct is not None:
@@ -630,6 +697,9 @@ def build_template_brief(snapshot: dict[str, Any]) -> MarketBrief:
     if liq_total > 0:
         refs.append("liq_1h")
 
+    if snapshot.get("tape"):
+        refs.append("tape")
+
     return MarketBrief(
         headline=headline[:240],
         market_status=" ".join(status_bits),
@@ -698,7 +768,7 @@ def _validate_brief(data: dict[str, Any], snapshot: dict[str, Any], provider: st
 
     refs = _normalize_evidence_refs(data.get("evidence_refs"), snapshot)
 
-    return MarketBrief(
+    brief = MarketBrief(
         headline=headline[:240],
         market_status=status[:1200],
         stance=stance,
@@ -710,6 +780,7 @@ def _validate_brief(data: dict[str, Any], snapshot: dict[str, Any], provider: st
         source="llm",
         snapshot_hash=str(snapshot.get("snapshot_hash") or ""),
     )
+    return apply_tldr_to_brief(brief, snapshot, None)
 
 
 BRIEF_SYSTEM_PROMPT = """You are a Hyperliquid desk commentator for retail traders.
@@ -720,21 +791,22 @@ Write a Market Brief from the JSON snapshot ONLY. Respond with JSON only:
 prefer_long | prefer_short | wait
 
 ## Retail copy (required)
-- Prefer longs / Prefer shorts / Wait
-- Forbidden: buy bias, sell bias, shorting, longing, entry points, bullish/bearish signals as advice
+- Prefer longs / Prefer shorts / Wait belong in stance + suggestions ONLY.
+- Forbidden in headline and market_status: Prefer longs/shorts, Wait, buy bias, sell bias, shorting, longing, entry points, bullish/bearish signals as advice.
 
 ## How to read each snapshot field
-- top3_consensus: tracked-whale long/short $ share inside HL volume Top3 (usually BTC/ETH/SOL or HYPE). Funding is NOT included here. mood from long_pct: >=58 BULLISH, <=42 BEARISH, else NEUTRAL (= balanced / no clear lean). Use per_asset for coin-level book.
+- tape: mark, vs prev day % (prevDayPx, not session range), funding %. Do not invent 7d/30d or ranges.
+- top3_consensus: tracked-whale long/short $ share inside HL volume Top3. Funding is NOT included here. mood from long_pct: >=58 BULLISH, <=42 BEARISH, else NEUTRAL (= balanced / no clear lean). Use per_asset for coin-level book.
 - book_wide: whole tracked whale book (broader than Top3). Use as context; Top3 + coin_stances lead the call.
 - coin_stances: rule votes (whale book + funding + liq). Already prefer_long/prefer_short/wait. Do not contradict a clear 2+ coin majority unless Top3 conflicts — then stance=wait.
 - top3_funding: funding % for Top3 always. Flat/near-zero = no funding edge. Only treat as crowded when is_extreme=true (or listed in extreme_funding).
 - extreme_funding: Top20 volume ∩ |funding| extreme. Empty list means no extreme funding — do NOT invent crowdedness.
-- liq_1h / liq_24h: recent liquidation USD. Heavy long_usd flush = near-term long flush / sell-side pressure from forced longs; heavy short_usd the opposite. Small totals = weak signal.
+- liq_1h / liq_24h: sampled recentTrades, not full-market liquidations. Use direction (long-flush / quiet), not exchange-wide totals.
 - biggest_positions: illustrative large tracked positions — color, not a market forecast.
 - coverage: positioned/tracked sample size. Low positioned → lean wait / mention thin sample in risks.
 
 ## Field roles (do not blur)
-- headline: state + action. Optional semicolon form: "Top3 short-heavy; funding still flat — Prefer shorts"
+- headline: tape/book state ONLY. No Prefer/Wait. Example: "Top3 (BTC/ETH/SOL) whales lean short"
 - market_status: inventory / tape report ONLY — not advice. No Prefer/Monitor/Consider here.
 - suggestions: what to do next (aligned with stance)
 - risks: what can invalidate the read
@@ -750,12 +822,12 @@ Do NOT invent exchange reserves, ETF flows, RSI, price targets, burns, or news.
 
 ## Wording (avoid ambiguity)
 - Never use "mixed" for market mood, Top3 book, or a coin (conflicts with Strategy tag Mixed — not in this snapshot).
-- Prefer: balanced, no clear lean, split, short-heavy, long-heavy, Prefer longs vs Prefer shorts, Wait.
-- headline: Top3 lean + Prefer longs/Prefer shorts/Wait. NEUTRAL → "balanced" or name the coin conflict.
+- Prefer: balanced, no clear lean, split, short-heavy, long-heavy.
+- headline: Top3 lean without Prefer/Wait. NEUTRAL → "balanced" or name the coin conflict.
 - market_status: 2–4 sentences; never a lone adjective like "Bearish".
 - suggestions: 1–3 actions aligned with stance. wait → watch/size-down only. prefer_short → no long suggestions (put opposing coins in risks). prefer_long → no short suggestions.
 - risks: 1–3 snapshot-specific. No generic "volatility may increase".
-- evidence_refs: ONLY keys from: top3_consensus, book_wide, coin_stances, top3_funding, extreme_funding, liq_1h, liq_24h, biggest_positions, coverage.
+- evidence_refs: ONLY keys from: top3_consensus, book_wide, coin_stances, top3_funding, extreme_funding, liq_1h, liq_24h, biggest_positions, coverage, tape.
 - Do NOT invent tickers, prices, or dollar amounts absent from the snapshot.
 """
 
@@ -797,7 +869,7 @@ BRIEF_FEW_SHOT_USER = {
 }
 
 BRIEF_FEW_SHOT_ASSISTANT = {
-    "headline": "Top3 (BTC/ETH/SOL) short-heavy; funding still flat — Prefer shorts",
+    "headline": "Top3 (BTC/ETH/SOL) whales lean short; funding still flat",
     "market_status": (
         "Top3 whale book remains 60% short / 40% long (~$38M net short), signaling near-term "
         "sell-side pressure from tracked-whale inventory. "
@@ -852,7 +924,7 @@ BRIEF_FEW_SHOT_WAIT_USER = {
 }
 
 BRIEF_FEW_SHOT_WAIT_ASSISTANT = {
-    "headline": "Top3 balanced; HYPE long-heavy vs ETH short-heavy — Wait",
+    "headline": "Top3 balanced; HYPE long-heavy vs ETH short-heavy",
     "market_status": (
         "Top3 whale book remains roughly balanced at 54% long / 46% short (balanced), "
         "driven by positioning split across coins rather than a single catalyst. "
@@ -962,6 +1034,10 @@ def persist_market_brief(brief: MarketBrief) -> None:
         row.provider = brief.provider
         row.source = brief.source
         row.snapshot_hash = brief.snapshot_hash
+        row.tldr_json = json.dumps(brief.tldr.model_dump() if brief.tldr else {})
+        row.asset = brief.asset
+        row.stale = 1 if brief.stale else 0
+        row.tab_assets = json.dumps(brief.tab_assets)
         row.as_of = brief.as_of
         row.created_at = _utcnow()
         db.commit()
@@ -978,6 +1054,13 @@ def load_market_brief_from_db() -> MarketBrief | None:
         row = db.get(MarketBriefRow, "latest")
         if row is None or not row.headline:
             return None
+        tldr_raw = json.loads(getattr(row, "tldr_json", None) or "{}")
+        tldr = None
+        if isinstance(tldr_raw, dict) and tldr_raw.get("now"):
+            from app.models.schemas import BriefTldr
+
+            tldr = BriefTldr.model_validate(tldr_raw)
+        tabs = json.loads(getattr(row, "tab_assets", None) or "[]")
         return MarketBrief(
             headline=row.headline,
             market_status=row.market_status,
@@ -985,6 +1068,10 @@ def load_market_brief_from_db() -> MarketBrief | None:
             suggestions=json.loads(row.suggestions or "[]"),
             risks=json.loads(row.risks or "[]"),
             evidence_refs=json.loads(row.evidence_refs or "[]"),
+            tldr=tldr,
+            asset=getattr(row, "asset", None),
+            stale=bool(getattr(row, "stale", 0)),
+            tab_assets=tabs if isinstance(tabs, list) else [],
             as_of=row.as_of,
             provider=row.provider,
             source=row.source,
@@ -997,15 +1084,23 @@ def load_market_brief_from_db() -> MarketBrief | None:
         db.close()
 
 
-async def generate_market_brief(*, force: bool = False) -> MarketBrief:
+async def generate_market_brief(*, force: bool = False, asset: str | None = None) -> MarketBrief:
     """Build snapshot, optionally call LLM, always return a displayable brief."""
     snapshot = build_market_brief_snapshot()
+    want = (asset or "").strip().upper() or None
+    if want:
+        sliced = slice_snapshot(snapshot, want)
+        brief = build_template_brief(sliced)
+        return apply_tldr_to_brief(brief, sliced, want)
+
     if not force and not _should_refresh(snapshot) and store.market_brief is not None:
         return store.market_brief
 
     brief = await _llm_market_brief(snapshot)
     if brief is None:
         brief = build_template_brief(snapshot)
+    if brief.tldr is None:
+        brief = apply_tldr_to_brief(brief, snapshot, None)
 
     with store._lock:
         store.market_brief = brief

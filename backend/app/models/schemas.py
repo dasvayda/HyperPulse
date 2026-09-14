@@ -291,6 +291,12 @@ class BriefStance(str, Enum):
     WAIT = "wait"
 
 
+class BriefTldr(BaseModel):
+    now: str
+    short_read: str
+    however: str
+
+
 class MarketBrief(BaseModel):
     """Desk-style market commentary built from a structured HL snapshot."""
 
@@ -300,6 +306,10 @@ class MarketBrief(BaseModel):
     suggestions: list[str] = Field(default_factory=list)
     risks: list[str] = Field(default_factory=list)
     evidence_refs: list[str] = Field(default_factory=list)
+    tldr: BriefTldr | None = None
+    asset: str | None = None
+    stale: bool = False
+    tab_assets: list[str] = Field(default_factory=list)
     as_of: datetime
     provider: str = "template"
     source: str = "template"  # llm | template

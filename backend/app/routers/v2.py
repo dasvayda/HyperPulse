@@ -71,8 +71,14 @@ def list_insights(limit: int = Query(default=20, le=50)) -> list[MarketInsight]:
 
 
 @router.get("/insights/brief", response_model=MarketBrief)
-async def get_market_brief(force: bool = Query(default=False)) -> MarketBrief:
-    """Desk-style Market Brief (LLM or template fallback)."""
+async def get_market_brief(
+    force: bool = Query(default=False),
+    asset: str | None = Query(default=None),
+) -> MarketBrief:
+    """Desk-style Market Brief (LLM or template fallback). Optional per-coin slice."""
+    want = (asset or "").strip().upper() or None
+    if want:
+        return await generate_market_brief(force=force, asset=want)
     if store.market_brief is not None and not force:
         return store.market_brief
     return await generate_market_brief(force=force)

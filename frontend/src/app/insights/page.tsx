@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { PageHeader } from "@/components/ui/DataTable";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
@@ -12,19 +13,37 @@ import {
   formatTimeAgo,
 } from "@/lib/api";
 
-export default async function InsightsPage() {
+type InsightsPageProps = {
+  searchParams: Promise<{ asset?: string }>;
+};
+
+export default async function InsightsPage({ searchParams }: InsightsPageProps) {
+  const params = await searchParams;
+  const asset = (params.asset || "").trim().toUpperCase() || undefined;
   const [insights, inferences, pipeline, brief] = await Promise.all([
     getAIInsights(),
     getInferences(),
     getPipelineStatus(),
-    getMarketBrief(),
+    getMarketBrief(asset),
   ]);
+
+  const tabs = brief.tab_assets?.length ? brief.tab_assets : [];
+  const hasExtremeFunding = insights.some(
+    (item) => item.title === "Extreme funding",
+  );
 
   const ordered = [...insights].sort((a, b) => {
     const rank = (stance: string) =>
       stance === "buy" || stance === "sell" ? 0 : 1;
     return rank(a.stance) - rank(b.stance);
   });
+
+  const chipClass = (active: boolean) =>
+    `text-xs rounded-full border px-3 py-1.5 transition-colors ${
+      active
+        ? "border-accent text-accent bg-accent/10"
+        : "border-border text-text-muted hover:border-accent/40 hover:text-text-primary"
+    }`;
 
   return (
     <DashboardLayout>
@@ -33,9 +52,29 @@ export default async function InsightsPage() {
         description="Desk brief from whale book + funding + liquidations — prefer long / short / wait"
       />
 
+      <div className="flex flex-wrap gap-2 mb-4">
+        <Link href="/insights#brief" className={chipClass(!asset)}>
+          Market
+        </Link>
+        {tabs.map((tab) => (
+          <Link
+            key={tab}
+            href={`/insights?asset=${encodeURIComponent(tab)}#brief`}
+            className={chipClass(asset === tab)}
+          >
+            {tab}
+          </Link>
+        ))}
+        {hasExtremeFunding ? (
+          <Link href="/insights#evidence" className={chipClass(false)}>
+            Extreme funding
+          </Link>
+        ) : null}
+      </div>
+
       <MarketBriefHero brief={brief} />
 
-      <div className="flex items-center justify-between mb-4 gap-3">
+      <div id="evidence" className="flex items-center justify-between mb-4 gap-3">
         <h2 className="text-base font-semibold text-text-primary">Evidence</h2>
         <InfoTooltip label="Rule cards">
           <p className="mb-1 font-medium text-text-primary">

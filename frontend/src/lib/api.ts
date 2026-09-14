@@ -91,8 +91,9 @@ export function getAIInsights(): Promise<MarketInsight[]> {
   return fetchApi("/api/v2/insights");
 }
 
-export function getMarketBrief(): Promise<MarketBrief> {
-  return fetchApi("/api/v2/insights/brief");
+export function getMarketBrief(asset?: string): Promise<MarketBrief> {
+  const qs = asset ? `?asset=${encodeURIComponent(asset)}` : "";
+  return fetchApi(`/api/v2/insights/brief${qs}`);
 }
 
 export function getInferences(): Promise<StrategyInference[]> {

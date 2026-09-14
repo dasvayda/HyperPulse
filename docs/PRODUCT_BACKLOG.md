@@ -6,10 +6,10 @@
 | | |
 |--|--|
 | 작성 | 2026-07-22 ~ 07-23 |
-| 갱신 | 2026-07-25 (Market Brief / AI Insights redesign) |
+| 갱신 | 2026-09-14 (Binance AI market-status 벤치마크 → BL-14~17) |
 | 제품 목표 | [README Product Goals](../README.md#product-goals) |
 | 설계 제약 | [ARCHITECTURE](./ARCHITECTURE.md#product-goals--design-constraints) |
-| 벤치마크 참고 | [HyperTracker Perps](https://app.coinmarketman.com/hypertracker/perps), [Docs](https://docs.coinmarketman.com/) (시그널·UX만, API 연동 아님) |
+| 벤치마크 참고 | [HyperTracker Perps](https://app.coinmarketman.com/hypertracker/perps) (시그널·UX만). [Binance AI Brief](./BINANCE_AI_BRIEF_REF.md) (답변 패턴만, 챗/TA 복제 아님) |
 
 ### 사용법
 
@@ -36,6 +36,7 @@
 - [x] BL-11 Funding crowdedness callout
 - [x] Telegram alert mix — Consensus / Whale Move / Big Trade (short templates)
 - [x] Market Brief (LLM desk commentary + template fallback) + Insights evidence board
+- [x] BL-14/15/16/17 Binance-style Brief TL;DR, coin tabs, tension, chips
 
 ### Active backlog
 
@@ -48,9 +49,13 @@
 - [ ] **P1** BL-07 Thin coin × cohort heatmap
 - [ ] **P1** BL-08 Copy-worthiness / due-diligence strip
 - [ ] **P1** BL-09 userFills recent behavior
+- [x] **P1** BL-15 Coin-scoped Market Brief
 - [ ] **P2** BL-10 Market pulse strip (3 cards)
 - [x] **P2** BL-11 Funding crowdedness callout
 - [ ] **P2** BL-12 Liquidation proximity (tracked whales)
+- [x] **P2** BL-14 Brief TL;DR strip (3 bullets)
+- [x] **P2** BL-16 Price vs whale-book tension
+- [x] **P2** BL-17 Insights starter prompts
 
 ### Deferred (의도적 보류)
 
@@ -60,6 +65,8 @@
 - [ ] ~~BL-X4~~ Order/stop Market Radar — 복잡도↑ (알림 트리거로만 재검토)
 - [ ] ~~BL-X5~~ Multi-year backtest warehouse — 축적 판매 모델
 - [ ] ~~BL-X6~~ Competitor API integration — 벤치마크만
+- [ ] ~~BL-X7~~ Binance-style chat / 뉴스·규제 QA — 제품 축이 챗이 아님
+- [ ] ~~BL-X8~~ Classic TA (MACD, SuperTrend, 99d MA) — HL 고래 북과 축 충돌
 
 ---
 
@@ -71,6 +78,15 @@
 | UX | 고밀도 테이블·스파크라인 | 짧고 행동 가능한 insight + alert |
 | 범위 | 지갑 ~수백만, 16 cohort | tracked whale / top traders |
 | 벤치마크 포인트 | 어떤 시그널이 먹히는가 | 같은 시그널을 더 짧게·더 해석해서 주는가 |
+
+**Binance AI (2026-09-14)** — 답변 뼈대만. 상세: [BINANCE_AI_BRIEF_REF.md](./BINANCE_AI_BRIEF_REF.md)
+
+| | Binance AI | HyperPulse |
+|--|------------|------------|
+| 질문 | `BTC market analysis` (코인 1개 + 챗) | 시장 전체 Market Brief (Top3) + coin stance 카드 |
+| 첫 화면 | TLDER 3불릿 → Current state 접기 | headline 1줄 + market_status 문단 |
+| 지표 | 가격·24h/7d/30d, MACD, MA, SuperTrend | 고래 북, funding, liq, stance |
+| 배울 점 | 분석과 행동을 분리, 라벨→근거, 3번째 줄은 however, Current state는 숫자만 확대 | 그 문장 규칙을 **우리 스냅샷 필드**에 입힘. 챗/MACD는 안 가져옴 |
 
 **원칙**
 - 산만한 perps 테이블 복제 금지
@@ -107,6 +123,9 @@ Trader & Wallet · Positions (uPnL) · Cohort · Heatmap · Orders · Liquidatio
 | Position Age `<24h` | Fresh whale entries |
 | Biggest Positions | Tracked whale Top 5 + ROI + link |
 | Money Printer cohort | AI strategy + ROI/consistency |
+| Binance TLDER 문장 | 분석만 3슬롯 (Now / short / however). Prefer는 배지+Suggestions (BL-14) |
+| BTC market analysis 챗 | 코인 탭 Brief. 챗/뉴스 없음 (BL-15) |
+| MACD vs 99일선 충돌 | 24h 가격 vs 고래 북 충돌 1줄 (BL-16). 이평/MACD 안 씀 |
 
 ---
 
@@ -124,6 +143,10 @@ Trader & Wallet · Positions (uPnL) · Cohort · Heatmap · Orders · Liquidatio
 | I8 Funding + Liq timeline | BL-03, BL-11 / Coin Pulse liq | [~] |
 | Biggest Positions | BL-04 | [x] |
 | Market Brief / Insights hero | (shipped 2026-07-25) | [x] |
+| Binance TLDER 3불릿 | BL-14 | [x] |
+| Binance 코인 단위 분석 | BL-15 | [x] |
+| 짧은 구간 vs 구조 충돌 | BL-16 | [x] |
+| 시작 질문 칩 | BL-17 | [x] |
 
 ---
 
@@ -281,6 +304,65 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
   - [ ] 리스트 UI
   - [ ] (선택) alert
 
+#### BL-14 · Brief TL;DR strip (3 bullets)
+- [x] Done (2026-09-14)
+- **Why:** Binance는 3줄이라서가 아니라 **분석과 매매 지시를 안 섞고**, 줄마다 역할이 다름. 우리 headline은 `"… — Prefer shorts"`로 둘을 붙임
+- **Ref:** [BINANCE_AI_BRIEF_REF.md](./BINANCE_AI_BRIEF_REF.md) §2–3, §8
+- **HL:** 기존 Brief 필드 + **이미 있는** `market_ticks` (mark, 24h%, OI, volume). 캔들/MACD 없음. 7d 없이도 슬롯1 가능
+- **Deliverable:** Insights hero 불릿 3개 고정 슬롯 + 카피 계약
+  - 1 Now tape (숫자 + as_of)
+  - 2 Short read (`라벨: 근거 A and 근거 B`)
+  - 3 However / 확인 (넓은 그림이 같은 쪽인지)
+  - TL;DR 문장에 Prefer/Wait 금지. stance는 배지. Suggestions/Risks는 아래
+  - `market_status` 문단은 Current state처럼 **같은 논지 숫자 확대** (새 스토리 금지)
+- **Done when:** 불릿이 형용만 쓰지 않음. headline/TL;DR에 매매 지시 없음. 슬롯 3이 비지 않음
+- **Effort:** S–M
+- 세부:
+  - [x] snapshot → 3불릿 템플릿 (규칙 우선, LLM은 문장만)
+  - [x] headline에서 Prefer 분리 (배지 / Suggestions만)
+  - [x] `BRIEF_SYSTEM_PROMPT` + few-shot을 §2 카피 계약에 맞춤
+  - [x] `MarketBriefHero` TL;DR → status → suggestions 순서
+  - [x] Dashboard 티저는 서술 headline만 (불릿·Prefer 덤프 금지)
+
+#### BL-15 · Coin-scoped Market Brief
+- [x] Done (2026-09-14)
+- **Why:** 사용자가 실제로 던지는 질문은 “BTC 지금 어때?”임. 지금은 시장 전체 Brief + 코인 stance 카드만 있음
+- **Ref:** [BINANCE_AI_BRIEF_REF.md](./BINANCE_AI_BRIEF_REF.md) §4
+- **HL:** 해당 코인 whale book + funding + liq + (있으면) mark. 기존 집계 재사용
+- **Deliverable:** Insights에서 BTC/ETH/SOL(또는 Top3) 선택 → 그 코인 headline + TL;DR 3줄 + stance. 챗 입력창 없음
+- **Out of scope:** 자유 질문, 전 코인 검색창
+- **Done when:** 코인 Brief가 다른 코인 숫자를 인용하지 않음
+- **Effort:** M
+- 세부:
+  - [x] `GET /api/v2/insights/brief?asset=BTC` 또는 snapshot slice
+  - [x] 코인 탭/칩 UI
+  - [x] 시장 전체 Brief와 공존 (기본은 전체)
+
+#### BL-16 · Price vs whale-book tension
+- [x] Done (2026-09-14)
+- **Why:** Binance 답의 핵은 “일봉은 약한데 큰 그림은 아직 아니다”. MACD 대신 **24h 가격 vs 고래 북**으로 같은 충돌을 말함
+- **Ref:** [BINANCE_AI_BRIEF_REF.md](./BINANCE_AI_BRIEF_REF.md) §3, §8
+- **HL:** ticks의 `change_pct_24h` (`prevDayPx`) + 기존 Top3·coin book. 새 캔들 창고 없음. 30d·이평·MACD 금지
+- **Deliverable:** 메이저 1~3코인, “가격 24h ↓ / 북은 long-heavy” 같은 충돌 1줄 → Brief TL;DR 3번째 슬롯 또는 stance Wait 근거
+- **Done when:** 가격과 북이 같으면 충돌 줄 없음. 다를 때만 노출
+- **Effort:** M
+- 세부:
+  - [x] 24h Δ 소스 확정 (캔들 창고 없이)
+  - [x] 충돌 규칙 (가격 vs long_pct)
+  - [x] BL-14 3번째 불릿 또는 evidence 1장
+
+#### BL-17 · Insights starter prompts
+- [x] Done (2026-09-14)
+- **Why:** Binance 시작 칩이 “어디로 보면 되는지”를 가르침. 챗이 아니라 **있는 섹션으로 점프**
+- **Ref:** [BINANCE_AI_BRIEF_REF.md](./BINANCE_AI_BRIEF_REF.md) 화면 B
+- **HL:** 없음 (UI only)
+- **Deliverable:** Insights 상단 칩 3~4개 예: `Top3 lean?` / `극단 funding?` / `1h liq 어느 쪽?` / `BTC Brief`
+- **Out of scope:** 입력창, 뉴스 칩, 입금/구매 칩
+- **Effort:** S
+- 세부:
+  - [x] 칩 → 앵커 (Brief / funding callout / liq / coin brief)
+  - [x] 라이브 Top3 티커 칩 (질문 투어 아님)
+
 ---
 
 ## 5. 추천 구현 순서
@@ -298,6 +380,10 @@ BL-05 Alert quality
   → BL-08 Due diligence
   → BL-09 userFills
   → BL-07 Heatmap / BL-10 Pulse (둘 중 하나만 먼저)
+  → BL-14 Brief TL;DR
+  → BL-17 starter chips
+  → BL-16 price vs book (24h Δ 가능할 때)
+  → BL-15 coin-scoped Brief
 ```
 
 한 화면에 동시 상륙 금지. 완료 후 “트레이더 다음 행동에 쓰는가?”로 검수.
@@ -309,11 +395,12 @@ BL-05 Alert quality
 | HL source | IDs |
 |-----------|-----|
 | `clearinghouseState` | BL-01, 04, 05, 06, 08, 12 |
-| `metaAndAssetCtxs` | BL-02, 10, 11 |
+| `metaAndAssetCtxs` | BL-02, 10, 11, 16 |
 | `recentTrades` (liq) | BL-03, 05, 10 |
 | leaderboard stats | BL-06, 08 |
 | `userFills` / ByTime | BL-01, 09 |
 | `openOrders` (later) | BL-X4 재검토 시 |
+| 기존 Brief snapshot만 | BL-14, 15, 17 |
 
 ---
 
@@ -332,4 +419,5 @@ BL-05 Alert quality
 ## 8. 한 줄 결론
 
 경쟁사는 **무엇을 보여주면 먹히는지**의 벤치마크다.  
-HyperPulse는 HL 온체인으로 **ROI(완료) / Fresh bias / Smart-money 대비 / Liq 요약**을 골라, **지금 쓸 수 있는 insight**로만 제품화한다.
+HyperPulse는 HL 온체인으로 **ROI(완료) / Fresh bias / Smart-money 대비 / Liq 요약**을 골라, **지금 쓸 수 있는 insight**로만 제품화한다.  
+Binance AI는 **분석/행동 분리 + 3슬롯 TL;DR(Now / short / however)**만 가져오고, 챗·이평·MACD는 가져오지 않는다.

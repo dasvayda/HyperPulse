@@ -216,7 +216,7 @@ export default async function HomePage() {
               Market Brief
             </p>
             <p className="text-sm font-medium text-text-primary line-clamp-2">
-              {marketBrief.headline}
+              {marketBrief.tldr?.now || marketBrief.headline}
             </p>
           </Link>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 items-stretch">

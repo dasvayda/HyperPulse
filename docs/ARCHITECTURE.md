@@ -297,11 +297,10 @@ Possible classifications
 
 Structured snapshot → optional LLM JSON → validate against snapshot allowlist → template fallback.
 
-- Snapshot: Top3 consensus (+ per_asset book), book_wide, coin stances, top3_funding, extreme funding, liq 1h/24h, biggest positions, coverage
-- Prompt: field interpretation guide + 2 few-shot examples (prefer_short / wait)
-- Output: `headline`, `market_status`, `stance` (prefer_long|prefer_short|wait), `suggestions`, `risks`
-- API: `GET /api/v2/insights/brief`
-- Persistence: `market_briefs` (latest row) + in-memory `store.market_brief`
+- Snapshot: tape (mark, vs prev day %, funding, OI/vol for status), Top3 consensus (+ per_asset book), book_wide, coin stances, top3_funding, extreme funding, sampled liq 1h/24h (plus per-asset), biggest positions, coverage
+- Output: `headline` (no Prefer), `tldr` (now / short_read / however), `market_status`, `stance`, `suggestions`, `risks`, `stale`, `tab_assets`, `asset`
+- API: `GET /api/v2/insights/brief` and `?asset=BTC` (coin = template + same TL;DR rules)
+- Persistence: `market_briefs` latest row (market-wide only) + `store.market_brief`
 - Runs **before** per-trader LLM in the inference pipeline so Brief does not compete for budget on failure paths
 
 ---
