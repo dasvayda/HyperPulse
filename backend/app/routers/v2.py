@@ -20,6 +20,7 @@ from app.models.schemas import (
 )
 from app.services.alerts import process_alert_triggers
 from app.services.inference import run_inference_pipeline
+from app.services.liq_windows import pressure_line, rollup_liq_windows
 from app.services.market_brief import generate_market_brief
 from app.services.ranking import (
     PERFORMANCE_BASE_THRESHOLD_USD,
@@ -117,26 +118,10 @@ def pipeline_status() -> PipelineStatus:
 def market_status() -> MarketStatus:
     """Summarise recent Hyperliquid on-chain market activity."""
     now = datetime.now(timezone.utc)
-    cutoff_1h = now - timedelta(hours=1)
-    cutoff_24h = now - timedelta(hours=24)
-
-    liq_1h_long = 0.0
-    liq_1h_short = 0.0
-    liq_1h_events = 0
-    for event in store.liquidation_events:
-        ts = event.timestamp
-        if isinstance(ts, datetime) and ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
-        try:
-            if ts < cutoff_1h:
-                continue
-        except TypeError:
-            continue
-        liq_1h_events += 1
-        if event.side.value == "long":
-            liq_1h_long += event.size_usd
-        else:
-            liq_1h_short += event.size_usd
+    windows = rollup_liq_windows(now)
+    w1 = windows.get("1h") or {}
+    w4 = windows.get("4h") or {}
+    w24 = windows.get("24h") or {}
 
     db: Session = SessionLocal()
     try:
@@ -150,42 +135,34 @@ def market_status() -> MarketStatus:
             .order_by(LiquidationRow.timestamp.desc())
             .first()
         )
-        liq_24h = (
-            db.query(LiquidationRow)
-            .filter(LiquidationRow.timestamp >= cutoff_24h)
-            .count()
-        )
-
-        # Prefer DB rollup when in-memory window is empty (e.g. after restart).
-        if liq_1h_events == 0:
-            db_1h = (
-                db.query(LiquidationRow)
-                .filter(LiquidationRow.timestamp >= cutoff_1h)
-                .all()
-            )
-            for row in db_1h:
-                liq_1h_events += 1
-                side = (row.side or "").lower()
-                if side == "long":
-                    liq_1h_long += float(row.size_usd or 0.0)
-                else:
-                    liq_1h_short += float(row.size_usd or 0.0)
     finally:
         db.close()
 
     has_live = last_snapshot is not None or last_liq is not None
     top_asset = last_snapshot.asset if last_snapshot is not None else None
+    liq_24h_events = int(w24.get("events") or 0)
 
     return MarketStatus(
         top_asset=top_asset,
         last_snapshot_at=last_snapshot.timestamp if last_snapshot else None,
         last_liquidation_at=last_liq.timestamp if last_liq else None,
-        liquidation_events_24h=liq_24h,
+        liquidation_events_24h=liq_24h_events,
         has_live_market=has_live,
-        liq_1h_long_usd=round(liq_1h_long, 2),
-        liq_1h_short_usd=round(liq_1h_short, 2),
-        liq_1h_total_usd=round(liq_1h_long + liq_1h_short, 2),
-        liq_1h_events=liq_1h_events,
+        liq_1h_long_usd=float(w1.get("long_usd") or 0),
+        liq_1h_short_usd=float(w1.get("short_usd") or 0),
+        liq_1h_total_usd=float(w1.get("total_usd") or 0),
+        liq_1h_events=int(w1.get("events") or 0),
+        liq_4h_long_usd=float(w4.get("long_usd") or 0),
+        liq_4h_short_usd=float(w4.get("short_usd") or 0),
+        liq_4h_total_usd=float(w4.get("total_usd") or 0),
+        liq_4h_events=int(w4.get("events") or 0),
+        liq_24h_long_usd=float(w24.get("long_usd") or 0),
+        liq_24h_short_usd=float(w24.get("short_usd") or 0),
+        liq_24h_total_usd=float(w24.get("total_usd") or 0),
+        liq_24h_events=liq_24h_events,
+        liq_1h_pressure=pressure_line(w1),
+        liq_4h_pressure=pressure_line(w4),
+        liq_24h_pressure=pressure_line(w24),
     )
 
 

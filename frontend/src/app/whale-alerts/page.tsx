@@ -26,8 +26,23 @@ function isStale(timestamp: string): boolean {
   return Date.now() - t > STALE_MS;
 }
 
-export default async function WhaleAlertsPage() {
-  const alerts = await getWhaleAlerts();
+type WhaleAlertsPageProps = {
+  searchParams: Promise<{ fresh?: string }>;
+};
+
+export default async function WhaleAlertsPage({
+  searchParams,
+}: WhaleAlertsPageProps) {
+  const params = await searchParams;
+  const freshOnly = params.fresh === "true" || params.fresh === "1";
+  const alerts = await getWhaleAlerts({ fresh: freshOnly });
+
+  const chipClass = (active: boolean) =>
+    `text-xs rounded-full border px-3 py-1.5 transition-colors ${
+      active
+        ? "border-accent text-accent bg-accent/10"
+        : "border-border text-text-muted hover:border-accent/40 hover:text-text-primary"
+    }`;
 
   return (
     <DashboardLayout>
@@ -35,6 +50,15 @@ export default async function WhaleAlertsPage() {
         title="Whale Alerts"
         description="Position entry and exit detection for top Hyperliquid traders"
       />
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        <Link href="/whale-alerts" className={chipClass(!freshOnly)}>
+          All
+        </Link>
+        <Link href="/whale-alerts?fresh=true" className={chipClass(freshOnly)}>
+          Fresh 24h
+        </Link>
+      </div>
 
       <DataTable>
         <DataTableHead>
@@ -54,6 +78,10 @@ export default async function WhaleAlertsPage() {
         <DataTableBody>
           {alerts.map((alert) => {
             const stale = isStale(alert.timestamp);
+            const isFreshEntry =
+              alert.alert_type === "entry" &&
+              !Number.isNaN(Date.parse(alert.timestamp)) &&
+              Date.now() - Date.parse(alert.timestamp) < 24 * 60 * 60 * 1000;
             const strategy =
               alert.inferred_strategy &&
               alert.inferred_strategy.toLowerCase() !== "unknown"
@@ -82,6 +110,7 @@ export default async function WhaleAlertsPage() {
                     <Badge variant={alert.alert_type}>
                       {alert.alert_type.toUpperCase()}
                     </Badge>
+                    {isFreshEntry && <Badge variant="entry">FRESH</Badge>}
                     {stale && <Badge variant="exit">STALE</Badge>}
                   </div>
                 </DataTableCell>
@@ -91,7 +120,15 @@ export default async function WhaleAlertsPage() {
                   </Badge>
                 </DataTableCell>
                 <DataTableCell className="font-medium">
-                  {formatUsd(alert.size_usd)}
+                  <div className="flex flex-col">
+                    <span>{formatUsd(alert.size_usd)}</span>
+                    {alert.size_delta_usd != null &&
+                    alert.size_delta_usd !== 0 ? (
+                      <span className="text-xs text-text-muted">
+                        Δ {formatUsd(alert.size_delta_usd)}
+                      </span>
+                    ) : null}
+                  </div>
                 </DataTableCell>
                 <DataTableCell>
                   <div className="flex flex-col text-xs text-text-muted">
@@ -170,9 +207,10 @@ export default async function WhaleAlertsPage() {
       </DataTable>
 
       <p className="text-xs text-text-dim mt-4">
-        Entry/Mark and uPnL/ROI come from clearinghouse + mark ticks. STALE means
-        the event is older than 45 minutes. Book % is tracked-whale long share for
-        that asset.
+        Fresh 24h is entry alerts in the last day. Size Δ is the USD add (or
+        first fill) vs the previous tracked size. STALE means the event is
+        older than 45 minutes. Book % is tracked-whale long share for that
+        asset.
       </p>
     </DashboardLayout>
   );

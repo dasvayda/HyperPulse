@@ -51,10 +51,12 @@ export function getDashboardStats(): Promise<DashboardStats> {
 export function getWhaleAlerts(params?: {
   asset?: string;
   alert_type?: string;
+  fresh?: boolean;
 }): Promise<WhaleAlert[]> {
   const search = new URLSearchParams();
   if (params?.asset) search.set("asset", params.asset);
   if (params?.alert_type) search.set("alert_type", params.alert_type);
+  if (params?.fresh) search.set("fresh", "true");
   const qs = search.toString();
   return fetchApi(`/api/v1/whale-alerts${qs ? `?${qs}` : ""}`);
 }

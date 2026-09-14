@@ -10,6 +10,7 @@ import {
   PageHeader,
   AssetIcon,
   TrendValue,
+  StatCard,
 } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { SparkBarBackground } from "@/components/ui/SparkBar";
@@ -17,6 +18,7 @@ import {
   getLiquidationZones,
   getLiquidationEvents,
   getPipelineStatus,
+  getMarketStatus,
   formatUsd,
   formatPrice,
   formatTimeAgo,
@@ -24,11 +26,36 @@ import {
 } from "@/lib/api";
 
 export default async function LiquidationsPage() {
-  const [zones, events, pipeline] = await Promise.all([
+  const [zones, events, pipeline, market] = await Promise.all([
     getLiquidationZones(),
     getLiquidationEvents(),
     getPipelineStatus(),
+    getMarketStatus(),
   ]);
+
+  const strip = [
+    {
+      label: "1h liquidations",
+      total: market.liq_1h_total_usd ?? 0,
+      long: market.liq_1h_long_usd ?? 0,
+      short: market.liq_1h_short_usd ?? 0,
+      pressure: market.liq_1h_pressure || "sampled liq quiet",
+    },
+    {
+      label: "4h liquidations",
+      total: market.liq_4h_total_usd ?? 0,
+      long: market.liq_4h_long_usd ?? 0,
+      short: market.liq_4h_short_usd ?? 0,
+      pressure: market.liq_4h_pressure || "sampled liq quiet",
+    },
+    {
+      label: "24h liquidations",
+      total: market.liq_24h_total_usd ?? 0,
+      long: market.liq_24h_long_usd ?? 0,
+      short: market.liq_24h_short_usd ?? 0,
+      pressure: market.liq_24h_pressure || "sampled liq quiet",
+    },
+  ];
 
   return (
     <DashboardLayout>
@@ -41,6 +68,29 @@ export default async function LiquidationsPage() {
           </span>
         }
       />
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        {strip.map((row) => (
+          <StatCard
+            key={row.label}
+            label={row.label}
+            value={formatUsd(row.total)}
+            change={row.pressure}
+            details={[
+              {
+                label: "Longs",
+                value: formatUsd(row.long),
+                tone: "negative",
+              },
+              {
+                label: "Shorts",
+                value: formatUsd(row.short),
+                tone: "positive",
+              },
+            ]}
+          />
+        ))}
+      </div>
 
       <h2 className="text-base font-semibold text-text-primary mb-4">
         Liquidation Zones

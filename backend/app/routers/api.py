@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 
 from app.collectors.whales import fetch_live_open_positions
+from app.services.fresh_entries import is_fresh_entry
 from app.models.schemas import (
     DashboardStats,
     LiquidationEvent,
@@ -23,6 +24,7 @@ def dashboard_stats() -> DashboardStats:
 def list_whale_alerts(
     asset: str | None = None,
     alert_type: str | None = None,
+    fresh: bool = Query(default=False),
     limit: int = Query(default=50, le=100),
 ) -> list[WhaleAlert]:
     results = store.whale_alerts
@@ -30,6 +32,8 @@ def list_whale_alerts(
         results = [a for a in results if a.asset.lower() == asset.lower()]
     if alert_type:
         results = [a for a in results if a.alert_type.value == alert_type.lower()]
+    if fresh:
+        results = [a for a in results if is_fresh_entry(a)]
     return results[:limit]
 
 

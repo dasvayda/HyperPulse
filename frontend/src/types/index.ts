@@ -10,6 +10,7 @@ export interface WhaleAlert {
   side: PositionSide;
   alert_type: AlertType;
   size_usd: number;
+  size_delta_usd?: number | null;
   entry_price: number | null;
   exit_price: number | null;
   mark_price?: number | null;
@@ -256,6 +257,17 @@ export interface MarketStatus {
   liq_1h_short_usd?: number;
   liq_1h_total_usd?: number;
   liq_1h_events?: number;
+  liq_4h_long_usd?: number;
+  liq_4h_short_usd?: number;
+  liq_4h_total_usd?: number;
+  liq_4h_events?: number;
+  liq_24h_long_usd?: number;
+  liq_24h_short_usd?: number;
+  liq_24h_total_usd?: number;
+  liq_24h_events?: number;
+  liq_1h_pressure?: string;
+  liq_4h_pressure?: string;
+  liq_24h_pressure?: string;
 }
 
 export interface MarketBriefTldr {

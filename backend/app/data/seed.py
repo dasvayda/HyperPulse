@@ -23,6 +23,7 @@ WHALE_ALERTS: list[WhaleAlert] = [
         side=PositionSide.LONG,
         alert_type=AlertType.ENTRY,
         size_usd=2_450_000,
+        size_delta_usd=2_450_000,
         entry_price=3421.50,
         leverage=8.0,
         win_rate=71.2,

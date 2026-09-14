@@ -27,6 +27,7 @@ class WhaleAlert(BaseModel):
     side: PositionSide
     alert_type: AlertType
     size_usd: float
+    size_delta_usd: float | None = None
     entry_price: float | None = None
     exit_price: float | None = None
     mark_price: float | None = None
@@ -283,6 +284,17 @@ class MarketStatus(BaseModel):
     liq_1h_short_usd: float = 0.0
     liq_1h_total_usd: float = 0.0
     liq_1h_events: int = 0
+    liq_4h_long_usd: float = 0.0
+    liq_4h_short_usd: float = 0.0
+    liq_4h_total_usd: float = 0.0
+    liq_4h_events: int = 0
+    liq_24h_long_usd: float = 0.0
+    liq_24h_short_usd: float = 0.0
+    liq_24h_total_usd: float = 0.0
+    liq_24h_events: int = 0
+    liq_1h_pressure: str = ""
+    liq_4h_pressure: str = ""
+    liq_24h_pressure: str = ""
 
 
 class BriefStance(str, Enum):

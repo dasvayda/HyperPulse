@@ -11,12 +11,14 @@ from app.models.schemas import AlertType, PositionSide, WhaleAlert
 from app.models.schemas import OpenPosition, WhalePosition
 from app.db import SessionLocal
 from app.models.orm import MarketSnapshotRow
+from app.services.fresh_entries import classify_size_change
 from app.services.store import store, _position_roi
 
 logger = logging.getLogger(__name__)
 
-# (trader_address, asset) -> current size
+# (trader_address, asset) -> current coin size / notional
 _LAST_SIZES: Dict[Tuple[str, str], float] = {}
+_LAST_USD: Dict[Tuple[str, str], float] = {}
 
 
 def _utcnow() -> datetime:
@@ -265,24 +267,24 @@ async def collect_whale_events() -> list[WhaleAlert]:
 
             if usd_size < settings.alert_min_size_usd:
                 _LAST_SIZES[key] = size
+                _LAST_USD[key] = usd_size
                 continue
 
             # First observation seeds baseline; only later deltas emit alerts.
             if key not in _LAST_SIZES:
                 _LAST_SIZES[key] = size
+                _LAST_USD[key] = usd_size
                 continue
 
             prev = _LAST_SIZES[key]
-            alert_type: AlertType
-            if abs(prev) < 1e-6 and abs(size) >= 1e-6:
-                alert_type = AlertType.ENTRY
-            elif abs(prev) >= 1e-6 and abs(size) < 1e-6:
-                alert_type = AlertType.EXIT
-            elif prev * size < 0:
-                # Direction flip treated as exit+entry; model as entry for now.
-                alert_type = AlertType.ENTRY
-            else:
+            prev_usd = _LAST_USD.get(key, 0.0)
+            min_add = settings.alert_min_size_usd * 0.5
+            alert_type, size_delta_usd = classify_size_change(
+                prev, size, prev_usd, usd_size, min_add
+            )
+            if alert_type is None:
                 _LAST_SIZES[key] = size
+                _LAST_USD[key] = usd_size
                 continue
 
             trader = traders_by_addr.get(address)
@@ -344,6 +346,7 @@ async def collect_whale_events() -> list[WhaleAlert]:
                 side=side,
                 alert_type=alert_type,
                 size_usd=usd_size,
+                size_delta_usd=size_delta_usd,
                 entry_price=pos["entry_price"],
                 exit_price=exit_price,
                 mark_price=mark_price,
@@ -358,6 +361,7 @@ async def collect_whale_events() -> list[WhaleAlert]:
             )
             alerts.append(alert)
             _LAST_SIZES[key] = size
+            _LAST_USD[key] = usd_size
 
     store.update_whale_book(positions_snapshot, updated_at=store.last_collect_at or _utcnow())
 

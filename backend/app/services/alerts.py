@@ -12,6 +12,7 @@ from app.models.schemas import (
     StrategyInference,
     WhaleAlert,
 )
+from app.services.fresh_entries import is_fresh_entry
 from app.services.store import store
 
 logger = logging.getLogger(__name__)
@@ -476,7 +477,12 @@ async def send_big_whale_move(alert: WhaleAlert) -> AlertHistoryItem | None:
     alert = _enrich_alert_for_send(alert)
     action = "ENTRY" if alert.alert_type.value == "entry" else "EXIT"
     side = alert.side.value.upper()
-    title = f"WHALE MOVE · {action} {alert.asset}"
+    fresh = is_fresh_entry(alert)
+    title = (
+        f"WHALE MOVE · FRESH {action} {alert.asset}"
+        if fresh and action == "ENTRY"
+        else f"WHALE MOVE · {action} {alert.asset}"
+    )
 
     px = _format_price(
         alert.entry_price
@@ -489,6 +495,8 @@ async def send_big_whale_move(alert: WhaleAlert) -> AlertHistoryItem | None:
     )
     if px:
         line2 = f"{line2} · {px}"
+    if alert.size_delta_usd and alert.size_delta_usd > 0 and action == "ENTRY":
+        line2 = f"{line2} · Δ {_format_usd_short(alert.size_delta_usd)}"
 
     bits: list[str] = []
     if alert.whale_long_pct is not None:
@@ -523,7 +531,12 @@ async def send_big_trade(alert: WhaleAlert) -> AlertHistoryItem | None:
     alert = _enrich_alert_for_send(alert)
     side = alert.side.value.upper()
     action = "IN" if alert.alert_type.value == "entry" else "OUT"
-    title = f"BIG TRADE · {side} {action} {alert.asset}"
+    fresh = is_fresh_entry(alert)
+    title = (
+        f"BIG TRADE · FRESH {side} {action} {alert.asset}"
+        if fresh and action == "IN"
+        else f"BIG TRADE · {side} {action} {alert.asset}"
+    )
 
     px = _format_price(
         alert.entry_price

@@ -17,6 +17,7 @@ from app.models.schemas import (
 )
 from app.db import SessionLocal
 from app.models.orm import MarketSnapshotRow
+from app.services.liq_windows import pressure_line, rollup_liq_windows
 from app.services.store import store
 
 logger = logging.getLogger(__name__)
@@ -733,6 +734,46 @@ def _build_market_insights() -> None:
             )
         )
 
+    try:
+        windows = rollup_liq_windows(now)
+        w1 = windows.get("1h") or {}
+        w4 = windows.get("4h") or {}
+        pick_key = "1h" if float(w1.get("total_usd") or 0) > 0 else "4h"
+        pick = w1 if pick_key == "1h" else w4
+        line = pressure_line(pick)
+        if line != "sampled liq quiet":
+            if "long-flush" in line:
+                liq_w_stance = InsightStance.SELL
+                liq_w_action = "Prefer shorts — longs are being flushed."
+            elif "short-flush" in line:
+                liq_w_stance = InsightStance.BUY
+                liq_w_action = "Prefer longs — shorts are being flushed."
+            else:
+                liq_w_stance = InsightStance.HOLD
+                liq_w_action = "Wait — sampled liq is two-sided."
+            insights.append(
+                MarketInsight(
+                    id=store.new_id("mi"),
+                    title=f"Liq pressure · {pick_key}",
+                    summary=(
+                        f"{liq_w_action} {pick_key} sampled "
+                        f"L {_format_usd_short(float(pick.get('long_usd') or 0))} vs "
+                        f"S {_format_usd_short(float(pick.get('short_usd') or 0))} "
+                        f"({int(pick.get('events') or 0)} events)."
+                    ),
+                    stance=liq_w_stance,
+                    confidence=68.0,
+                    signals=[
+                        f"Action: {liq_w_stance.value.upper()}",
+                        f"Window: {pick_key}",
+                        f"Pressure: {line}",
+                    ],
+                    created_at=now,
+                )
+            )
+    except Exception:
+        logger.exception("Liq window insight failed")
+
     def _priority(card: MarketInsight) -> tuple[int, float]:
         title = card.title.lower()
         if card.asset and "whale book" in title:
@@ -742,6 +783,8 @@ def _build_market_insights() -> None:
         if title.startswith("top3 consensus"):
             return (2, -card.confidence)
         if "liquidation cluster" in title:
+            return (3, -card.confidence)
+        if title.startswith("liq pressure"):
             return (3, -card.confidence)
         return (4, -card.confidence)
 

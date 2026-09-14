@@ -6,7 +6,7 @@
 | | |
 |--|--|
 | 작성 | 2026-07-22 ~ 07-23 |
-| 갱신 | 2026-09-14 (Binance AI market-status 벤치마크 → BL-14~17) |
+| 갱신 | 2026-09-14 (BL-01 Fresh entries + BL-03 liq windows) |
 | 제품 목표 | [README Product Goals](../README.md#product-goals) |
 | 설계 제약 | [ARCHITECTURE](./ARCHITECTURE.md#product-goals--design-constraints) |
 | 벤치마크 참고 | [HyperTracker Perps](https://app.coinmarketman.com/hypertracker/perps) (시그널·UX만). [Binance AI Brief](./BINANCE_AI_BRIEF_REF.md) (답변 패턴만, 챗/TA 복제 아님) |
@@ -37,12 +37,14 @@
 - [x] Telegram alert mix — Consensus / Whale Move / Big Trade (short templates)
 - [x] Market Brief (LLM desk commentary + template fallback) + Insights evidence board
 - [x] BL-14/15/16/17 Binance-style Brief TL;DR, coin tabs, tension, chips
+- [x] BL-01 Fresh whale entries (24h filter + size delta)
+- [x] BL-03 Liquidation windows (1h / 4h / 24h)
 
 ### Active backlog
 
-- [ ] **P0** BL-01 Fresh whale entries
+- [x] **P0** BL-01 Fresh whale entries
 - [x] **P0** BL-02 Whale bias → actionable insight card
-- [ ] **P0** BL-03 Liquidation windows (1h / 4h / 24h)
+- [x] **P0** BL-03 Liquidation windows (1h / 4h / 24h)
 - [x] **P0** BL-04 Biggest open positions (tracked)
 - [x] **P0** BL-05 Alert quality pass
 - [ ] **P1** BL-06 Smart-money vs rest bias
@@ -135,12 +137,12 @@ Trader & Wallet · Positions (uPnL) · Cohort · Heatmap · Orders · Liquidatio
 |-------------|---------|------|
 | I1 Open Position ROI/uPnL | (shipped) | [x] |
 | I2 Bias → Insight | BL-02 (+ BL-11) | [x] |
-| I3 Position Age / Fresh | BL-01 | [ ] |
+| I3 Position Age / Fresh | BL-01 | [x] |
 | I4 Smart money cohort 축소 | BL-06 | [ ] |
 | I5 Thin heatmap | BL-07 | [ ] |
 | I6 Due diligence | BL-08 | [ ] |
 | I7 Market pulse | BL-10 | [ ] |
-| I8 Funding + Liq timeline | BL-03, BL-11 / Coin Pulse liq | [~] |
+| I8 Funding + Liq timeline | BL-03, BL-11 / Coin Pulse liq | [x] |
 | Biggest Positions | BL-04 | [x] |
 | Market Brief / Insights hero | (shipped 2026-07-25) | [x] |
 | Binance TLDER 3불릿 | BL-14 | [x] |
@@ -157,16 +159,16 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
 ### P0 — Now-insight
 
 #### BL-01 · Fresh whale entries
-- [ ] 미착수 / 진행 중이면 이 줄만 남기고 세부에 체크
+- [x] Done (2026-09-14)
 - **Why:** `<24h` 필터가 시그널을 날카롭게 함
 - **HL:** whale size-change + `clearinghouseState` (+ `userFills` 보강)
 - **Deliverable:** Fresh(24h) vs Open book 토글 또는 `fresh entry` 알림 태그
 - **Done when:** 최근 진입 필터 + 진입 시각/size delta 표시
 - **Effort:** M
 - 세부:
-  - [ ] 진입 시각/delta 소스 확정
-  - [ ] UI 또는 alert 태그
-  - [ ] Done when 검증
+  - [x] 진입 시각/delta 소스 확정 (`classify_size_change` + `size_delta_usd`)
+  - [x] UI 또는 alert 태그 (Whale Alerts Fresh 24h + Telegram FRESH)
+  - [x] Done when 검증 (`tests/test_fresh_liq_p0.py`)
 
 #### BL-02 · Whale bias → actionable insight card
 - [x] Done (2026-07-23)
@@ -181,7 +183,7 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
   - [x] Done when 검증 (unit smoke: card당 ≥2 signal families)
 
 #### BL-03 · Liquidation windows (1h / 4h / 24h)
-- [~] Partial (2026-07-25: A — dashboard 1h KPI)
+- [x] Done (2026-09-14: 1h dashboard + 4h/24h Liquidations strip)
 - **Why:** “지금 청산이 어느 쪽인가” 요약
 - **HL:** `recentTrades` liq + 짧은 persist
 - **Deliverable:** 윈도우별 long/short $ + pressure 한 줄
@@ -189,8 +191,8 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
 - **Effort:** M
 - 세부:
   - [x] 1h rollup → `MarketStatus.liq_1h_*` + dashboard StatCard (Latest Consensus 대체)
-  - [ ] 4h / 12h / 24h strip (대시보드 또는 Liquidations 상단)
-  - [ ] insight/alert 재사용
+  - [x] 4h / 24h strip (Liquidations 상단; 대시보드는 1h만)
+  - [x] insight/alert 재사용 (`Liq pressure · 1h/4h` card)
 
 #### BL-04 · Biggest open positions (tracked)
 - [x] Done (2026-07-23)
