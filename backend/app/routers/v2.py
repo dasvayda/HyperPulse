@@ -8,9 +8,12 @@ from app.models.orm import LiquidationRow, MarketSnapshotRow
 from app.models.schemas import (
     AlertHistoryItem,
     BiggestPosition,
+    CohortBiasResponse,
     CoinPulse,
+    LiqProximityRow,
     MarketBrief,
     MarketInsight,
+    MarketPulse,
     MarketStatus,
     PerformanceRankingResponse,
     PipelineStatus,
@@ -19,9 +22,12 @@ from app.models.schemas import (
     WhaleBookSummary,
 )
 from app.services.alerts import process_alert_triggers
+from app.services.cohort_bias import compute_cohort_bias
 from app.services.inference import run_inference_pipeline
+from app.services.liq_proximity import list_liq_proximity
 from app.services.liq_windows import pressure_line, rollup_liq_windows
 from app.services.market_brief import generate_market_brief
+from app.services.market_pulse import compute_market_pulse
 from app.services.ranking import (
     PERFORMANCE_BASE_THRESHOLD_USD,
     PERFORMANCE_TARGET,
@@ -343,6 +349,31 @@ def biggest_positions(
         marks=marks,
         limit=row_limit,
     )
+
+
+@router.get("/whale-book/cohort-bias", response_model=CohortBiasResponse)
+def whale_book_cohort_bias(
+    assets: list[str] | None = Query(default=None),
+    smart_n: int = Query(default=SMART_MONEY_SIZE, ge=3, le=50),
+) -> CohortBiasResponse:
+    """BL-06: Smart Money top-N vs rest of tracked book, per major coin."""
+    return compute_cohort_bias(assets=assets, smart_n=smart_n)
+
+
+@router.get("/whale-book/liq-proximity", response_model=list[LiqProximityRow])
+def whale_book_liq_proximity(
+    limit: int = Query(default=10, ge=1, le=25),
+) -> list[LiqProximityRow]:
+    """BL-12: tracked positions closest to liquidation (distance%)."""
+    return list_liq_proximity(limit=limit)
+
+
+@router.get("/market/pulse", response_model=MarketPulse)
+def market_pulse(
+    top_n: int = Query(default=20, ge=3, le=40),
+) -> MarketPulse:
+    """BL-10: market-wide OI / Vol / Liq(24h) strip with short deltas."""
+    return compute_market_pulse(top_n=top_n)
 
 
 @router.post("/pipeline/run", response_model=PipelineStatus)

@@ -6,7 +6,7 @@
 | | |
 |--|--|
 | 작성 | 2026-07-22 ~ 07-23 |
-| 갱신 | 2026-09-14 (BL-01 Fresh entries + BL-03 liq windows) |
+| 갱신 | 2026-09-15 (BL-06 / BL-08 / BL-10 / BL-12) |
 | 제품 목표 | [README Product Goals](../README.md#product-goals) |
 | 설계 제약 | [ARCHITECTURE](./ARCHITECTURE.md#product-goals--design-constraints) |
 | 벤치마크 참고 | [HyperTracker Perps](https://app.coinmarketman.com/hypertracker/perps) (시그널·UX만). [Binance AI Brief](./BINANCE_AI_BRIEF_REF.md) (답변 패턴만, 챗/TA 복제 아님) |
@@ -39,6 +39,10 @@
 - [x] BL-14/15/16/17 Binance-style Brief TL;DR, coin tabs, tension, chips
 - [x] BL-01 Fresh whale entries (24h filter + size delta)
 - [x] BL-03 Liquidation windows (1h / 4h / 24h)
+- [x] BL-06 Smart-money vs rest bias
+- [x] BL-08 Copy-worthiness / due-diligence strip
+- [x] BL-10 Market pulse strip (OI / Vol / Liq)
+- [x] BL-12 Liquidation proximity (tracked whales)
 
 ### Active backlog
 
@@ -47,14 +51,14 @@
 - [x] **P0** BL-03 Liquidation windows (1h / 4h / 24h)
 - [x] **P0** BL-04 Biggest open positions (tracked)
 - [x] **P0** BL-05 Alert quality pass
-- [ ] **P1** BL-06 Smart-money vs rest bias
+- [x] **P1** BL-06 Smart-money vs rest bias
 - [ ] **P1** BL-07 Thin coin × cohort heatmap
-- [ ] **P1** BL-08 Copy-worthiness / due-diligence strip
+- [x] **P1** BL-08 Copy-worthiness / due-diligence strip
 - [ ] **P1** BL-09 userFills recent behavior
 - [x] **P1** BL-15 Coin-scoped Market Brief
-- [ ] **P2** BL-10 Market pulse strip (3 cards)
+- [x] **P2** BL-10 Market pulse strip (3 cards)
 - [x] **P2** BL-11 Funding crowdedness callout
-- [ ] **P2** BL-12 Liquidation proximity (tracked whales)
+- [x] **P2** BL-12 Liquidation proximity (tracked whales)
 - [x] **P2** BL-14 Brief TL;DR strip (3 bullets)
 - [x] **P2** BL-16 Price vs whale-book tension
 - [x] **P2** BL-17 Insights starter prompts
@@ -138,10 +142,10 @@ Trader & Wallet · Positions (uPnL) · Cohort · Heatmap · Orders · Liquidatio
 | I1 Open Position ROI/uPnL | (shipped) | [x] |
 | I2 Bias → Insight | BL-02 (+ BL-11) | [x] |
 | I3 Position Age / Fresh | BL-01 | [x] |
-| I4 Smart money cohort 축소 | BL-06 | [ ] |
+| I4 Smart money cohort 축소 | BL-06 | [x] |
 | I5 Thin heatmap | BL-07 | [ ] |
-| I6 Due diligence | BL-08 | [ ] |
-| I7 Market pulse | BL-10 | [ ] |
+| I6 Due diligence | BL-08 | [x] |
+| I7 Market pulse | BL-10 | [x] |
 | I8 Funding + Liq timeline | BL-03, BL-11 / Coin Pulse liq | [x] |
 | Biggest Positions | BL-04 | [x] |
 | Market Brief / Insights hero | (shipped 2026-07-25) | [x] |
@@ -222,14 +226,14 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
 ### P1 — Smart money 해석
 
 #### BL-06 · Smart-money vs rest bias (2-cohort)
-- [ ]
+- [x] Done (2026-09-15)
 - **HL:** ranking 상위 N vs tracked 전체 positions
 - **Deliverable:** 주요 코인 3~5개, 두 집단 long% 비교 패널
 - **Effort:** M
 - 세부:
-  - [ ] 집계
-  - [ ] 패널 UI
-  - [ ] insight 인용
+  - [x] 집계 (`cohort_bias.py` + `GET /api/v2/whale-book/cohort-bias`)
+  - [x] 패널 UI (`CohortBiasPanel` on Dashboard)
+  - [x] insight 인용 (`Smart vs rest · {asset}` when |delta| ≥ 12pp)
 
 #### BL-07 · Thin coin × cohort heatmap (2~4열)
 - [ ]
@@ -242,14 +246,14 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
   - [ ] 범례 1줄
 
 #### BL-08 · Copy-worthiness / due-diligence strip
-- [ ]
+- [x] Done (2026-09-15)
 - **HL:** leaderboard + open ROI/uPnL + lev + inference
 - **Deliverable:** 상세 상단 5필드 + `Watch / Caution / Skip`
 - **Effort:** M
 - 세부:
-  - [ ] 휴리스틱 규칙 문서
-  - [ ] UI
-  - [ ] 재현성 검증
+  - [x] 휴리스틱 규칙 문서 (`copy_check.py` docstring)
+  - [x] UI (trader detail Due diligence strip)
+  - [x] 재현성 검증 (`tests/test_bl_p1_p2.py`)
 
 #### BL-09 · userFills recent behavior (tracked only)
 - [ ]
@@ -266,13 +270,13 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
 ### P2 — 시장 맥락 (제품 노출 최대 1~2개)
 
 #### BL-10 · Market pulse strip (3 cards)
-- [ ]
+- [x] Done (2026-09-15)
 - **HL:** `metaAndAssetCtxs` + BL-03
 - **Deliverable:** OI / Vol / Liq(24h) + 짧은 Δ
 - **Effort:** M
 - 세부:
-  - [ ] 스냅샷 저장
-  - [ ] 대시보드 3카드 (메인 테이블화 금지)
+  - [x] 스냅샷 저장 (기존 `market_snapshots` 1h 창 비교)
+  - [x] 대시보드 3카드 (`GET /api/v2/market/pulse`, 메인 테이블화 금지)
 
 #### BL-11 · Funding crowdedness callout
 - [x] Done (2026-07-24, 2026-07-25 개편)
@@ -297,13 +301,13 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
   - [x] agent.md / ARCHITECTURE / PRODUCT_BACKLOG 페이지 소유권·LLM 용도 기록
 
 #### BL-12 · Liquidation proximity (tracked whales)
-- [ ]
+- [x] Done (2026-09-15)
 - **HL:** `liquidationPx` / margin + mark
 - **Deliverable:** distance% Top N + optional alert
 - **Effort:** M
 - 세부:
-  - [ ] distance 계산
-  - [ ] 리스트 UI
+  - [x] distance 계산 (`liq_proximity.py`, collector parses `liquidationPx`)
+  - [x] 리스트 UI (Liquidations · Closest Tracked Whales)
   - [ ] (선택) alert
 
 #### BL-14 · Brief TL;DR strip (3 bullets)

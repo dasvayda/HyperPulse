@@ -19,6 +19,7 @@ import {
   getLiquidationEvents,
   getPipelineStatus,
   getMarketStatus,
+  getLiqProximity,
   formatUsd,
   formatPrice,
   formatTimeAgo,
@@ -26,11 +27,12 @@ import {
 } from "@/lib/api";
 
 export default async function LiquidationsPage() {
-  const [zones, events, pipeline, market] = await Promise.all([
+  const [zones, events, pipeline, market, proximity] = await Promise.all([
     getLiquidationZones(),
     getLiquidationEvents(),
     getPipelineStatus(),
     getMarketStatus(),
+    getLiqProximity(8),
   ]);
 
   const strip = [
@@ -90,6 +92,99 @@ export default async function LiquidationsPage() {
             ]}
           />
         ))}
+      </div>
+
+      <div className="mb-10">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-base font-semibold text-text-primary">
+              Closest Tracked Whales
+            </h2>
+            <p className="text-xs text-text-dim mt-1">
+              Distance to liquidationPx (or estimate) · lower % = closer risk
+            </p>
+          </div>
+        </div>
+        <DataTable>
+          <DataTableHead>
+            <DataTableHeaderCell>#</DataTableHeaderCell>
+            <DataTableHeaderCell>Trader</DataTableHeaderCell>
+            <DataTableHeaderCell>Asset</DataTableHeaderCell>
+            <DataTableHeaderCell>Side</DataTableHeaderCell>
+            <DataTableHeaderCell>Notional</DataTableHeaderCell>
+            <DataTableHeaderCell>Distance</DataTableHeaderCell>
+            <DataTableHeaderCell>Liq / Mark</DataTableHeaderCell>
+          </DataTableHead>
+          <DataTableBody>
+            {proximity.length > 0 ? (
+              proximity.map((row) => (
+                <DataTableRow
+                  key={`${row.trader_address}-${row.asset}-${row.side}-${row.rank}`}
+                >
+                  <DataTableCell className="text-text-muted font-mono">
+                    {row.rank}
+                  </DataTableCell>
+                  <DataTableCell>
+                    <Link
+                      href={`/traders/${encodeURIComponent(row.trader_address)}`}
+                      className="text-sm text-accent hover:underline"
+                    >
+                      {row.trader_alias}
+                    </Link>
+                  </DataTableCell>
+                  <DataTableCell>
+                    <AssetIcon asset={row.asset} />
+                  </DataTableCell>
+                  <DataTableCell>
+                    <Badge variant={row.side}>{row.side.toUpperCase()}</Badge>
+                  </DataTableCell>
+                  <DataTableCell className="text-sm text-text-primary">
+                    {formatUsd(row.size_usd)}
+                    <span className="block text-[11px] text-text-dim">
+                      {row.leverage.toFixed(1)}x
+                    </span>
+                  </DataTableCell>
+                  <DataTableCell>
+                    <span
+                      className={`text-sm font-medium ${
+                        row.distance_pct <= 5
+                          ? "text-negative"
+                          : row.distance_pct <= 12
+                            ? "text-text-primary"
+                            : "text-text-muted"
+                      }`}
+                    >
+                      {row.distance_pct.toFixed(1)}%
+                    </span>
+                    {row.source === "estimate" && (
+                      <span className="block text-[10px] text-text-dim">
+                        estimate
+                      </span>
+                    )}
+                  </DataTableCell>
+                  <DataTableCell className="text-xs text-text-muted">
+                    {formatPrice(row.liquidation_px, row.asset)}
+                    <span className="block text-text-dim">
+                      mark {formatPrice(row.mark_price, row.asset)}
+                    </span>
+                  </DataTableCell>
+                </DataTableRow>
+              ))
+            ) : (
+              <DataTableRow>
+                <DataTableCell className="text-text-dim">
+                  No proximity rows yet — needs live whale book + marks.
+                </DataTableCell>
+                <DataTableCell>—</DataTableCell>
+                <DataTableCell>—</DataTableCell>
+                <DataTableCell>—</DataTableCell>
+                <DataTableCell>—</DataTableCell>
+                <DataTableCell>—</DataTableCell>
+                <DataTableCell>—</DataTableCell>
+              </DataTableRow>
+            )}
+          </DataTableBody>
+        </DataTable>
       </div>
 
       <h2 className="text-base font-semibold text-text-primary mb-4">

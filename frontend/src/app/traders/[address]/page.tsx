@@ -62,6 +62,11 @@ export default async function TraderDetailPage({ params }: Props) {
     0,
   );
   const hasUnrealized = openPositions.some((pos) => pos.unrealized_pnl_usd != null);
+  const verdict = (trader.copy_verdict || "caution").toLowerCase();
+  const verdictVariant =
+    verdict === "watch" ? "watch" : verdict === "skip" ? "skip" : "caution";
+  const verdictLabel =
+    verdict === "watch" ? "Watch" : verdict === "skip" ? "Skip" : "Caution";
 
   return (
     <DashboardLayout>
@@ -80,6 +85,78 @@ export default async function TraderDetailPage({ params }: Props) {
           </Link>
         }
       />
+
+      <div className="rounded-xl border border-border bg-bg-surface p-5 mb-6">
+        <div className="flex flex-wrap items-center gap-3 mb-3">
+          <h3 className="text-sm font-semibold text-text-primary">
+            Due diligence
+          </h3>
+          <Badge variant={verdictVariant}>{verdictLabel}</Badge>
+          {(trader.copy_reasons ?? []).map((reason) => (
+            <span key={reason} className="text-xs text-text-dim">
+              · {reason}
+            </span>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-text-dim mb-1">
+              Score
+            </p>
+            <p className="font-medium text-text-primary">
+              {trader.smart_money_score != null
+                ? `${trader.smart_money_score.toFixed(0)} / 100`
+                : "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-text-dim mb-1">
+              Open ROI
+            </p>
+            <p
+              className={`font-medium ${
+                trader.open_roi_pct == null
+                  ? "text-text-muted"
+                  : trader.open_roi_pct >= 0
+                    ? "text-positive"
+                    : "text-negative"
+              }`}
+            >
+              {trader.open_roi_pct != null
+                ? formatPct(trader.open_roi_pct)
+                : "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-text-dim mb-1">
+              Max lev
+            </p>
+            <p className="font-medium text-text-primary">
+              {trader.max_leverage != null
+                ? `${trader.max_leverage.toFixed(1)}x`
+                : "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-text-dim mb-1">
+              Risk
+            </p>
+            <p className="font-medium text-text-primary">
+              {trader.risk_score.toFixed(0)} / 100
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-text-dim mb-1">
+              Style conf
+            </p>
+            <p className="font-medium text-text-primary">
+              {trader.inference_confidence != null
+                ? `${trader.inference_confidence.toFixed(0)}%`
+                : "—"}
+            </p>
+          </div>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard

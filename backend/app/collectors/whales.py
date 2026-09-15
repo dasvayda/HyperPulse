@@ -67,6 +67,9 @@ def _extract_positions(payload: Any) -> list[dict]:
                 "position_value": position_value,
                 "leverage": leverage,
                 "unrealized_pnl": _safe_float(pos.get("unrealizedPnl") or pos.get("unrealized_pnl")),
+                "liquidation_px": _safe_float(
+                    pos.get("liquidationPx") or pos.get("liquidation_px")
+                ),
             }
         )
     return out
@@ -116,6 +119,7 @@ async def fetch_live_positions(
                 size_usd=abs(float(pos["position_value"])),
                 entry_price=float(pos["entry_price"]),
                 leverage=float(pos["leverage"] or 1.0),
+                liquidation_px=pos.get("liquidation_px"),
             )
         )
 
@@ -126,6 +130,7 @@ async def fetch_live_positions(
 
 async def fetch_live_open_positions(address: str) -> list[OpenPosition]:
     """Live clearinghouse positions enriched with mark / ROI for trader detail."""
+    from app.services.liq_proximity import liq_distance_pct
     from app.services.store import _latest_mark_prices, _position_roi
 
     if settings.use_mock_data:
@@ -167,6 +172,10 @@ async def fetch_live_open_positions(address: str) -> list[OpenPosition]:
         )
         if unrealized is None and pos.get("unrealized_pnl") is not None:
             unrealized = round(float(pos["unrealized_pnl"]), 2)
+        liq_px = pos.get("liquidation_px")
+        dist = None
+        if liq_px and mark:
+            dist = liq_distance_pct(side=side, mark=mark, liquidation_px=float(liq_px))
 
         whale_positions.append(
             WhalePosition(
@@ -176,6 +185,7 @@ async def fetch_live_open_positions(address: str) -> list[OpenPosition]:
                 size_usd=size_usd,
                 entry_price=entry,
                 leverage=leverage,
+                liquidation_px=liq_px,
             )
         )
         open_positions.append(
@@ -188,6 +198,8 @@ async def fetch_live_open_positions(address: str) -> list[OpenPosition]:
                 mark_price=round(mark, 6) if mark else None,
                 roi_pct=roi_pct,
                 unrealized_pnl_usd=unrealized,
+                liquidation_px=liq_px,
+                liq_distance_pct=dist,
             )
         )
 
@@ -262,6 +274,7 @@ async def collect_whale_events() -> list[WhaleAlert]:
                     size_usd=usd_size,
                     entry_price=pos["entry_price"],
                     leverage=pos["leverage"],
+                    liquidation_px=pos.get("liquidation_px"),
                 )
             )
 

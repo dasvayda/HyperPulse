@@ -50,6 +50,8 @@ export interface OpenPosition {
   mark_price?: number | null;
   roi_pct?: number | null;
   unrealized_pnl_usd?: number | null;
+  liquidation_px?: number | null;
+  liq_distance_pct?: number | null;
 }
 
 export interface TraderDetail extends TraderProfile {
@@ -66,6 +68,13 @@ export interface TraderDetail extends TraderProfile {
   inferred_strategy?: string | null;
   inferred_trading_style?: string | null;
   inference_confidence?: number | null;
+  smart_money_score?: number | null;
+  open_roi_pct?: number | null;
+  open_unrealized_pnl_usd?: number | null;
+  avg_leverage?: number | null;
+  max_leverage?: number | null;
+  copy_verdict?: "watch" | "caution" | "skip" | string | null;
+  copy_reasons?: string[];
 }
 
 export interface LiquidationZone {
@@ -154,6 +163,50 @@ export interface BiggestPosition {
   mark_price?: number | null;
   roi_pct?: number | null;
   unrealized_pnl_usd?: number | null;
+  liquidation_px?: number | null;
+  liq_distance_pct?: number | null;
+}
+
+export interface CohortBiasAsset {
+  asset: string;
+  smart_long_pct?: number | null;
+  rest_long_pct?: number | null;
+  delta_pp?: number | null;
+  smart_notional_usd: number;
+  rest_notional_usd: number;
+  smart_whales: number;
+  rest_whales: number;
+}
+
+export interface CohortBiasResponse {
+  assets: CohortBiasAsset[];
+  smart_n: number;
+  updated_at: string;
+}
+
+export interface LiqProximityRow {
+  rank: number;
+  trader_address: string;
+  trader_alias: string;
+  asset: string;
+  side: PositionSide;
+  size_usd: number;
+  leverage: number;
+  mark_price: number;
+  liquidation_px: number;
+  distance_pct: number;
+  source: string;
+}
+
+export interface MarketPulse {
+  oi_usd: number;
+  oi_delta_pct?: number | null;
+  vol_usd_24h: number;
+  vol_delta_pct?: number | null;
+  liq_usd_24h: number;
+  liq_delta_pct?: number | null;
+  scope: string;
+  as_of: string;
 }
 
 export interface DashboardStats {

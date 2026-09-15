@@ -2,7 +2,19 @@ import clsx from "clsx";
 
 interface BadgeProps {
   children: React.ReactNode;
-  variant?: "default" | "long" | "short" | "entry" | "exit" | "accent" | "buy" | "sell" | "hold";
+  variant?:
+    | "default"
+    | "long"
+    | "short"
+    | "entry"
+    | "exit"
+    | "accent"
+    | "buy"
+    | "sell"
+    | "hold"
+    | "watch"
+    | "caution"
+    | "skip";
   className?: string;
 }
 
@@ -16,6 +28,9 @@ const variants = {
   buy: "bg-positive/15 text-positive border-positive/30",
   sell: "bg-negative/15 text-negative border-negative/30",
   hold: "bg-bg-elevated text-text-primary border-border",
+  watch: "bg-positive/15 text-positive border-positive/30",
+  caution: "bg-bg-elevated text-text-primary border-border",
+  skip: "bg-negative/15 text-negative border-negative/30",
 };
 
 export function Badge({ children, variant = "default", className }: BadgeProps) {

@@ -565,6 +565,49 @@ def _build_market_insights() -> None:
     funding_cards = _build_funding_crowdedness_insight(now)
     insights.extend(funding_cards)
 
+    # BL-06: Smart Money vs rest divergence on a major coin.
+    try:
+        from app.services.cohort_bias import compute_cohort_bias
+
+        cohort = compute_cohort_bias()
+        diverged = [
+            row
+            for row in cohort.assets
+            if row.delta_pp is not None and abs(row.delta_pp) >= 12
+        ]
+        if diverged:
+            best = max(diverged, key=lambda r: abs(r.delta_pp or 0))
+            smart = best.smart_long_pct or 50.0
+            rest = best.rest_long_pct or 50.0
+            if smart > rest:
+                stance = InsightStance.BUY
+                action = "Smart money is more long than the rest"
+            else:
+                stance = InsightStance.SELL
+                action = "Smart money is more short than the rest"
+            insights.append(
+                MarketInsight(
+                    id=store.new_id("mi"),
+                    title=f"Smart vs rest · {best.asset}",
+                    summary=(
+                        f"{action}: smart {smart:.0f}% long vs rest {rest:.0f}% "
+                        f"({best.delta_pp:+.0f} pp)."
+                    ),
+                    asset=best.asset,
+                    stance=stance,
+                    confidence=min(84.0, 55.0 + abs(best.delta_pp or 0) * 0.8),
+                    signals=[
+                        f"Action: {stance.value.upper()}",
+                        f"Smart long: {smart:.0f}%",
+                        f"Rest long: {rest:.0f}%",
+                        f"Delta: {best.delta_pp:+.0f} pp",
+                    ],
+                    created_at=now,
+                )
+            )
+    except Exception:
+        logger.exception("Cohort bias insight failed")
+
     # Top3 volume whale consensus — evidence card (not a Dashboard KPI clone).
     try:
         from app.services.alerts import compute_market_consensus

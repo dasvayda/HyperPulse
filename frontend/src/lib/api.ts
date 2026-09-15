@@ -2,11 +2,14 @@ import type {
   AlertHistoryItem,
   CoinPulse,
   BiggestPosition,
+  CohortBiasResponse,
   DashboardStats,
+  LiqProximityRow,
   LiquidationEvent,
   LiquidationZone,
   MarketBrief,
   MarketInsight,
+  MarketPulse,
   MarketStatus,
   PipelineStatus,
   SmartMoneyRank,
@@ -126,6 +129,21 @@ export function getCoinPulse(assets: string[] = []): Promise<CoinPulse[]> {
 
 export function getBiggestPositions(limit = 8): Promise<BiggestPosition[]> {
   return fetchApi(`/api/v2/whale-book/biggest-positions?limit=${limit}`);
+}
+
+export function getCohortBias(assets: string[] = []): Promise<CohortBiasResponse> {
+  const qs = assets.length
+    ? `?assets=${assets.map(encodeURIComponent).join("&assets=")}`
+    : "";
+  return fetchApi(`/api/v2/whale-book/cohort-bias${qs}`);
+}
+
+export function getLiqProximity(limit = 10): Promise<LiqProximityRow[]> {
+  return fetchApi(`/api/v2/whale-book/liq-proximity?limit=${limit}`);
+}
+
+export function getMarketPulse(topN = 20): Promise<MarketPulse> {
+  return fetchApi(`/api/v2/market/pulse?top_n=${topN}`);
 }
 
 export function formatConfidence(value: number): string {

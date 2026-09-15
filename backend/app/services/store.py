@@ -520,6 +520,47 @@ class StateStore:
                     f"({inference.strategy}) with {inference.confidence:.0f}% confidence."
                 )
             summary = " ".join(parts)
+
+            rank_row = next(
+                (r for r in self.rankings if r.address.lower() == needle),
+                None,
+            )
+            open_roi, open_upnl = self.summarize_open_pnl(trader.address)
+            if rank_row and rank_row.open_roi_pct is not None:
+                open_roi = rank_row.open_roi_pct
+            if rank_row and rank_row.open_unrealized_pnl_usd is not None:
+                open_upnl = rank_row.open_unrealized_pnl_usd
+            if open_upnl is None and open_positions:
+                if any(p.unrealized_pnl_usd is not None for p in open_positions):
+                    open_upnl = round(
+                        sum(p.unrealized_pnl_usd or 0.0 for p in open_positions), 2
+                    )
+            if open_roi is None and open_positions:
+                scored = [p for p in open_positions if p.roi_pct is not None]
+                total = sum(p.size_usd for p in scored)
+                if total > 0:
+                    open_roi = round(
+                        sum((p.roi_pct or 0.0) * p.size_usd for p in scored) / total, 2
+                    )
+
+            max_lev = max((p.leverage for p in open_positions), default=None)
+            avg_lev = (
+                round(sum(p.leverage for p in open_positions) / len(open_positions), 2)
+                if open_positions
+                else None
+            )
+            from app.services.copy_check import compute_copy_verdict
+
+            copy = compute_copy_verdict(
+                smart_money_score=rank_row.smart_money_score if rank_row else None,
+                open_roi_pct=open_roi,
+                open_unrealized_pnl_usd=open_upnl,
+                max_leverage=max_lev,
+                risk_score=trader.risk_score,
+                inference_confidence=inference.confidence if inference else None,
+                open_positions=open_positions,
+            )
+
             data = trader.model_dump()
             data["preferred_assets"] = preferred
             return TraderDetail(
@@ -530,6 +571,13 @@ class StateStore:
                 inferred_strategy=inference.strategy if inference else None,
                 inferred_trading_style=inference.trading_style if inference else None,
                 inference_confidence=inference.confidence if inference else None,
+                smart_money_score=rank_row.smart_money_score if rank_row else None,
+                open_roi_pct=open_roi,
+                open_unrealized_pnl_usd=open_upnl,
+                avg_leverage=avg_lev,
+                max_leverage=max_lev,
+                copy_verdict=copy.verdict,
+                copy_reasons=copy.reasons,
             )
         return None
 

@@ -65,6 +65,7 @@ class WhalePosition(BaseModel):
     size_usd: float
     entry_price: float
     leverage: float
+    liquidation_px: float | None = None
 
 
 class OpenPosition(BaseModel):
@@ -76,6 +77,15 @@ class OpenPosition(BaseModel):
     mark_price: float | None = None
     roi_pct: float | None = None
     unrealized_pnl_usd: float | None = None
+    liquidation_px: float | None = None
+    liq_distance_pct: float | None = None
+
+
+class CopyVerdict(BaseModel):
+    """BL-08 due-diligence label for copy / follow decisions."""
+
+    verdict: str  # watch | caution | skip
+    reasons: list[str] = Field(default_factory=list)
 
 
 class TraderDetail(TraderProfile):
@@ -85,6 +95,13 @@ class TraderDetail(TraderProfile):
     inferred_strategy: str | None = None
     inferred_trading_style: str | None = None
     inference_confidence: float | None = None
+    smart_money_score: float | None = None
+    open_roi_pct: float | None = None
+    open_unrealized_pnl_usd: float | None = None
+    avg_leverage: float | None = None
+    max_leverage: float | None = None
+    copy_verdict: str | None = None
+    copy_reasons: list[str] = Field(default_factory=list)
 
 
 class LiquidationZone(BaseModel):
@@ -174,6 +191,50 @@ class BiggestPosition(BaseModel):
     mark_price: float | None = None
     roi_pct: float | None = None
     unrealized_pnl_usd: float | None = None
+    liquidation_px: float | None = None
+    liq_distance_pct: float | None = None
+
+
+class CohortBiasAsset(BaseModel):
+    asset: str
+    smart_long_pct: float | None = None
+    rest_long_pct: float | None = None
+    delta_pp: float | None = None
+    smart_notional_usd: float = 0.0
+    rest_notional_usd: float = 0.0
+    smart_whales: int = 0
+    rest_whales: int = 0
+
+
+class CohortBiasResponse(BaseModel):
+    assets: list[CohortBiasAsset]
+    smart_n: int
+    updated_at: datetime
+
+
+class LiqProximityRow(BaseModel):
+    rank: int
+    trader_address: str
+    trader_alias: str
+    asset: str
+    side: PositionSide
+    size_usd: float
+    leverage: float
+    mark_price: float
+    liquidation_px: float
+    distance_pct: float
+    source: str = "liquidationPx"  # liquidationPx | estimate
+
+
+class MarketPulse(BaseModel):
+    oi_usd: float = 0.0
+    oi_delta_pct: float | None = None
+    vol_usd_24h: float = 0.0
+    vol_delta_pct: float | None = None
+    liq_usd_24h: float = 0.0
+    liq_delta_pct: float | None = None
+    scope: str = "top20"
+    as_of: datetime
 
 
 class DashboardStats(BaseModel):

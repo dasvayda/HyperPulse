@@ -18,6 +18,7 @@ import { SparkBarBackground } from "@/components/ui/SparkBar";
 import { InsightCardCarousel } from "@/components/ui/InsightCardCarousel";
 import { AlertFeed } from "@/components/ui/AlertFeed";
 import { WhaleBiasPanel } from "@/components/ui/WhaleBiasPanel";
+import { CohortBiasPanel } from "@/components/ui/CohortBiasPanel";
 import { ScoreMeter } from "@/components/ui/ScoreMeter";
 import {
   getDashboardStats,
@@ -32,6 +33,8 @@ import {
   getBiggestPositions,
   getWhaleBookSummary,
   getMarketBrief,
+  getCohortBias,
+  getMarketPulse,
   formatUsd,
   formatTimeAgo,
   formatConfidence,
@@ -54,6 +57,8 @@ export default async function HomePage() {
     whaleSummary,
     biggestPositions,
     marketBrief,
+    cohortBias,
+    marketPulse,
   ] = await Promise.all([
     getDashboardStats(),
     getWhaleAlerts(),
@@ -67,6 +72,8 @@ export default async function HomePage() {
     getWhaleBookSummary(),
     getBiggestPositions(8),
     getMarketBrief(),
+    getCohortBias(),
+    getMarketPulse(),
   ]);
 
   const recentAlerts = alerts.slice(0, 5);
@@ -198,6 +205,71 @@ export default async function HomePage() {
         />
       </div>
 
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-base font-semibold text-text-primary">
+              Market Pulse
+            </h2>
+            <p className="text-xs text-text-dim mt-1">
+              Top markets by volume ({marketPulse.scope}) · short Δ vs ~1h ago
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <StatCard
+            label="Open Interest"
+            value={marketPulse.oi_usd > 0 ? formatUsd(marketPulse.oi_usd) : "—"}
+            change={
+              marketPulse.oi_delta_pct != null
+                ? formatPct(marketPulse.oi_delta_pct)
+                : "No prior snapshot yet"
+            }
+            positive={
+              marketPulse.oi_delta_pct == null
+                ? undefined
+                : marketPulse.oi_delta_pct >= 0
+            }
+          />
+          <StatCard
+            label="24h Volume"
+            value={
+              marketPulse.vol_usd_24h > 0
+                ? formatUsd(marketPulse.vol_usd_24h)
+                : "—"
+            }
+            change={
+              marketPulse.vol_delta_pct != null
+                ? formatPct(marketPulse.vol_delta_pct)
+                : "No prior snapshot yet"
+            }
+            positive={
+              marketPulse.vol_delta_pct == null
+                ? undefined
+                : marketPulse.vol_delta_pct >= 0
+            }
+          />
+          <StatCard
+            label="24h Liquidations"
+            value={
+              marketPulse.liq_usd_24h > 0
+                ? formatUsd(marketPulse.liq_usd_24h)
+                : "$0"
+            }
+            change={
+              marketPulse.liq_delta_pct != null
+                ? `1h vs avg hour ${formatPct(marketPulse.liq_delta_pct)}`
+                : market.liq_24h_pressure || "sampled liq quiet"
+            }
+            positive={
+              marketPulse.liq_delta_pct == null
+                ? undefined
+                : marketPulse.liq_delta_pct <= 0
+            }
+          />
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 items-stretch">
         <div className="lg:col-span-2 flex flex-col">
           <div className="flex items-center justify-between mb-4">
@@ -225,6 +297,9 @@ export default async function HomePage() {
               insights={previewInsights}
               className="h-full min-h-[200px]"
             />
+          </div>
+          <div className="mt-4">
+            <CohortBiasPanel data={cohortBias} />
           </div>
         </div>
         <div className="flex flex-col min-h-0">
