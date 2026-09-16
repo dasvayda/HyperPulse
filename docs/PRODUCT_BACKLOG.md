@@ -6,7 +6,7 @@
 | | |
 |--|--|
 | 작성 | 2026-07-22 ~ 07-23 |
-| 갱신 | 2026-09-15 (BL-06 / BL-08 / BL-10 / BL-12) |
+| 갱신 | 2026-09-17 (BL-07 / BL-09 — Active backlog 전부 소진) |
 | 제품 목표 | [README Product Goals](../README.md#product-goals) |
 | 설계 제약 | [ARCHITECTURE](./ARCHITECTURE.md#product-goals--design-constraints) |
 | 벤치마크 참고 | [HyperTracker Perps](https://app.coinmarketman.com/hypertracker/perps) (시그널·UX만). [Binance AI Brief](./BINANCE_AI_BRIEF_REF.md) (답변 패턴만, 챗/TA 복제 아님) |
@@ -43,6 +43,8 @@
 - [x] BL-08 Copy-worthiness / due-diligence strip
 - [x] BL-10 Market pulse strip (OI / Vol / Liq)
 - [x] BL-12 Liquidation proximity (tracked whales)
+- [x] BL-07 Cohort heatmap (majors + thin coins)
+- [x] BL-09 userFills 24h flow (trader detail)
 
 ### Active backlog
 
@@ -52,9 +54,9 @@
 - [x] **P0** BL-04 Biggest open positions (tracked)
 - [x] **P0** BL-05 Alert quality pass
 - [x] **P1** BL-06 Smart-money vs rest bias
-- [ ] **P1** BL-07 Thin coin × cohort heatmap
+- [x] **P1** BL-07 Thin coin × cohort heatmap
 - [x] **P1** BL-08 Copy-worthiness / due-diligence strip
-- [ ] **P1** BL-09 userFills recent behavior
+- [x] **P1** BL-09 userFills recent behavior
 - [x] **P1** BL-15 Coin-scoped Market Brief
 - [x] **P2** BL-10 Market pulse strip (3 cards)
 - [x] **P2** BL-11 Funding crowdedness callout
@@ -143,7 +145,7 @@ Trader & Wallet · Positions (uPnL) · Cohort · Heatmap · Orders · Liquidatio
 | I2 Bias → Insight | BL-02 (+ BL-11) | [x] |
 | I3 Position Age / Fresh | BL-01 | [x] |
 | I4 Smart money cohort 축소 | BL-06 | [x] |
-| I5 Thin heatmap | BL-07 | [ ] |
+| I5 Thin heatmap | BL-07 | [x] |
 | I6 Due diligence | BL-08 | [x] |
 | I7 Market pulse | BL-10 | [x] |
 | I8 Funding + Liq timeline | BL-03, BL-11 / Coin Pulse liq | [x] |
@@ -236,14 +238,16 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
   - [x] insight 인용 (`Smart vs rest · {asset}` when |delta| ≥ 12pp)
 
 #### BL-07 · Thin coin × cohort heatmap (2~4열)
-- [ ]
+- [x] Done (2026-09-17)
 - **HL:** BL-06 재사용
 - **Deliverable:** 자산 × smart/rest/(optional style) 색 매트릭스
 - **Effort:** M
 - 세부:
-  - [ ] 매트릭스 UI
-  - [ ] 모바일 가독성
-  - [ ] 범례 1줄
+  - [x] 매트릭스 UI (`CohortHeatmap`, Insights 하단 · Smart/Rest/All 3열)
+  - [x] 모바일 가독성 (고정 3열 그리드 + `thin` 태그, 테이블 아님)
+  - [x] 범례 1줄 (green long-heavy / red short-heavy / grey balanced)
+- 비고: thin = 거래대금 majors 밖인데 tracked 고래가 아직 들고 있는 코인
+  (`include_thin=true`). 셀은 long share %, 부제는 whale share of OI
 
 #### BL-08 · Copy-worthiness / due-diligence strip
 - [x] Done (2026-09-15)
@@ -256,14 +260,15 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
   - [x] 재현성 검증 (`tests/test_bl_p1_p2.py`)
 
 #### BL-09 · userFills recent behavior (tracked only)
-- [ ]
+- [x] Done (2026-09-17)
 - **HL:** `userFills` / `userFillsByTime` (rate limit 주의)
 - **Deliverable:** Last 24h fills summary (buy/sell notional, 코인)
 - **Effort:** M–L
 - 세부:
-  - [ ] collector + 캐시
-  - [ ] 트레이더 상세 UI
-  - [ ] open position과 정합성 표시
+  - [x] collector + 캐시 (`collectors/fills.py`, 180s TTL, 상세 요청 시 1건만 조회)
+  - [x] 트레이더 상세 UI (`RecentFlowPanel` — bought/sold/net + 코인별 바)
+  - [x] open position과 정합성 표시 (`position_check`: Adding / Trimming / No open …)
+- **Rate limit:** 배경 루프에서 tracked 전체를 훑지 않음. 상세 페이지 요청 시 주소 1건만 + 캐시
 
 ---
 

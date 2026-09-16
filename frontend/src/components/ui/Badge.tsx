@@ -16,6 +16,7 @@ interface BadgeProps {
     | "caution"
     | "skip";
   className?: string;
+  title?: string;
 }
 
 const variants = {
@@ -33,9 +34,15 @@ const variants = {
   skip: "bg-negative/15 text-negative border-negative/30",
 };
 
-export function Badge({ children, variant = "default", className }: BadgeProps) {
+export function Badge({
+  children,
+  variant = "default",
+  className,
+  title,
+}: BadgeProps) {
   return (
     <span
+      title={title}
       className={clsx(
         "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium",
         variants[variant],

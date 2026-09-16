@@ -35,9 +35,9 @@ We are **not** building a business around accumulated historical data sales, ful
 | Surface | Owns | Does not own |
 |---------|------|--------------|
 | **Dashboard** | Numeric KPIs (Top3 Consensus, 1h Liq), Market Pulse (OI/Vol/Liq), Prefer teaser cards, Smart vs Rest panel, Market Brief **headline** link only | Full brief body, suggestions/risks dump |
-| **Insights** | Market Brief hero (headline + stance + status + suggestions/risks), rule evidence board, collapsed whale style tags | Duplicate Top3/1h KPI strip, pipeline health cards as hero |
+| **Insights** | Market Brief hero (headline + stance + status + suggestions/risks), rule evidence board, cohort heatmap, collapsed whale style tags | Duplicate Top3/1h KPI strip, pipeline health cards as hero |
 | **Liquidations** | 1h/4h/24h strip + Closest Tracked Whales (liq distance%) + zones | Full-network liq heatmap |
-| **Trader detail** | Due diligence strip (Watch/Caution/Skip) + open book | userFills feed (BL-09) |
+| **Trader detail** | Due diligence strip (Watch/Caution/Skip), last-24h fill flow, open book | Full fill-by-fill ledger |
 
 Retail copy: Prefer longs / Prefer shorts / Wait (not Buy/Sell bias).
 

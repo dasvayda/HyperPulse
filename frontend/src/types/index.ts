@@ -54,6 +54,27 @@ export interface OpenPosition {
   liq_distance_pct?: number | null;
 }
 
+export interface TraderFillAsset {
+  asset: string;
+  buy_usd: number;
+  sell_usd: number;
+  net_usd: number;
+  fills: number;
+}
+
+export interface TraderFillsSummary {
+  window_hours: number;
+  fills: number;
+  buy_usd: number;
+  sell_usd: number;
+  net_usd: number;
+  realized_pnl_usd: number;
+  assets: TraderFillAsset[];
+  top_asset?: string | null;
+  last_fill_at?: string | null;
+  position_check?: string | null;
+}
+
 export interface TraderDetail extends TraderProfile {
   recent_positions: {
     asset: string;
@@ -75,6 +96,7 @@ export interface TraderDetail extends TraderProfile {
   max_leverage?: number | null;
   copy_verdict?: "watch" | "caution" | "skip" | string | null;
   copy_reasons?: string[];
+  recent_fills?: TraderFillsSummary | null;
 }
 
 export interface LiquidationZone {
@@ -176,6 +198,10 @@ export interface CohortBiasAsset {
   rest_notional_usd: number;
   smart_whales: number;
   rest_whales: number;
+  all_long_pct?: number | null;
+  whale_oi_pct?: number | null;
+  day_volume_usd?: number | null;
+  thin?: boolean;
 }
 
 export interface CohortBiasResponse {

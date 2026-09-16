@@ -15,6 +15,7 @@ import type {
   SmartMoneyRank,
   StrategyInference,
   TraderDetail,
+  TraderFillsSummary,
   TraderProfile,
   WhaleAlert,
   WhaleBookSummary,
@@ -136,6 +137,23 @@ export function getCohortBias(assets: string[] = []): Promise<CohortBiasResponse
     ? `?assets=${assets.map(encodeURIComponent).join("&assets=")}`
     : "";
   return fetchApi(`/api/v2/whale-book/cohort-bias${qs}`);
+}
+
+/** BL-07: majors + thin coins for the cohort heatmap. */
+export function getCohortHeatmap(limit = 4): Promise<CohortBiasResponse> {
+  return fetchApi(
+    `/api/v2/whale-book/cohort-bias?limit=${limit}&include_thin=true`,
+  );
+}
+
+export function getTraderFills(
+  address: string,
+  hours = 24,
+): Promise<TraderFillsSummary | null> {
+  return fetchApi(
+    `/api/v2/traders/${encodeURIComponent(address)}/fills?hours=${hours}`,
+    { cache: "no-store" },
+  );
 }
 
 export function getLiqProximity(limit = 10): Promise<LiqProximityRow[]> {

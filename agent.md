@@ -6,7 +6,9 @@ HyperPulse is an AI-powered intelligence platform for Hyperliquid traders.
 
 **Product goal:** strong *current-moment* insights that are simple, reliable, and actionable for trading — not selling accumulated data or dense metric dumps. See `README.md` (Product Goals), `docs/ARCHITECTURE.md` (constraints), and `docs/PRODUCT_BACKLOG.md` (canonical backlog + checkboxes).
 
-**AI Insights page:** Market Brief hero is a 3-slot TL;DR (now = mark + vs prev day + funding; short = tracked book $/% + sampled 1h liq; however = tension or confirm). Prefer longs/shorts/Wait is a badge, not in the headline. Coin tabs are live volume Top3. Dashboard teaser uses `tldr.now`. Evidence cards stay rule-based. Trader strategy tags are secondary.
+**AI Insights page:** Market Brief hero is a 3-slot TL;DR (now = mark + vs prev day + funding; short = tracked book $/% + sampled 1h liq; however = tension or confirm). Prefer longs/shorts/Wait is a badge, not in the headline. Coin tabs are live volume Top3. Dashboard teaser uses `tldr.now`. Evidence cards and the cohort heatmap (Smart / Rest / All long share, majors + thin coins) stay rule-based. Trader strategy tags are secondary.
+
+**Rate-limited collectors:** `collectors/fills.py` (`userFillsByTime`) is fetched per address on trader-detail requests with a short cache, never swept across the tracked universe on a timer.
 
 **LLM usage:** Primary = periodic market-wide Market Brief (`market_brief.py`). Coin briefs are rule/template only. Secondary = trader strategy labels. Market BUY/SELL evidence cards are **not** LLM.
 

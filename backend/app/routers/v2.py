@@ -19,8 +19,10 @@ from app.models.schemas import (
     PipelineStatus,
     SmartMoneyRank,
     StrategyInference,
+    TraderFillsSummary,
     WhaleBookSummary,
 )
+from app.collectors.fills import fetch_recent_fills
 from app.services.alerts import process_alert_triggers
 from app.services.cohort_bias import compute_cohort_bias
 from app.services.inference import run_inference_pipeline
@@ -355,9 +357,29 @@ def biggest_positions(
 def whale_book_cohort_bias(
     assets: list[str] | None = Query(default=None),
     smart_n: int = Query(default=SMART_MONEY_SIZE, ge=3, le=50),
+    limit: int = Query(default=5, ge=2, le=10),
+    include_thin: bool = Query(default=False),
 ) -> CohortBiasResponse:
-    """BL-06: Smart Money top-N vs rest of tracked book, per major coin."""
-    return compute_cohort_bias(assets=assets, smart_n=smart_n)
+    """BL-06/07: Smart Money top-N vs rest of tracked book, per coin.
+
+    `include_thin` appends low-liquidity names that tracked whales still hold,
+    which is what the Insights heatmap renders.
+    """
+    return compute_cohort_bias(
+        assets=assets,
+        smart_n=smart_n,
+        limit=limit,
+        include_thin=include_thin,
+    )
+
+
+@router.get("/traders/{address}/fills", response_model=TraderFillsSummary | None)
+async def trader_recent_fills(
+    address: str,
+    hours: int = Query(default=24, ge=1, le=48),
+) -> TraderFillsSummary | None:
+    """BL-09: last-24h executed flow for one tracked trader."""
+    return await fetch_recent_fills(address, window_hours=hours)
 
 
 @router.get("/whale-book/liq-proximity", response_model=list[LiqProximityRow])

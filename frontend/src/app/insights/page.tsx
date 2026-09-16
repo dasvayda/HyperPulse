@@ -4,9 +4,11 @@ import { PageHeader } from "@/components/ui/DataTable";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { InsightCard } from "@/components/ui/InsightCard";
 import { MarketBriefHero } from "@/components/ui/MarketBriefHero";
+import { CohortHeatmap } from "@/components/ui/CohortHeatmap";
 import { WhaleStyleTagsTable } from "@/components/ui/WhaleStyleTagsTable";
 import {
   getAIInsights,
+  getCohortHeatmap,
   getInferences,
   getMarketBrief,
   getPipelineStatus,
@@ -20,11 +22,12 @@ type InsightsPageProps = {
 export default async function InsightsPage({ searchParams }: InsightsPageProps) {
   const params = await searchParams;
   const asset = (params.asset || "").trim().toUpperCase() || undefined;
-  const [insights, inferences, pipeline, brief] = await Promise.all([
+  const [insights, inferences, pipeline, brief, heatmap] = await Promise.all([
     getAIInsights(),
     getInferences(),
     getPipelineStatus(),
     getMarketBrief(asset),
+    getCohortHeatmap(),
   ]);
 
   const tabs = brief.tab_assets?.length ? brief.tab_assets : [];
@@ -97,6 +100,10 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
             No evidence cards yet — wait for the next inference cycle.
           </p>
         )}
+      </div>
+
+      <div className="mb-10">
+        <CohortHeatmap data={heatmap} />
       </div>
 
       <WhaleStyleTagsTable

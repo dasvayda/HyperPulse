@@ -36,8 +36,7 @@ def _long_pct(positions: list[WhalePosition]) -> tuple[float | None, float, floa
     return round(long_usd / total * 100.0, 1), round(long_usd, 2), round(short_usd, 2), len(whales)
 
 
-def _default_assets(limit: int = 5) -> list[str]:
-    """Prefer HL volume Top-N, fall back to whale-book notional."""
+def _assets_by_volume() -> list[tuple[str, float]]:
     ticks = store.market_ticks or {}
     rows: list[tuple[str, float]] = []
     for asset, tick in ticks.items():
@@ -48,6 +47,12 @@ def _default_assets(limit: int = 5) -> list[str]:
         if vol > 0:
             rows.append((str(asset), vol))
     rows.sort(key=lambda item: item[1], reverse=True)
+    return rows
+
+
+def _default_assets(limit: int = 5) -> list[str]:
+    """Prefer HL volume Top-N, fall back to whale-book notional."""
+    rows = _assets_by_volume()
     if rows:
         return [a for a, _ in rows[:limit]]
 
@@ -62,10 +67,57 @@ def _default_assets(limit: int = 5) -> list[str]:
     return [a.asset for a in by_size[:limit]]
 
 
+def _thin_assets(*, exclude: list[str], limit: int = 3) -> list[str]:
+    """BL-07: coins outside the volume majors where tracked whales still hold size.
+
+    Thin = not in the liquid head of the board, so whale positioning is a bigger
+    share of what is actually there. Ranked by tracked notional, not by volume.
+    """
+    skip = {a.upper() for a in exclude}
+    majors = {a.upper() for a, _ in _assets_by_volume()[:5]}
+    summary = store.whale_summary or summarize_whale_book(
+        store.whale_positions, tracked=len(store.traders)
+    )
+    candidates = [
+        a
+        for a in summary.by_asset.values()
+        if a.asset.upper() not in skip and a.asset.upper() not in majors
+    ]
+    candidates.sort(
+        key=lambda a: a.long_notional_usd + a.short_notional_usd, reverse=True
+    )
+    return [a.asset for a in candidates[: max(0, limit)]]
+
+
+def _asset_context(asset: str, tracked_notional: float) -> tuple[float | None, float | None]:
+    """Return (whale_oi_pct, day_volume_usd) for one asset from live ticks."""
+    tick = (store.market_ticks or {}).get(asset)
+    if not tick:
+        return None, None
+    try:
+        volume = float(tick.get("day_volume_usd") or 0.0) or None
+    except (TypeError, ValueError):
+        volume = None
+    oi_usd = None
+    mark = tick.get("mark_price")
+    oi = tick.get("open_interest")
+    if mark is not None and oi is not None:
+        try:
+            oi_usd = float(mark) * float(oi)
+        except (TypeError, ValueError):
+            oi_usd = None
+    whale_oi_pct = None
+    if oi_usd and oi_usd > 0 and tracked_notional > 0:
+        whale_oi_pct = round(min(100.0, tracked_notional / oi_usd * 100.0), 2)
+    return whale_oi_pct, volume
+
+
 def compute_cohort_bias(
     *,
     assets: list[str] | None = None,
     smart_n: int = SMART_MONEY_SIZE,
+    limit: int = 5,
+    include_thin: bool = False,
 ) -> CohortBiasResponse:
     """Compare ranking-top smart money long% vs the rest of the tracked book."""
     if not store.rankings:
@@ -75,7 +127,18 @@ def compute_cohort_bias(
 
     smart_ranks = select_smart_money_ranks(size=max(1, smart_n))
     smart_addrs = {r.address.lower() for r in smart_ranks}
-    wanted = [a.upper() for a in (assets or _default_assets())]
+
+    if assets:
+        wanted = [a.upper() for a in assets]
+        thin_set: set[str] = set()
+    else:
+        majors = _default_assets(limit=limit)
+        wanted = [a.upper() for a in majors]
+        thin_set = set()
+        if include_thin:
+            thin = _thin_assets(exclude=wanted, limit=3)
+            thin_set = {a.upper() for a in thin}
+            wanted = wanted + [a.upper() for a in thin]
 
     rows: list[CohortBiasAsset] = []
     for asset in wanted:
@@ -96,6 +159,9 @@ def compute_cohort_bias(
         delta = None
         if smart_pct is not None and rest_pct is not None:
             delta = round(smart_pct - rest_pct, 1)
+        all_pct, _, _, _ = _long_pct(smart_pos + rest_pos)
+        tracked_notional = smart_long + smart_short + rest_long + rest_short
+        whale_oi_pct, volume = _asset_context(asset, tracked_notional)
         rows.append(
             CohortBiasAsset(
                 asset=asset,
@@ -106,6 +172,10 @@ def compute_cohort_bias(
                 rest_notional_usd=round(rest_long + rest_short, 2),
                 smart_whales=smart_whales,
                 rest_whales=rest_whales,
+                all_long_pct=all_pct,
+                whale_oi_pct=whale_oi_pct,
+                day_volume_usd=volume,
+                thin=asset in thin_set,
             )
         )
 

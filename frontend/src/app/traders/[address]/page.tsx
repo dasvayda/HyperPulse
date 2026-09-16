@@ -12,6 +12,7 @@ import {
   StatCard,
 } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
+import { RecentFlowPanel } from "@/components/ui/RecentFlowPanel";
 import { WindowPnlBars } from "@/components/ui/SparkBar";
 import { SwingLabel } from "@/components/ui/ScoreMeter";
 import {
@@ -245,6 +246,12 @@ export default async function TraderDetailPage({ params }: Props) {
           </div>
         </div>
       </div>
+
+      {trader.recent_fills && (
+        <div className="mb-8">
+          <RecentFlowPanel fills={trader.recent_fills} />
+        </div>
+      )}
 
       <h3 className="text-base font-semibold text-text-primary mb-4">
         Open Positions

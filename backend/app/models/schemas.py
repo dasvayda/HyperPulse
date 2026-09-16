@@ -88,6 +88,29 @@ class CopyVerdict(BaseModel):
     reasons: list[str] = Field(default_factory=list)
 
 
+class TraderFillAsset(BaseModel):
+    asset: str
+    buy_usd: float = 0.0
+    sell_usd: float = 0.0
+    net_usd: float = 0.0
+    fills: int = 0
+
+
+class TraderFillsSummary(BaseModel):
+    """BL-09: last-24h executed flow for one tracked trader (userFillsByTime)."""
+
+    window_hours: int = 24
+    fills: int = 0
+    buy_usd: float = 0.0
+    sell_usd: float = 0.0
+    net_usd: float = 0.0
+    realized_pnl_usd: float = 0.0
+    assets: list[TraderFillAsset] = Field(default_factory=list)
+    top_asset: str | None = None
+    last_fill_at: datetime | None = None
+    position_check: str | None = None
+
+
 class TraderDetail(TraderProfile):
     recent_positions: list[dict]
     open_positions: list[OpenPosition] = []
@@ -102,6 +125,7 @@ class TraderDetail(TraderProfile):
     max_leverage: float | None = None
     copy_verdict: str | None = None
     copy_reasons: list[str] = Field(default_factory=list)
+    recent_fills: TraderFillsSummary | None = None
 
 
 class LiquidationZone(BaseModel):
@@ -204,6 +228,11 @@ class CohortBiasAsset(BaseModel):
     rest_notional_usd: float = 0.0
     smart_whales: int = 0
     rest_whales: int = 0
+    # BL-07 heatmap context: whole tracked book + how thin the market is.
+    all_long_pct: float | None = None
+    whale_oi_pct: float | None = None
+    day_volume_usd: float | None = None
+    thin: bool = False
 
 
 class CohortBiasResponse(BaseModel):

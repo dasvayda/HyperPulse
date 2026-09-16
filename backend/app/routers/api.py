@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 
+from app.collectors.fills import fetch_recent_fills
 from app.collectors.whales import fetch_live_open_positions
 from app.services.fresh_entries import is_fresh_entry
 from app.models.schemas import (
@@ -50,6 +51,9 @@ async def get_trader(address: str) -> TraderDetail:
     trader = store.get_trader_detail(address, open_positions=live_positions)
     if not trader:
         raise HTTPException(status_code=404, detail="Trader not found")
+    trader.recent_fills = await fetch_recent_fills(
+        address, open_positions=live_positions
+    )
     return trader
 
 
