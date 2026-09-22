@@ -266,6 +266,18 @@ class MarketPulse(BaseModel):
     as_of: datetime
 
 
+class FearGreedIndex(BaseModel):
+    """CMC Crypto Fear and Greed (external sentiment; contrast with HL whale bias)."""
+
+    value: int = Field(ge=0, le=100)
+    classification: str
+    as_of: datetime
+    yesterday_value: int | None = None
+    yesterday_classification: str | None = None
+    source: str = "cmc"
+    positive: bool | None = None
+
+
 class DashboardStats(BaseModel):
     active_whales: int
     alerts_24h: int
@@ -327,6 +339,42 @@ class InsightStance(str, Enum):
     HOLD = "hold"
 
 
+class PulseDirection(str, Enum):
+    UP = "up"
+    DOWN = "down"
+    WAIT = "wait"
+
+
+class PulseStatus(str, Enum):
+    OPEN = "open"
+    RESOLVED = "resolved"
+    STALE = "stale"
+
+
+class PulseTick(BaseModel):
+    direction: PulseDirection
+    hit: bool | None = None
+    created_at: datetime
+
+
+class PulseSnapshot(BaseModel):
+    """Short-horizon direction probabilities (separate from rule-vote confidence)."""
+
+    asset: str
+    horizon_sec: int = 900
+    direction: PulseDirection
+    p_up: float = Field(ge=0, le=1)
+    p_down: float = Field(ge=0, le=1)
+    p_wait: float = Field(ge=0, le=1)
+    as_of: datetime
+    due_at: datetime
+    status: PulseStatus = PulseStatus.OPEN
+    ticks: list[PulseTick] = Field(default_factory=list)
+    hit_rate: float | None = None
+    hit_n: int = 0
+    warming_up: bool = True
+
+
 class MarketInsight(BaseModel):
     id: str
     title: str
@@ -336,6 +384,7 @@ class MarketInsight(BaseModel):
     confidence: float = Field(ge=0, le=100)
     signals: list[str]
     created_at: datetime
+    pulse: PulseSnapshot | None = None
 
 
 class AlertHistoryItem(BaseModel):
@@ -416,3 +465,4 @@ class MarketBrief(BaseModel):
     provider: str = "template"
     source: str = "template"  # llm | template
     snapshot_hash: str = ""
+    pulse: PulseSnapshot | None = None

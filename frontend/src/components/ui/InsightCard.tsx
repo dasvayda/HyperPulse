@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/Badge";
+import { PulseBar } from "@/components/ui/PulseBar";
 import type { InsightStance, MarketInsight } from "@/types";
 import { formatConfidence, formatTimeAgo } from "@/lib/api";
 
@@ -15,6 +16,7 @@ const stanceVariant: Record<InsightStance, "buy" | "sell" | "hold"> = {
 
 export function InsightCard({ insight, className = "" }: InsightCardProps) {
   const stance = insight.stance ?? "hold";
+  const pulse = insight.pulse;
 
   return (
     <div
@@ -46,6 +48,7 @@ export function InsightCard({ insight, className = "" }: InsightCardProps) {
             </Badge>
           ))}
       </div>
+      {pulse ? <PulseBar pulse={pulse} /> : null}
       <p className="text-xs text-text-dim">{formatTimeAgo(insight.created_at)}</p>
     </div>
   );

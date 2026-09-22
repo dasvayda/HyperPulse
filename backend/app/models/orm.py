@@ -120,3 +120,34 @@ class MarketBriefRow(Base):
     tab_assets: Mapped[str] = mapped_column(Text, default="[]")
     as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PulseSignalRow(Base):
+    """Immutable short-horizon direction log (emit-time snapshot)."""
+
+    __tablename__ = "pulse_signals"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    asset: Mapped[str] = mapped_column(String(32), index=True)
+    horizon_sec: Mapped[int] = mapped_column(Integer, default=900)
+    direction: Mapped[str] = mapped_column(String(16))  # up | down | wait
+    p_up: Mapped[float] = mapped_column(Float, default=0.0)
+    p_down: Mapped[float] = mapped_column(Float, default=0.0)
+    p_wait: Mapped[float] = mapped_column(Float, default=0.0)
+    mark_at_emit: Mapped[float] = mapped_column(Float)
+    vote_json: Mapped[str] = mapped_column(Text, default="[]")
+    engine: Mapped[str] = mapped_column(String(32), default="rules_v1")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class PulseResultRow(Base):
+    """One-shot resolution after horizon (or expiry)."""
+
+    __tablename__ = "pulse_results"
+
+    signal_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    mark_at_resolve: Mapped[float | None] = mapped_column(Float, nullable=True)
+    outcome: Mapped[str] = mapped_column(String(16))  # up | down | flat | expired
+    return_bps: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hit: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1/0/null
+    resolved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -20,6 +20,7 @@ import { AlertFeed } from "@/components/ui/AlertFeed";
 import { WhaleBiasPanel } from "@/components/ui/WhaleBiasPanel";
 import { CohortBiasPanel } from "@/components/ui/CohortBiasPanel";
 import { ScoreMeter } from "@/components/ui/ScoreMeter";
+import { pulseChipLabel } from "@/components/ui/PulseBar";
 import {
   getDashboardStats,
   getWhaleAlerts,
@@ -35,6 +36,7 @@ import {
   getMarketBrief,
   getCohortBias,
   getMarketPulse,
+  getFearGreed,
   formatUsd,
   formatTimeAgo,
   formatConfidence,
@@ -59,6 +61,7 @@ export default async function HomePage() {
     marketBrief,
     cohortBias,
     marketPulse,
+    fearGreed,
   ] = await Promise.all([
     getDashboardStats(),
     getWhaleAlerts(),
@@ -74,6 +77,7 @@ export default async function HomePage() {
     getMarketBrief(),
     getCohortBias(),
     getMarketPulse(),
+    getFearGreed().catch(() => null),
   ]);
 
   const recentAlerts = alerts.slice(0, 5);
@@ -167,7 +171,7 @@ export default async function HomePage() {
         }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         <StatCard
           label="Active Whales"
           value={
@@ -194,6 +198,18 @@ export default async function HomePage() {
           positive={
             top3Bias === "LONG" ? true : top3Bias === "SHORT" ? false : undefined
           }
+        />
+        <StatCard
+          label="Fear & Greed"
+          value={fearGreed ? String(fearGreed.value) : "—"}
+          change={
+            fearGreed
+              ? fearGreed.yesterday_value != null
+                ? `${fearGreed.classification} · Yday ${fearGreed.yesterday_value}`
+                : `${fearGreed.classification} · CMC`
+              : "CMC unavailable"
+          }
+          positive={fearGreed?.positive ?? undefined}
         />
         <StatCard
           label="1h Liquidations"
@@ -270,7 +286,7 @@ export default async function HomePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 items-start">
         <div className="lg:col-span-2 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-text-primary">
@@ -290,6 +306,11 @@ export default async function HomePage() {
             <p className="text-sm font-medium text-text-primary line-clamp-2">
               {marketBrief.tldr?.now || marketBrief.headline}
             </p>
+            {marketBrief.pulse ? (
+              <p className="mt-1.5 text-xs text-text-dim">
+                {pulseChipLabel(marketBrief.pulse)}
+              </p>
+            ) : null}
           </Link>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 items-stretch">
             <WhaleBiasPanel summary={whaleSummary} className="h-full" />
@@ -308,10 +329,18 @@ export default async function HomePage() {
               Alert Feed
             </h2>
             <Link href="/alerts" className="text-xs text-accent hover:underline">
-              History
+              More
             </Link>
           </div>
-          <AlertFeed alerts={alertHistory} limit={3} className="flex-1" />
+          <AlertFeed alerts={alertHistory} limit={6} />
+          {alertHistory.length > 6 ? (
+            <Link
+              href="/alerts"
+              className="mt-3 text-xs text-accent hover:underline self-end"
+            >
+              More alerts
+            </Link>
+          ) : null}
         </div>
       </div>
 

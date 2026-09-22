@@ -34,8 +34,8 @@ We are **not** building a business around accumulated historical data sales, ful
 
 | Surface | Owns | Does not own |
 |---------|------|--------------|
-| **Dashboard** | Numeric KPIs (Top3 Consensus, 1h Liq), Market Pulse (OI/Vol/Liq), Prefer teaser cards, Smart vs Rest panel, Market Brief **headline** link only | Full brief body, suggestions/risks dump |
-| **Insights** | Market Brief hero (headline + stance + status + suggestions/risks), rule evidence board, cohort heatmap, collapsed whale style tags | Duplicate Top3/1h KPI strip, pipeline health cards as hero |
+| **Dashboard** | Numeric KPIs (Top3 Consensus, 1h Liq), Market Pulse (OI/Vol/Liq), Prefer teaser cards, Smart vs Rest panel, Market Brief **headline** link only (+ optional 15m pulse one-liner) | Full brief body, suggestions/risks dump |
+| **Insights** | Market Brief hero (headline + stance + status + suggestions/risks), optional **15m Pulse** chip on Prefer badge, rule evidence board (+ pulse bar/ticks on Prefer cards), cohort heatmap, collapsed whale style tags | Duplicate Top3/1h KPI strip, pipeline health cards as hero |
 | **Liquidations** | 1h/4h/24h strip + Closest Tracked Whales (liq distance%) + zones | Full-network liq heatmap |
 | **Trader detail** | Due diligence strip (Watch/Caution/Skip), last-24h fill flow, open book | Full fill-by-fill ledger |
 
@@ -48,6 +48,7 @@ Retail copy: Prefer longs / Prefer shorts / Wait (not Buy/Sell bias).
 | **Primary** | `app/services/market_brief.py` | Periodic desk Brief from structured snapshot (Top3, coin stances, extreme funding, liq, biggest positions). Cooldown ~20m or hash change. Template fallback always available. |
 | **Secondary** | `app/services/inference.py` trader tags | Canonical strategy enum only; Insights shows tags collapsed. |
 | **Not LLM** | Prefer long/short evidence cards | Rule votes from whale book + funding + liq |
+| **Not LLM** | 15m Pulse (`pulse.py` rules_v1) | Direction probs + auto score vs `market_snapshots`; separate from card `confidence` (vote strength) |
 
 ### Feature filter (use when adding work)
 

@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     # Ranking
     ranking_interval_seconds: int = 90
 
+    # CoinMarketCap (optional — keyless public API works without this)
+    cmc_api_key: str = ""
+
     class Config:
         env_file = (str(BACKEND_DIR / ".env"), str(ROOT_DIR / ".env"))
         extra = "ignore"

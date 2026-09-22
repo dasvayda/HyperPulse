@@ -235,6 +235,16 @@ export interface MarketPulse {
   as_of: string;
 }
 
+export interface FearGreedIndex {
+  value: number;
+  classification: string;
+  as_of: string;
+  yesterday_value?: number | null;
+  yesterday_classification?: string | null;
+  source: string;
+  positive?: boolean | null;
+}
+
 export interface DashboardStats {
   active_whales: number;
   alerts_24h: number;
@@ -290,6 +300,31 @@ export interface PerformanceRankingResponse {
 
 export type InsightStance = "buy" | "sell" | "hold";
 
+export type PulseDirection = "up" | "down" | "wait";
+export type PulseStatus = "open" | "resolved" | "stale";
+
+export interface PulseTick {
+  direction: PulseDirection;
+  hit: boolean | null;
+  created_at: string;
+}
+
+export interface PulseSnapshot {
+  asset: string;
+  horizon_sec: number;
+  direction: PulseDirection;
+  p_up: number;
+  p_down: number;
+  p_wait: number;
+  as_of: string;
+  due_at: string;
+  status: PulseStatus;
+  ticks: PulseTick[];
+  hit_rate: number | null;
+  hit_n: number;
+  warming_up: boolean;
+}
+
 export interface MarketInsight {
   id: string;
   title: string;
@@ -299,6 +334,7 @@ export interface MarketInsight {
   confidence: number;
   signals: string[];
   created_at: string;
+  pulse?: PulseSnapshot | null;
 }
 
 export interface AlertHistoryItem {
@@ -370,4 +406,5 @@ export interface MarketBrief {
   provider: string;
   source: string;
   snapshot_hash?: string;
+  pulse?: PulseSnapshot | null;
 }

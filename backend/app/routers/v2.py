@@ -10,6 +10,7 @@ from app.models.schemas import (
     BiggestPosition,
     CohortBiasResponse,
     CoinPulse,
+    FearGreedIndex,
     LiqProximityRow,
     MarketBrief,
     MarketInsight,
@@ -76,7 +77,15 @@ def list_performance_rankings(
 
 @router.get("/insights", response_model=list[MarketInsight])
 def list_insights(limit: int = Query(default=20, le=50)) -> list[MarketInsight]:
-    return store.insights[:limit]
+    items = store.insights[:limit]
+    # Re-attach latest pulse in case resolve landed after last inference.
+    try:
+        from app.services.pulse import attach_pulses_to_insights
+
+        attach_pulses_to_insights(items)
+    except Exception:
+        pass
+    return items
 
 
 @router.get("/insights/brief", response_model=MarketBrief)
@@ -87,10 +96,21 @@ async def get_market_brief(
     """Desk-style Market Brief (LLM or template fallback). Optional per-coin slice."""
     want = (asset or "").strip().upper() or None
     if want:
-        return await generate_market_brief(force=force, asset=want)
-    if store.market_brief is not None and not force:
-        return store.market_brief
-    return await generate_market_brief(force=force)
+        brief = await generate_market_brief(force=force, asset=want)
+    elif store.market_brief is not None and not force:
+        brief = store.market_brief
+    else:
+        brief = await generate_market_brief(force=force)
+
+    try:
+        from app.services.pulse import brief_pulse_asset, get_pulse_snapshot
+
+        pulse_asset = brief_pulse_asset(want or brief.asset)
+        if pulse_asset:
+            brief = brief.model_copy(update={"pulse": get_pulse_snapshot(pulse_asset)})
+    except Exception:
+        pass
+    return brief
 
 
 @router.get("/inferences", response_model=list[StrategyInference])
@@ -120,6 +140,14 @@ def list_alerts(
 @router.get("/pipeline/status", response_model=PipelineStatus)
 def pipeline_status() -> PipelineStatus:
     return store.pipeline_status()
+
+
+@router.get("/fear-greed", response_model=FearGreedIndex | None)
+async def fear_greed(force: bool = Query(default=False)) -> FearGreedIndex | None:
+    """CMC Crypto Fear and Greed — external sentiment for contrast with Top3 whale bias."""
+    from app.services.fear_greed import fetch_fear_greed
+
+    return await fetch_fear_greed(force=force)
 
 
 @router.get("/market/status", response_model=MarketStatus)

@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/Badge";
+import { PulseBar, pulseChipLabel } from "@/components/ui/PulseBar";
 import type { MarketBrief } from "@/types";
 import { formatTimeAgo } from "@/lib/api";
 
@@ -23,6 +24,7 @@ const stanceVariant: Record<
 
 export function MarketBriefHero({ brief }: MarketBriefHeroProps) {
   const tldr = brief.tldr;
+  const pulse = brief.pulse;
   return (
     <section
       id="brief"
@@ -38,7 +40,7 @@ export function MarketBriefHero({ brief }: MarketBriefHeroProps) {
             {brief.headline}
           </h2>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
           {brief.stale ? (
             <Badge variant="exit" className="text-xs font-semibold px-2.5 py-1">
               STALE
@@ -50,8 +52,23 @@ export function MarketBriefHero({ brief }: MarketBriefHeroProps) {
           >
             {stanceLabel[brief.stance]}
           </Badge>
+          {pulse ? (
+            <Badge
+              variant="default"
+              className="text-xs font-semibold tracking-wide px-2.5 py-1"
+              title="15m direction probability from whale/funding/liq rules"
+            >
+              {pulseChipLabel(pulse)}
+            </Badge>
+          ) : null}
         </div>
       </div>
+
+      {pulse ? (
+        <div className="mt-3 max-w-sm">
+          <PulseBar pulse={pulse} compact />
+        </div>
+      ) : null}
 
       {tldr ? (
         <ul className="mt-4 space-y-2">

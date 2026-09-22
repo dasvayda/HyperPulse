@@ -454,6 +454,21 @@ def _build_coin_stance_insights(now: datetime) -> list[MarketInsight]:
             InsightStance.HOLD: "No clear direction — wait",
         }[stance]
 
+        mark = float(snapshot.mark_price) if snapshot is not None else 0.0
+        try:
+            from app.services.pulse import emit_pulse_for_asset
+
+            if mark > 0:
+                emit_pulse_for_asset(
+                    asset=asset,
+                    votes=votes,
+                    card_stance=stance,
+                    mark_price=mark,
+                    now=now,
+                )
+        except Exception:
+            logger.exception("Pulse emit failed for %s", asset)
+
         cards.append(
             MarketInsight(
                 id=store.new_id("mi"),
@@ -832,6 +847,13 @@ def _build_market_insights() -> None:
         return (4, -card.confidence)
 
     insights.sort(key=_priority)
+    try:
+        from app.services.pulse import attach_pulses_to_insights, resolve_due_pulses
+
+        resolve_due_pulses()
+        attach_pulses_to_insights(insights)
+    except Exception:
+        logger.exception("Pulse attach/resolve failed")
     with store._lock:
         store.insights = insights[:8]
 

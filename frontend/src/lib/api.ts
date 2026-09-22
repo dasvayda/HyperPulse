@@ -4,6 +4,7 @@ import type {
   BiggestPosition,
   CohortBiasResponse,
   DashboardStats,
+  FearGreedIndex,
   LiqProximityRow,
   LiquidationEvent,
   LiquidationZone,
@@ -162,6 +163,10 @@ export function getLiqProximity(limit = 10): Promise<LiqProximityRow[]> {
 
 export function getMarketPulse(topN = 20): Promise<MarketPulse> {
   return fetchApi(`/api/v2/market/pulse?top_n=${topN}`);
+}
+
+export function getFearGreed(): Promise<FearGreedIndex | null> {
+  return fetchApi("/api/v2/fear-greed");
 }
 
 export function formatConfidence(value: number): string {

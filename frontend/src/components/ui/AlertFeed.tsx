@@ -30,14 +30,14 @@ function alertBody(title: string, message: string): string {
 export function AlertFeed({
   alerts,
   className = "",
-  limit = 3,
+  limit = 6,
 }: AlertFeedProps) {
   const items = alerts.slice(0, limit);
 
   if (items.length === 0) {
     return (
       <div
-        className={`rounded-xl border border-border bg-bg-surface p-5 text-sm text-text-muted h-full ${className}`}
+        className={`rounded-xl border border-border bg-bg-surface p-5 text-sm text-text-muted ${className}`}
       >
         No alerts yet. Pipeline will queue Telegram notifications when thresholds are met.
       </div>
@@ -46,7 +46,7 @@ export function AlertFeed({
 
   return (
     <div
-      className={`rounded-xl border border-border bg-bg-surface divide-y divide-border-subtle h-full max-h-none overflow-y-auto ${className}`}
+      className={`rounded-xl border border-border bg-bg-surface divide-y divide-border-subtle overflow-hidden ${className}`}
     >
       {items.map((alert) => (
         <div key={alert.id} className="p-4 flex flex-col gap-2">

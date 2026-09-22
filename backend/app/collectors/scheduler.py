@@ -37,6 +37,14 @@ async def _collect_cycle() -> None:
     snapshot = await collect_market_snapshot()
     await collect_liquidation_events()
     await collect_whale_events()
+    try:
+        from app.services.pulse import resolve_due_pulses
+
+        n = resolve_due_pulses()
+        if n:
+            logger.info("Pulse resolve: %s signals", n)
+    except Exception:
+        logger.exception("Pulse resolve in collect cycle failed")
     logger.info("Collector cycle complete: %s", snapshot)
 
 
@@ -99,6 +107,13 @@ async def run_bootstrap_pipeline() -> None:
     await _ranking_cycle()
     t4 = time.monotonic()
     logger.info("Bootstrap: ranking_cycle took %.2fs", t4 - t3)
+    try:
+        from app.services.pulse import resolve_due_pulses
+
+        n = resolve_due_pulses()
+        logger.info("Bootstrap: pulse resolve %s (%.2fs)", n, time.monotonic() - t4)
+    except Exception:
+        logger.exception("Bootstrap pulse resolve failed")
     logger.info(
         "Bootstrap pipeline complete (whales/inference/alerts deferred to background): %s",
         snapshot,

@@ -6,7 +6,7 @@
 | | |
 |--|--|
 | 작성 | 2026-07-22 ~ 07-23 |
-| 갱신 | 2026-09-17 (BL-07 / BL-09 — Active backlog 전부 소진) |
+| 갱신 | 2026-09-23 (15m Pulse signals — Evidence + Brief chip) |
 | 제품 목표 | [README Product Goals](../README.md#product-goals) |
 | 설계 제약 | [ARCHITECTURE](./ARCHITECTURE.md#product-goals--design-constraints) |
 | 벤치마크 참고 | [HyperTracker Perps](https://app.coinmarketman.com/hypertracker/perps) (시그널·UX만). [Binance AI Brief](./BINANCE_AI_BRIEF_REF.md) (답변 패턴만, 챗/TA 복제 아님) |
@@ -45,6 +45,7 @@
 - [x] BL-12 Liquidation proximity (tracked whales)
 - [x] BL-07 Cohort heatmap (majors + thin coins)
 - [x] BL-09 userFills 24h flow (trader detail)
+- [x] 15m Pulse (rules_v1) — emit + auto-resolve vs mark; Evidence bar + Brief chip
 
 ### Active backlog
 
