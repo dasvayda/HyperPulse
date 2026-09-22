@@ -670,7 +670,7 @@ export default async function HomePage() {
                   Smart Money Score (out of 100)
                 </p>
                 <p>
-                  Live: PnL 35% + ROI/momentum 30% + consistency 20% + swing adj
+                  Live: PnL 35% + ROI peer 30% + consistency 20% + swing adj
                   15%. Bar fill = score / 100. Hover ⓘ on Smart Money for the
                   full breakdown.
                 </p>
@@ -681,7 +681,13 @@ export default async function HomePage() {
                 Current open-position ROI (entry vs mark, leverage-scaled).
               </InfoTooltip>
             </DataTableHeaderCell>
-            <DataTableHeaderCell>Momentum</DataTableHeaderCell>
+            <DataTableHeaderCell>
+              <InfoTooltip label="ROI peer">
+                All-time ROI ranked vs other tracked whales (0–100). Not the
+                absolute return %. Same input used at ~30% weight in Smart Money
+                Score.
+              </InfoTooltip>
+            </DataTableHeaderCell>
             <DataTableHeaderCell>Strategy</DataTableHeaderCell>
           </DataTableHead>
           <DataTableBody>

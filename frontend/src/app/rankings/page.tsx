@@ -22,7 +22,7 @@ const SMART_MONEY_SCORE_HELP = (
     </p>
     <ul className="mb-2 list-disc space-y-1 pl-4">
       <li>All-time PnL (log-normalized among peers): 35%</li>
-      <li>All-time ROI / momentum: 30%</li>
+      <li>All-time ROI peer rank: 30%</li>
       <li>Day/Week/Month PnL stability: 20%</li>
       <li>ROI swing adjustment (steadier → higher): 15%</li>
     </ul>
@@ -62,9 +62,10 @@ export default async function RankingsPage() {
             </InfoTooltip>
           </DataTableHeaderCell>
           <DataTableHeaderCell>
-            <InfoTooltip label="Momentum">
-              All-time ROI normalized against the current peer set (same input
-              used at 30% weight in the live Smart Money Score).
+            <InfoTooltip label="ROI peer">
+              All-time ROI ranked vs other tracked whales (0–100). Not the
+              absolute return %. Same input used at 30% weight in the live Smart
+              Money Score.
             </InfoTooltip>
           </DataTableHeaderCell>
           <DataTableHeaderCell>
@@ -168,7 +169,7 @@ export default async function RankingsPage() {
 
       <p className="text-xs text-text-dim mt-4">
         Universe: top 15 traders by account value. Sort: Smart Money Score
-        (PnL 35% + ROI/momentum 30% + consistency 20% + swing adj 15%). For Open
+        (PnL 35% + ROI peer 30% + consistency 20% + swing adj 15%). For Open
         ROI / PnL performance board, see Ranking.
       </p>
     </DashboardLayout>

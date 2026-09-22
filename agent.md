@@ -63,6 +63,7 @@ Collectors -> Store/DB/Redis -> Feature/Ranking -> AI Inference -> Alerts -> API
 - Redis optional (falls back to in-memory cache)
 - AI provider auto-selects OpenAI/DeepSeek, otherwise heuristic classifier
 - Telegram alerts queue locally when bot token is missing
+- Telegram **Market Brief** digest: TL;DR 3 bullets + desk prose + Stance badge (hash-deduped, `ALERT_LIMIT_MARKET_BRIEF_PER_HOUR`); see `brief_telegram.py` + `logs/telegram_recent.json`
 
 ## Development Commands
 

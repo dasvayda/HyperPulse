@@ -147,6 +147,7 @@ class StateStore:
         self.last_alert_at: datetime | None = None
         self.last_consensus_label: str | None = None
         self.last_consensus_at: datetime | None = None
+        self.last_brief_telegram_hash: str | None = None
         self.ai_provider: str = "heuristic"
         self.market_brief = None  # MarketBrief | None — set after import-safe bootstrap
 
@@ -218,6 +219,21 @@ class StateStore:
                 if mood:
                     self.last_consensus_label = str(mood)
                     self.last_consensus_at = last_consensus.created_at
+
+            last_brief_tg = (
+                db.query(AlertRow)
+                .filter(AlertRow.event_type == "market_brief")
+                .order_by(AlertRow.created_at.desc())
+                .first()
+            )
+            if last_brief_tg is not None:
+                try:
+                    payload = json.loads(last_brief_tg.payload or "{}") or {}
+                    snap_hash = payload.get("snapshot_hash")
+                    if snap_hash:
+                        self.last_brief_telegram_hash = str(snap_hash)
+                except (TypeError, ValueError):
+                    pass
 
             try:
                 from app.services.market_brief import load_market_brief_from_db

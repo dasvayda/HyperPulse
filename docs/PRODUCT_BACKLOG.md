@@ -35,6 +35,7 @@
 - [x] BL-05 Alert quality (entry/mark, uPnL/ROI, book %, stale, no Unknown)
 - [x] BL-11 Funding crowdedness callout
 - [x] Telegram alert mix — Consensus / Whale Move / Big Trade (short templates)
+- [x] Telegram Market Brief digest (BL-14 TL;DR + desk prose + Stance; hash dedupe)
 - [x] Market Brief (LLM desk commentary + template fallback) + Insights evidence board
 - [x] BL-14/15/16/17 Binance-style Brief TL;DR, coin tabs, tension, chips
 - [x] BL-01 Fresh whale entries (24h filter + size delta)

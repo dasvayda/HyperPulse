@@ -12,8 +12,10 @@ from app.models.schemas import (
     StrategyInference,
     WhaleAlert,
 )
+from app.services.brief_telegram import brief_send_key, format_market_brief_telegram
 from app.services.fresh_entries import is_fresh_entry
 from app.services.store import store
+from app.services.telegram_log import append_telegram_log
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +145,8 @@ def _limit_key_for_event(event_type: str) -> str:
         return "whale_move"
     if event_type == "market_consensus":
         return "consensus"
+    if event_type == "market_brief":
+        return "market_brief"
     if event_type == "squeeze_risk":
         return "squeeze"
     if event_type == "strategy_inference":
@@ -155,6 +159,7 @@ def _type_limit(limit_key: str) -> int:
         "big_trade": settings.alert_limit_big_trade_per_hour,
         "whale_move": settings.alert_limit_whale_move_per_hour,
         "consensus": settings.alert_limit_consensus_per_hour,
+        "market_brief": settings.alert_limit_market_brief_per_hour,
         "squeeze": settings.alert_limit_squeeze_per_hour,
         "style": settings.alert_limit_style_per_hour,
     }
@@ -166,6 +171,7 @@ def _type_prefixes(limit_key: str) -> tuple[str, ...]:
         "big_trade": ("big_trade",),
         "whale_move": ("whale_move",),
         "consensus": ("market_consensus",),
+        "market_brief": ("market_brief",),
         "squeeze": ("squeeze_risk",),
         "style": ("strategy_inference",),
     }
@@ -400,7 +406,46 @@ async def _dispatch(event_type: str, title: str, lines: list[str], payload: dict
         return None
     sent = await _send_telegram(message)
     status = "sent" if sent else ("queued" if not settings.telegram_configured else "failed")
+    append_telegram_log(
+        event_type=event_type,
+        title=title,
+        message_html=message,
+        message_plain=plain,
+        status=status,
+    )
     return _record_alert(event_type, title, plain, status, payload)
+
+
+async def send_market_brief_alert() -> AlertHistoryItem | None:
+    """Desk Market Brief → Telegram (TL;DR + short prose + Stance badge).
+
+    Fires when the brief send-key changes, with a per-hour cap. Reuses the Brief
+    already built in the inference cycle (no extra LLM call here).
+    """
+    brief = getattr(store, "market_brief", None)
+    if brief is None or brief.tldr is None:
+        return None
+
+    send_key = brief_send_key(brief)
+    if send_key and send_key == getattr(store, "last_brief_telegram_hash", None):
+        return None
+
+    title, lines = format_market_brief_telegram(brief)
+    item = await _dispatch(
+        "market_brief",
+        title,
+        lines,
+        {
+            "snapshot_hash": send_key,
+            "stance": brief.stance.value if hasattr(brief.stance, "value") else str(brief.stance),
+            "source": brief.source,
+            "provider": brief.provider,
+            "asset": brief.asset,
+        },
+    )
+    if item and item.status in {"sent", "queued"} and send_key:
+        store.last_brief_telegram_hash = send_key
+    return item
 
 
 async def send_market_consensus_alert() -> AlertHistoryItem | None:
@@ -612,10 +657,15 @@ async def process_alert_triggers(
 
     Per-type hourly caps (see config) — big_trade is tightest because it fires most.
     Per cycle: at most alert_*_per_cycle of each position type.
+    Market Brief digests when the desk snapshot hash changes.
     Strategy-inference spam is intentionally skipped in the default mix.
     """
     created: list[AlertHistoryItem] = []
     _ = inferences  # reserved; not mixed into Telegram by default
+
+    brief_item = await send_market_brief_alert()
+    if brief_item:
+        created.append(brief_item)
 
     item = await send_market_consensus_alert()
     if item:
