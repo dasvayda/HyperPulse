@@ -24,6 +24,52 @@ def _normalize(value: float, low: float, high: float) -> float:
     return max(0.0, min(100.0, (value - low) / (high - low) * 100.0))
 
 
+def _robust_bounds(
+    values: list[float],
+    *,
+    lo_pct: float = 10.0,
+    hi_pct: float = 90.0,
+) -> tuple[float, float]:
+    """Spread for 0–100 normalize that ignores extreme ROI/PnL outliers.
+
+    Prefer Tukey inliers (Q1/Q3 ± 1.5·IQR). Fall back to nearest-rank
+    percentiles, then trim min/max once if the window still collapses.
+    """
+    if not values:
+        return 0.0, 1.0
+    ordered = sorted(values)
+    n = len(ordered)
+    if n == 1:
+        v = ordered[0]
+        return v, v
+
+    def _at(pct: float) -> float:
+        idx = int(round((n - 1) * (pct / 100.0)))
+        idx = max(0, min(n - 1, idx))
+        return ordered[idx]
+
+    if n >= 4:
+        q1 = _at(25.0)
+        q3 = _at(75.0)
+        iqr = q3 - q1
+        if iqr > 0:
+            fence_lo = q1 - 1.5 * iqr
+            fence_hi = q3 + 1.5 * iqr
+            inliers = [v for v in ordered if fence_lo <= v <= fence_hi]
+            if len(inliers) >= 2 and inliers[-1] > inliers[0]:
+                return inliers[0], inliers[-1]
+
+    low = _at(lo_pct)
+    high = _at(hi_pct)
+    if high > low:
+        return low, high
+
+    # Many ties or tiny sample — drop one extreme on each side when possible.
+    if n >= 3:
+        return ordered[1], ordered[-2]
+    return ordered[0], ordered[-1]
+
+
 def _pnl_score(trader: TraderProfile, low: float, high: float) -> float:
     return _normalize(math.log1p(max(0.0, trader.pnl_usd)), low, high)
 
@@ -93,8 +139,8 @@ def run_ranking_pipeline() -> list[SmartMoneyRank]:
 
     pnl_logs = [math.log1p(max(0.0, t.pnl_usd)) for t in traders]
     rois = [t.pnl_change_pct for t in traders]
-    pnl_low, pnl_high = min(pnl_logs), max(pnl_logs)
-    roi_low, roi_high = min(rois), max(rois)
+    pnl_low, pnl_high = _robust_bounds(pnl_logs)
+    roi_low, roi_high = _robust_bounds(rois)
 
     scored: list[SmartMoneyRank] = []
     score_map: dict[str, float] = {}
