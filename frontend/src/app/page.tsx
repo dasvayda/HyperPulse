@@ -159,6 +159,25 @@ export default async function HomePage() {
   const liq1hShort = market.liq_1h_short_usd ?? 0;
   const liq1hTotal = market.liq_1h_total_usd ?? liq1hLong + liq1hShort;
 
+  const fearGreedDelta =
+    fearGreed?.yesterday_value != null
+      ? fearGreed.value - fearGreed.yesterday_value
+      : null;
+  const fearGreedChange =
+    fearGreed == null
+      ? "CMC unavailable"
+      : fearGreedDelta != null
+        ? `${fearGreed.classification} · ${fearGreedDelta > 0 ? `+${fearGreedDelta}` : String(fearGreedDelta)} vs yesterday (${fearGreed.yesterday_value})`
+        : `${fearGreed.classification} · CMC`;
+  const fearGreedPositive =
+    fearGreedDelta != null
+      ? fearGreedDelta > 0
+        ? true
+        : fearGreedDelta < 0
+          ? false
+          : fearGreed?.positive ?? undefined
+      : fearGreed?.positive ?? undefined;
+
   return (
     <DashboardLayout>
       <PageHeader
@@ -171,25 +190,24 @@ export default async function HomePage() {
         }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
-          label="Active Whales"
-          value={
-            stats.whales_positioned != null
-              ? `${stats.whales_positioned}/${stats.active_whales}`
-              : String(stats.active_whales)
-          }
-          change={
-            stats.whale_long_pct != null
-              ? `By $ size · L ${stats.whale_long_pct.toFixed(0)}% / S ${Math.max(0, 100 - stats.whale_long_pct).toFixed(0)}%`
-              : `Provider: ${pipeline.ai_provider}`
-          }
-        />
-        <StatCard
-          label="Whale Bias"
+          label="Whale Book"
           value={(stats.whale_net_bias ?? stats.dominant_strategy ?? "—").toUpperCase()}
-          change={`${pipeline.inferences_count} inferences`}
-          positive
+          change={
+            stats.whales_positioned != null && stats.whale_long_pct != null
+              ? `${stats.whales_positioned}/${stats.active_whales} · L ${stats.whale_long_pct.toFixed(0)}% / S ${Math.max(0, 100 - stats.whale_long_pct).toFixed(0)}%`
+              : stats.whales_positioned != null
+                ? `${stats.whales_positioned}/${stats.active_whales} positioned`
+                : `${stats.active_whales} tracked`
+          }
+          positive={
+            (stats.whale_net_bias ?? "").toLowerCase() === "long"
+              ? true
+              : (stats.whale_net_bias ?? "").toLowerCase() === "short"
+                ? false
+                : undefined
+          }
         />
         <StatCard
           label="Top3 Consensus"
@@ -200,24 +218,18 @@ export default async function HomePage() {
           }
         />
         <StatCard
-          label="Fear & Greed"
-          value={fearGreed ? String(fearGreed.value) : "—"}
-          change={
-            fearGreed
-              ? fearGreed.yesterday_value != null
-                ? `${fearGreed.classification} · Yday ${fearGreed.yesterday_value}`
-                : `${fearGreed.classification} · CMC`
-              : "CMC unavailable"
-          }
-          positive={fearGreed?.positive ?? undefined}
-        />
-        <StatCard
           label="1h Liquidations"
           value={liq1hTotal > 0 ? formatUsd(liq1hTotal) : "$0"}
           details={[
             { label: "Longs", value: formatUsd(liq1hLong), tone: "negative" },
             { label: "Shorts", value: formatUsd(liq1hShort), tone: "positive" },
           ]}
+        />
+        <StatCard
+          label="Fear & Greed"
+          value={fearGreed ? String(fearGreed.value) : "—"}
+          change={fearGreedChange}
+          positive={fearGreedPositive}
         />
       </div>
 
@@ -368,14 +380,6 @@ export default async function HomePage() {
             {pulse.map((row) => {
               const change = row.change_pct_24h;
               const funding = row.funding_rate;
-              const fundingClass =
-                funding == null
-                  ? "text-text-dim"
-                  : funding > 0
-                    ? "text-negative"
-                    : funding < 0
-                      ? "text-positive"
-                      : "text-text-muted";
               const bias = row.whale_bias_label;
               const biasClass =
                 bias == null
@@ -387,14 +391,13 @@ export default async function HomePage() {
                       : "text-text-muted";
               const oiUsd = row.open_interest_usd ?? 0;
               const oiWidth = Math.max(6, Math.round((oiUsd / maxOiUsd) * 100));
-              const timeline = row.liq_timeline ?? [];
-              const timelineMax = Math.max(
-                ...timeline.map((b) => b.long + b.short),
-                1
-              );
               const liqLong = row.liq_long_usd_24h ?? 0;
               const liqShort = row.liq_short_usd_24h ?? 0;
               const liqTotal = liqLong + liqShort;
+              const liqLongPct =
+                liqTotal > 0 ? (liqLong / liqTotal) * 100 : 0;
+              const liqShortPct =
+                liqTotal > 0 ? Math.max(0, 100 - liqLongPct) : 0;
               return (
                 <DataTableRow key={row.asset}>
                   <DataTableCell>
@@ -445,53 +448,66 @@ export default async function HomePage() {
                       </div>
                     </div>
                   </DataTableCell>
-                  <DataTableCell className={`text-xs font-medium ${fundingClass}`}>
-                    {funding != null ? formatFundingPct(funding) : "—"}
+                  <DataTableCell>
+                    {funding == null ? (
+                      <span className="text-xs text-text-dim">—</span>
+                    ) : (
+                      <div
+                        className="flex flex-col gap-0.5"
+                        title={
+                          funding > 0
+                            ? "Positive funding: longs pay shorts"
+                            : funding < 0
+                              ? "Negative funding: shorts pay longs"
+                              : "Flat funding"
+                        }
+                      >
+                        <span className="text-xs font-medium tabular-nums text-text-primary">
+                          {formatFundingPct(funding)}
+                        </span>
+                        <span className="text-[10px] leading-none text-text-dim">
+                          {funding > 0
+                            ? "Longs pay"
+                            : funding < 0
+                              ? "Shorts pay"
+                              : "Flat"}
+                        </span>
+                      </div>
+                    )}
                   </DataTableCell>
                   <DataTableCell>
                     <div
-                      className="flex flex-col gap-1 min-w-[96px]"
+                      className="flex flex-col gap-1 w-[108px]"
                       title={
                         liqTotal > 0
-                          ? `24h liq · long ${formatUsd(liqLong)} / short ${formatUsd(liqShort)} · bars = 4h windows (left older → right newer)`
+                          ? `24h liq · long ${formatUsd(liqLong)} (${liqLongPct.toFixed(0)}%) / short ${formatUsd(liqShort)} (${liqShortPct.toFixed(0)}%)`
                           : "No liquidations in the last 24h"
                       }
                     >
-                      <div className="flex items-end gap-[3px] h-4">
-                        {(timeline.length > 0 ? timeline : Array.from({ length: 6 }, () => ({ long: 0, short: 0 }))).map(
-                          (bucket, i) => {
-                            const total = bucket.long + bucket.short;
-                            const height =
-                              total <= 0
-                                ? 2
-                                : Math.max(4, Math.round((total / timelineMax) * 16));
-                            const tone =
-                              total <= 0
-                                ? "bg-border/50"
-                                : bucket.long >= bucket.short * 1.25
-                                  ? "bg-negative"
-                                  : bucket.short >= bucket.long * 1.25
-                                    ? "bg-positive"
-                                    : "bg-text-muted/70";
-                            return (
-                              <div
-                                key={`${row.asset}-liq-${i}`}
-                                className={`w-1.5 rounded-sm ${tone}`}
-                                style={{ height }}
-                              />
-                            );
-                          }
-                        )}
-                      </div>
-                      <span className="text-[11px] text-text-dim leading-none">
-                        {liqTotal > 0
-                          ? liqLong >= liqShort * 1.25
-                            ? `Long ${formatUsd(liqLong)}`
-                            : liqShort >= liqLong * 1.25
-                              ? `Short ${formatUsd(liqShort)}`
-                              : `Mixed ${formatUsd(liqTotal)}`
-                          : "Quiet"}
-                      </span>
+                      {liqTotal > 0 ? (
+                        <>
+                          <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-bg-elevated">
+                            <div
+                              className="h-full bg-negative"
+                              style={{ width: `${liqLongPct}%` }}
+                            />
+                            <div
+                              className="h-full bg-positive"
+                              style={{ width: `${liqShortPct}%` }}
+                            />
+                          </div>
+                          <div className="flex items-baseline justify-between gap-1 text-[10px] leading-none">
+                            <span className="text-negative tabular-nums">
+                              L {formatUsd(liqLong)}
+                            </span>
+                            <span className="text-positive tabular-nums">
+                              S {formatUsd(liqShort)}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-[11px] text-text-dim">Quiet</span>
+                      )}
                     </div>
                   </DataTableCell>
                   <DataTableCell className="text-xs text-text-muted">
@@ -526,7 +542,7 @@ export default async function HomePage() {
       </div>
 
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 gap-4">
           <div>
             <h2 className="text-base font-semibold text-text-primary">
               Biggest Positions
@@ -535,6 +551,18 @@ export default async function HomePage() {
               Tracked whales only · ranked by open notional (not full-network)
             </p>
           </div>
+          <p
+            className="shrink-0 text-xs text-text-dim text-right"
+            title={
+              pipeline.last_collect_at
+                ? `Whale book snapshot at ${pipeline.last_collect_at}`
+                : undefined
+            }
+          >
+            {pipeline.last_collect_at
+              ? `As of ${formatTimeAgo(pipeline.last_collect_at)}`
+              : "As of —"}
+          </p>
         </div>
         <DataTable>
           <DataTableHead>

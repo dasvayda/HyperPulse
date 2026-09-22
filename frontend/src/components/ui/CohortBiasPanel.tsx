@@ -42,30 +42,33 @@ export function CohortBiasPanel({ data, className = "" }: CohortBiasPanelProps) 
                     ? "text-negative"
                     : "text-text-muted";
             return (
-              <li key={row.asset} className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-medium text-text-primary">{row.asset}</span>
-                  <span className={deltaClass}>
-                    {delta == null
-                      ? "—"
-                      : `${delta >= 0 ? "+" : ""}${delta.toFixed(0)} pp`}
+              <li
+                key={row.asset}
+                className="grid grid-cols-[2.75rem_3.25rem_minmax(0,1fr)_minmax(0,1fr)] gap-x-2 items-center"
+              >
+                <span className="text-xs font-medium text-text-primary truncate">
+                  {row.asset}
+                </span>
+                <span
+                  className={`text-[11px] tabular-nums text-right ${deltaClass}`}
+                >
+                  {delta == null
+                    ? "—"
+                    : `${delta >= 0 ? "+" : ""}${delta.toFixed(0)} pp`}
+                </span>
+                <div className="min-w-0 text-[11px] text-text-muted">
+                  <span className="text-text-dim">Smart </span>
+                  {smart != null ? `${smart.toFixed(0)}% long` : "—"}
+                  <span className="block text-text-dim">
+                    {formatUsd(row.smart_notional_usd)} · {row.smart_whales}w
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-[11px] text-text-muted">
-                  <div>
-                    <span className="text-text-dim">Smart </span>
-                    {smart != null ? `${smart.toFixed(0)}% long` : "—"}
-                    <span className="block text-text-dim">
-                      {formatUsd(row.smart_notional_usd)} · {row.smart_whales}w
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-text-dim">Rest </span>
-                    {rest != null ? `${rest.toFixed(0)}% long` : "—"}
-                    <span className="block text-text-dim">
-                      {formatUsd(row.rest_notional_usd)} · {row.rest_whales}w
-                    </span>
-                  </div>
+                <div className="min-w-0 text-[11px] text-text-muted">
+                  <span className="text-text-dim">Rest </span>
+                  {rest != null ? `${rest.toFixed(0)}% long` : "—"}
+                  <span className="block text-text-dim">
+                    {formatUsd(row.rest_notional_usd)} · {row.rest_whales}w
+                  </span>
                 </div>
               </li>
             );
