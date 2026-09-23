@@ -198,6 +198,14 @@ def _format_usd_short(value: float) -> str:
     return f"${abs_v:.0f}"
 
 
+def _ordinal(n: int) -> str:
+    if 10 <= (n % 100) <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
 def _format_price(value: float | None) -> str | None:
     if value is None:
         return None
@@ -480,14 +488,18 @@ async def send_market_consensus_alert() -> AlertHistoryItem | None:
     return item
 
 
-def _whale_size_context(alert: WhaleAlert) -> str | None:
-    """How big this whale is + ranks when available (size / Smart Money)."""
+def _whale_size_context_lines(alert: WhaleAlert) -> list[str]:
+    """Wallet size rank vs Smart Money score rank — two different ladders.
+
+    Size = account value among every tracked whale (1st = biggest wallet).
+    Smart Money = score among the 15 largest wallets, not a size rank.
+    A whale can be 8th largest and still 14th on the Smart Money board.
+    """
     trader = _trader_for(alert)
-    bits: list[str] = []
+    lines: list[str] = []
 
     if trader and trader.account_value_usd > 0:
-        bits.append(f"AV {_format_usd_short(trader.account_value_usd)}")
-        # Rank by account value among currently tracked traders.
+        size_bits = [f"Wallet {_format_usd_short(trader.account_value_usd)}"]
         by_size = sorted(
             (t for t in store.traders if t.account_value_usd > 0),
             key=lambda t: t.account_value_usd,
@@ -495,31 +507,32 @@ def _whale_size_context(alert: WhaleAlert) -> str | None:
         )
         for idx, row in enumerate(by_size, start=1):
             if row.address.lower() == alert.trader_address.lower():
-                bits.append(f"Size #{idx}/{len(by_size)}")
+                size_bits.append(
+                    f"{_ordinal(idx)} largest of {len(by_size)} tracked"
+                )
                 break
+        lines.append(" · ".join(size_bits))
     elif alert.size_usd > 0:
-        bits.append(f"pos {_format_usd_short(alert.size_usd)}")
+        lines.append(f"Position {_format_usd_short(alert.size_usd)}")
 
     try:
         from app.services.ranking import SMART_MONEY_SIZE, select_smart_money_ranks
 
         for row in select_smart_money_ranks():
             if row.address.lower() == alert.trader_address.lower():
-                bits.append(f"Smart Money #{row.rank}/{SMART_MONEY_SIZE}")
+                lines.append(
+                    "Smart Money score: "
+                    f"{_ordinal(row.rank)} of {SMART_MONEY_SIZE} large wallets"
+                )
                 break
     except Exception:
         pass
 
-    if not bits:
-        return None
-    return "Whale " + " · ".join(bits)
+    return lines
 
 
-async def send_big_whale_move(alert: WhaleAlert) -> AlertHistoryItem | None:
-    """Known large account position move — short and directional."""
-    if alert.confidence_score < settings.alert_min_confidence:
-        return None
-    alert = _enrich_alert_for_send(alert)
+def format_whale_move_lines(alert: WhaleAlert) -> tuple[str, list[str]]:
+    """Title + HTML body lines for a whale-move Telegram."""
     action = "ENTRY" if alert.alert_type.value == "entry" else "EXIT"
     side = alert.side.value.upper()
     fresh = is_fresh_entry(alert)
@@ -534,32 +547,40 @@ async def send_big_whale_move(alert: WhaleAlert) -> AlertHistoryItem | None:
         if alert.alert_type.value == "entry"
         else (alert.exit_price or alert.entry_price)
     )
+    verb = "entered" if action == "ENTRY" else "exited"
     line2 = (
-        f"{alert.trader_alias} {action.lower()} {side} "
+        f"{alert.trader_alias} {verb} {side} "
         f"{_format_usd_short(alert.size_usd)} @ {alert.leverage:.0f}x"
     )
     if px:
-        line2 = f"{line2} · {px}"
+        px_label = "entry" if action == "ENTRY" else "exit"
+        line2 = f"{line2} · {px_label} {px}"
     if alert.size_delta_usd and alert.size_delta_usd > 0 and action == "ENTRY":
-        line2 = f"{line2} · Δ {_format_usd_short(alert.size_delta_usd)}"
+        line2 = f"{line2} · added {_format_usd_short(alert.size_delta_usd)}"
 
     bits: list[str] = []
     if alert.whale_long_pct is not None:
         bits.append(_asset_whale_share_line(alert.asset, alert.whale_long_pct))
     if alert.roi_pct is not None:
-        bits.append(f"ROI {alert.roi_pct:+.1f}%")
+        bits.append(f"this pos ROI {alert.roi_pct:+.1f}%")
     elif alert.unrealized_pnl_usd is not None:
         sign = "+" if alert.unrealized_pnl_usd >= 0 else "-"
-        bits.append(f"uPnL {sign}{_format_usd_short(abs(alert.unrealized_pnl_usd))}")
+        bits.append(f"this pos uPnL {sign}{_format_usd_short(abs(alert.unrealized_pnl_usd))}")
 
     lines = [f"<b>{title}</b>", line2]
-    size_line = _whale_size_context(alert)
-    if size_line:
-        lines.append(size_line)
+    lines.extend(_whale_size_context_lines(alert))
     if bits:
         lines.append(" · ".join(bits))
     lines.append(_short_addr(alert.trader_address))
+    return title, lines
 
+
+async def send_big_whale_move(alert: WhaleAlert) -> AlertHistoryItem | None:
+    """Known large account position move — short and directional."""
+    if alert.confidence_score < settings.alert_min_confidence:
+        return None
+    alert = _enrich_alert_for_send(alert)
+    title, lines = format_whale_move_lines(alert)
     return await _dispatch(
         f"whale_move_{alert.alert_type.value}",
         title,
