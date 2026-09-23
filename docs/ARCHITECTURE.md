@@ -8,6 +8,8 @@ The system continuously collects trading activities, market signals, and liquida
 
 AI services generate insights and inferred trader strategies.
 
+**Repo workflow:** solo development. Land finished work on `main`; PRs are not a review gate. See `AGENTS.md` and `agent.md`.
+
 ---
 
 ## Product Goals & Design Constraints

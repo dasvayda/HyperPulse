@@ -35,6 +35,8 @@ Design implications are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.m
 
 Feature backlog (benchmark + checklist): [docs/PRODUCT_BACKLOG.md](docs/PRODUCT_BACKLOG.md).
 
+Solo repo: ship finished work on `main` (see [AGENTS.md](AGENTS.md)). PRs are not a review gate.
+
 ---
 
 ## Phase Status
