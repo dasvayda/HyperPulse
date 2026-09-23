@@ -417,13 +417,13 @@ async def _dispatch(event_type: str, title: str, lines: list[str], payload: dict
 
 
 async def send_market_brief_alert() -> AlertHistoryItem | None:
-    """Desk Market Brief → Telegram (TL;DR + short prose + Stance badge).
+    """Desk Market Brief → Telegram (labeled digest + Stance).
 
     Fires when the brief send-key changes, with a per-hour cap. Reuses the Brief
     already built in the inference cycle (no extra LLM call here).
     """
     brief = getattr(store, "market_brief", None)
-    if brief is None or brief.tldr is None:
+    if brief is None or (brief.digest is None and brief.tldr is None):
         return None
 
     send_key = brief_send_key(brief)

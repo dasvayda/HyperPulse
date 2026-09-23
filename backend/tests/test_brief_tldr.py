@@ -8,7 +8,8 @@ def test_tldr_three_slots_have_numbers_and_tracked():
     assert tldr.short_read
     assert tldr.however
     assert "vs prev day" in tldr.now
-    assert "funding" in tldr.now.lower()
+    assert "funding (1h)" in tldr.now.lower()
+    assert tldr.now.startswith("BTC ")
     assert "tracked" in tldr.short_read.lower()
     assert "$" in tldr.short_read
     assert "coverage" in tldr.however.lower() or "tracked" in tldr.however.lower()

@@ -391,6 +391,15 @@ export interface MarketBriefTldr {
   however: string;
 }
 
+export interface MarketBriefDigest {
+  as_of_line: string;
+  funding_line?: string;
+  positioning: string[];
+  read: string;
+  note: string;
+  coverage_band: string;
+}
+
 export interface MarketBrief {
   headline: string;
   market_status: string;
@@ -399,6 +408,7 @@ export interface MarketBrief {
   risks: string[];
   evidence_refs: string[];
   tldr?: MarketBriefTldr | null;
+  digest?: MarketBriefDigest | null;
   asset?: string | null;
   stale?: boolean;
   tab_assets?: string[];

@@ -40,17 +40,6 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _format_usd_short(value: float) -> str:
-    abs_v = abs(value)
-    if abs_v >= 1_000_000_000:
-        return f"${abs_v / 1_000_000_000:.1f}B"
-    if abs_v >= 1_000_000:
-        return f"${abs_v / 1_000_000:.1f}M"
-    if abs_v >= 1_000:
-        return f"${abs_v / 1_000:.1f}K"
-    return f"${abs_v:.0f}"
-
-
 def canonicalize_strategy(raw: str) -> str:
     """Collapse LLM free-text strategy labels into a fixed enum."""
     text = (raw or "").strip()
@@ -562,7 +551,6 @@ def _status_too_thin(status: str) -> bool:
 def build_template_brief(snapshot: dict[str, Any]) -> MarketBrief:
     consensus = snapshot.get("top3_consensus") or {}
     mood = str(consensus.get("mood") or "NEUTRAL")
-    reason = str(consensus.get("reason") or "Whale book warming up.")
     assets = consensus.get("assets") or []
     asset_label = "/".join(assets) if assets else "majors"
     long_pct = consensus.get("long_pct")
@@ -594,74 +582,17 @@ def build_template_brief(snapshot: dict[str, Any]) -> MarketBrief:
     else:
         headline = "Tracked whale coverage still building"
 
-    status_bits: list[str] = []
-    if long_pct is not None:
-        short_pct = 100.0 - float(long_pct)
-        if "NEUTRAL" in mood.upper():
-            status_bits.append(
-                f"Top3 whale book remains {float(long_pct):.0f}% long / {short_pct:.0f}% short (balanced), "
-                f"driven by positioning rather than a single catalyst. {reason}"
-            )
-        elif "BEAR" in mood.upper():
-            status_bits.append(
-                f"Top3 whale book remains {short_pct:.0f}% short / {float(long_pct):.0f}% long, "
-                f"signaling near-term sell-side pressure from tracked-whale inventory. {reason}"
-            )
-        else:
-            status_bits.append(
-                f"Top3 whale book remains {float(long_pct):.0f}% long / {short_pct:.0f}% short, "
-                f"signaling near-term buy-side pressure from tracked-whale inventory. {reason}"
-            )
-    else:
-        status_bits.append(reason)
-    if stances:
-        bits = [
-            f"{s['asset']} {s['stance'].replace('_', ' ')}"
-            for s in stances[:3]
-            if s.get("asset")
-        ]
-        if bits:
-            status_bits.append(
-                "What matters on coin calls: " + "; ".join(bits) + "."
-            )
+    from app.services.brief_report import build_brief_digest
+
+    digest = build_brief_digest(snapshot, None, stance)
+    status_bits = [digest.read]
     if funding:
         f0 = funding[0]
         status_bits.append(
             f"Extreme funding on {f0['asset']} at {f0['funding_pct']:+.3f}% — {f0['note']}."
         )
-    else:
-        top3_f = snapshot.get("top3_funding") or []
-        if top3_f:
-            status_bits.append(
-                "Top3 funding stays near flat — not a crowded-funding story."
-            )
-    liq_total = float(liq.get("total_usd") or 0)
-    if liq_total > 0:
-        long_liq = float(liq.get("long_usd") or 0)
-        short_liq = float(liq.get("short_usd") or 0)
-        if long_liq > short_liq * 1.5:
-            liq_read = "tends to read as a long flush"
-        elif short_liq > long_liq * 1.5:
-            liq_read = "tends to read as a short flush"
-        else:
-            liq_read = "no clean liq skew"
-        status_bits.append(
-            f"Last 1h liquidations {_format_usd_short(liq_total)} "
-            f"(long {_format_usd_short(long_liq)} / short {_format_usd_short(short_liq)}), "
-            f"{liq_read}."
-        )
-    cov = snapshot.get("coverage") or {}
-    status_bits.append(
-        f"Coverage: {cov.get('positioned', 0)}/{cov.get('tracked', 0)} tracked whales positioned."
-    )
 
-    suggestions: list[str] = []
-    if stance == BriefStance.PREFER_SHORT:
-        suggestions.append(f"Prefer shorts on {asset_label} while Top3 whale book stays short-heavy.")
-    elif stance == BriefStance.PREFER_LONG:
-        suggestions.append(f"Prefer longs on {asset_label} while Top3 whale book stays long-heavy.")
-    else:
-        suggestions.append("Wait for a clearer Top3 whale or coin-stance agreement before sizing up.")
+    suggestions: list[str] = [digest.note]
     if funding:
         f0 = funding[0]
         if f0["funding_pct"] < 0:
@@ -672,11 +603,6 @@ def build_template_brief(snapshot: dict[str, Any]) -> MarketBrief:
             suggestions.append(
                 f"Watch {f0['asset']} for long-flush risk (extreme positive funding)."
             )
-    if stances:
-        lead = stances[0]
-        suggestions.append(
-            f"Size off {lead['asset']} evidence card ({lead['stance'].replace('_', ' ')})."
-        )
 
     risks = [
         "Not financial advice — Hyperliquid tracked-whale sample, not the full market.",
@@ -694,6 +620,7 @@ def build_template_brief(snapshot: dict[str, Any]) -> MarketBrief:
         refs.append("extreme_funding")
     elif snapshot.get("top3_funding"):
         refs.append("top3_funding")
+    liq_total = float(liq.get("total_usd") or 0)
     if liq_total > 0:
         refs.append("liq_1h")
 
@@ -795,7 +722,7 @@ prefer_long | prefer_short | wait
 - Forbidden in headline and market_status: Prefer longs/shorts, Wait, buy bias, sell bias, shorting, longing, entry points, bullish/bearish signals as advice.
 
 ## How to read each snapshot field
-- tape: mark, vs prev day % (prevDayPx, not session range), funding %. Do not invent 7d/30d or ranges.
+- tape: mark, vs prev day % (prevDayPx, not session range), funding % as a 1h Hyperliquid rate. Do not invent 7d/30d or ranges.
 - top3_consensus: tracked-whale long/short $ share inside HL volume Top3. Funding is NOT included here. mood from long_pct: >=58 BULLISH, <=42 BEARISH, else NEUTRAL (= balanced / no clear lean). Use per_asset for coin-level book.
 - book_wide: whole tracked whale book (broader than Top3). Use as context; Top3 + coin_stances lead the call.
 - coin_stances: rule votes (whale book + funding + liq). Already prefer_long/prefer_short/wait. Do not contradict a clear 2+ coin majority unless Top3 conflicts — then stance=wait.
@@ -803,7 +730,7 @@ prefer_long | prefer_short | wait
 - extreme_funding: Top20 volume ∩ |funding| extreme. Empty list means no extreme funding — do NOT invent crowdedness.
 - liq_1h / liq_24h: sampled recentTrades, not full-market liquidations. Use direction (long-flush / quiet), not exchange-wide totals.
 - biggest_positions: illustrative large tracked positions — color, not a market forecast.
-- coverage: positioned/tracked sample size. Low positioned → lean wait / mention thin sample in risks.
+- coverage: positioned/tracked sample size with Low/Medium/High band. Low positioned → lean wait / mention thin sample in risks.
 
 ## Field roles (do not blur)
 - headline: tape/book state ONLY. No Prefer/Wait. Example: "Top3 (BTC/ETH/SOL) whales lean short"
@@ -811,21 +738,23 @@ prefer_long | prefer_short | wait
 - suggestions: what to do next (aligned with stance)
 - risks: what can invalidate the read
 
-## market_status style (CMC desk / positioning notes)
-Each sentence: snapshot number (or %) + short interpretation clause.
-Allowed verbs/phrases: remains, continues, signaling, suggests, tends to read as,
-near-term sell pressure / buy-side pressure, inventory on the book, readily available
-short/long inventory, positioning not a single catalyst, slightly nudging the balance,
-what matters is …, without a structural change.
-Use "N% (short-heavy|long-heavy|balanced)" labels next to shares when helpful.
-Do NOT invent exchange reserves, ETF flows, RSI, price targets, burns, or news.
+## market_status style (labeled Read)
+1-2 sentences. Snapshot lean + funding extreme/not + coverage band.
+Allowed phrasing: short-heavy, long-heavy, balanced / no clear lean, funding not at extreme levels,
+directional signal present but not high-confidence, supports ~ not confirmation.
+Do NOT use: significant sell pressure, strong bearish/bullish bias, signaling near-term sell-side
+pressure, confirmation, guaranteed, crowded unless extreme_funding is non-empty.
+Numbers (long/short %, net $, per-asset shares, 1h liq, coverage) belong ONCE in the structured
+digest — do not restate the same % in market_status.
+Funding interval is 1h (Hyperliquid hourly settlement), never 8h.
+Coverage bands: Low <40%, Medium 40-69%, High >=70% of tracked whales with open positions.
 
 ## Wording (avoid ambiguity)
 - Never use "mixed" for market mood, Top3 book, or a coin (conflicts with Strategy tag Mixed — not in this snapshot).
 - Prefer: balanced, no clear lean, split, short-heavy, long-heavy.
 - headline: Top3 lean without Prefer/Wait. NEUTRAL → "balanced" or name the coin conflict.
-- market_status: 2–4 sentences; never a lone adjective like "Bearish".
-- suggestions: 1–3 actions aligned with stance. wait → watch/size-down only. prefer_short → no long suggestions (put opposing coins in risks). prefer_long → no short suggestions.
+- market_status: 1-2 sentence Read; never a lone adjective like "Bearish". No duplicated book %.
+- suggestions: 1-3 notes aligned with stance. First line should say the lean "supports X bias, not confirmation". wait → watch/size-down only. prefer_short → no long suggestions (put opposing coins in risks). prefer_long → no short suggestions.
 - risks: 1–3 snapshot-specific. No generic "volatility may increase".
 - evidence_refs: ONLY keys from: top3_consensus, book_wide, coin_stances, top3_funding, extreme_funding, liq_1h, liq_24h, biggest_positions, coverage, tape.
 - Do NOT invent tickers, prices, or dollar amounts absent from the snapshot.
@@ -871,22 +800,17 @@ BRIEF_FEW_SHOT_USER = {
 BRIEF_FEW_SHOT_ASSISTANT = {
     "headline": "Top3 (BTC/ETH/SOL) whales lean short; funding still flat",
     "market_status": (
-        "Top3 whale book remains 60% short / 40% long (~$38M net short), signaling near-term "
-        "sell-side pressure from tracked-whale inventory. "
-        "ETH and BTC both sit short-heavy on the book (44/56 and 38/62); what matters is that lean, "
-        "not a crowded-funding story — Top3 funding stays near flat. "
-        "Last 1h liquidations skew long ($2.1M vs $0.4M short), which tends to read as a long flush "
-        "nudging downside pressure without a structural change."
+        "Book stays short-heavy across BTC/ETH/SOL, funding not at extreme levels. "
+        "Medium coverage — directional signal present but not high-confidence."
     ),
     "stance": "prefer_short",
     "suggestions": [
-        "Prefer shorts on BTC/ETH while Top3 whale book stays short-heavy.",
-        "Size off the ETH Prefer shorts evidence card; keep size modest while funding stays flat.",
-        "Treat SOL as follow-through only — Top3 short lean, not a solo call.",
+        "Whale book skews short on BTC/ETH/SOL; positioning supports short bias, not confirmation.",
+        "Keep size modest while funding stays flat — this is a positioning signal, not a squeeze.",
     ],
     "risks": [
         "Funding is not extreme — a quick long squeeze can still hurt shorts.",
-        "Coverage is 55/100 positioned whales; thin updates can flip the read.",
+        "Coverage is 55/100 (Medium); thin updates can flip the read.",
         "If coin_stances split later, drop to Wait instead of adding size.",
     ],
     "evidence_refs": ["top3_consensus", "coin_stances", "liq_1h", "top3_funding", "coverage"],
@@ -926,16 +850,12 @@ BRIEF_FEW_SHOT_WAIT_USER = {
 BRIEF_FEW_SHOT_WAIT_ASSISTANT = {
     "headline": "Top3 balanced; HYPE long-heavy vs ETH short-heavy",
     "market_status": (
-        "Top3 whale book remains roughly balanced at 54% long / 46% short (balanced), "
-        "driven by positioning split across coins rather than a single catalyst. "
-        "HYPE sits long-heavy (66/34) while ETH leans short (48/52), so the book is slightly "
-        "nudging both ways with no clean lean. "
-        "What matters is the disagreement: Top3 funding stays flat and 1h liquidations are small "
-        "(~$0.45M), so there is no extreme squeeze pressure and no structural change yet."
+        "Book has no clear lean across Top3, funding not at extreme levels. "
+        "Medium coverage — no clean directional signal yet."
     ),
     "stance": "wait",
     "suggestions": [
-        "Wait for Top3 whale lean or coin_stances to agree before sizing up.",
+        "Positioning is split — no confirmation either way.",
         "Watch whether HYPE long-heavy book fades or ETH short lean spreads to BTC.",
         "Keep risk light until extreme_funding or a clearer liq skew shows up.",
     ],
@@ -1035,6 +955,7 @@ def persist_market_brief(brief: MarketBrief) -> None:
         row.source = brief.source
         row.snapshot_hash = brief.snapshot_hash
         row.tldr_json = json.dumps(brief.tldr.model_dump() if brief.tldr else {})
+        row.digest_json = json.dumps(brief.digest.model_dump() if brief.digest else {})
         row.asset = brief.asset
         row.stale = 1 if brief.stale else 0
         row.tab_assets = json.dumps(brief.tab_assets)
@@ -1060,6 +981,12 @@ def load_market_brief_from_db() -> MarketBrief | None:
             from app.models.schemas import BriefTldr
 
             tldr = BriefTldr.model_validate(tldr_raw)
+        digest_raw = json.loads(getattr(row, "digest_json", None) or "{}")
+        digest = None
+        if isinstance(digest_raw, dict) and digest_raw.get("as_of_line"):
+            from app.models.schemas import BriefDigest
+
+            digest = BriefDigest.model_validate(digest_raw)
         tabs = json.loads(getattr(row, "tab_assets", None) or "[]")
         return MarketBrief(
             headline=row.headline,
@@ -1069,6 +996,7 @@ def load_market_brief_from_db() -> MarketBrief | None:
             risks=json.loads(row.risks or "[]"),
             evidence_refs=json.loads(row.evidence_refs or "[]"),
             tldr=tldr,
+            digest=digest,
             asset=getattr(row, "asset", None),
             stale=bool(getattr(row, "stale", 0)),
             tab_assets=tabs if isinstance(tabs, list) else [],
@@ -1099,8 +1027,7 @@ async def generate_market_brief(*, force: bool = False, asset: str | None = None
     brief = await _llm_market_brief(snapshot)
     if brief is None:
         brief = build_template_brief(snapshot)
-    if brief.tldr is None:
-        brief = apply_tldr_to_brief(brief, snapshot, None)
+    brief = apply_tldr_to_brief(brief, snapshot, None)
 
     with store._lock:
         store.market_brief = brief

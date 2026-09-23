@@ -6,7 +6,7 @@ HyperPulse is an AI-powered intelligence platform for Hyperliquid traders.
 
 **Product goal:** strong *current-moment* insights that are simple, reliable, and actionable for trading — not selling accumulated data or dense metric dumps. See `README.md` (Product Goals), `docs/ARCHITECTURE.md` (constraints), and `docs/PRODUCT_BACKLOG.md` (canonical backlog + checkboxes).
 
-**AI Insights page:** Market Brief hero is a 3-slot TL;DR (now = mark + vs prev day + funding; short = tracked book $/% + sampled 1h liq; however = tension or confirm). Prefer longs/shorts/Wait is a badge, not in the headline. Optional **15m Pulse** chip (direction probs + tick strip) sits beside Prefer — separate from Evidence card `confidence` (rule vote strength, not win rate). Coin tabs are live volume Top3. Dashboard teaser uses `tldr.now` (+ optional pulse one-liner). Evidence cards and the cohort heatmap (Smart / Rest / All long share, majors + thin coins) stay rule-based. Trader strategy tags are secondary.
+**AI Insights page:** Market Brief hero is a labeled digest (tape + funding (1h) → Positioning bullets → Read → Stance/Note). Prefer longs/shorts/Wait is a badge, not in the headline. Coverage is `58/100 (Medium)` with Low <40% / Medium 40–69% / High ≥70%. Optional **15m Pulse** chip (direction probs + tick strip) sits beside Prefer — separate from Evidence card `confidence` (rule vote strength, not win rate). Coin tabs are live volume Top3. Dashboard teaser uses `tldr.now` (+ optional pulse one-liner). Evidence cards and the cohort heatmap (Smart / Rest / All long share, majors + thin coins) stay rule-based. Trader strategy tags are secondary.
 
 **Rate-limited collectors:** `collectors/fills.py` (`userFillsByTime`) is fetched per address on trader-detail requests with a short cache, never swept across the tracked universe on a timer.
 
@@ -63,7 +63,7 @@ Collectors -> Store/DB/Redis -> Feature/Ranking -> AI Inference -> Alerts -> API
 - Redis optional (falls back to in-memory cache)
 - AI provider auto-selects OpenAI/DeepSeek, otherwise heuristic classifier
 - Telegram alerts queue locally when bot token is missing
-- Telegram **Market Brief** digest: TL;DR 3 bullets + desk prose + Stance badge (hash-deduped, `ALERT_LIMIT_MARKET_BRIEF_PER_HOUR`); see `brief_telegram.py` + `logs/telegram_recent.json`
+- Telegram **Market Brief** digest: tape + Funding (1h) + Positioning bullets + coverage band + Read + Stance/Note (hash-deduped). Copy in `brief_telegram.py` + `brief_report.build_brief_digest`. Hyperliquid funding is hourly, not 8h.
 
 ## Development Commands
 

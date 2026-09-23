@@ -115,6 +115,7 @@ class MarketBriefRow(Base):
     source: Mapped[str] = mapped_column(String(16), default="template")
     snapshot_hash: Mapped[str] = mapped_column(String(64), default="")
     tldr_json: Mapped[str] = mapped_column(Text, default="{}")
+    digest_json: Mapped[str] = mapped_column(Text, default="{}")
     asset: Mapped[str | None] = mapped_column(String(32), nullable=True)
     stale: Mapped[int] = mapped_column(Integer, default=0)
     tab_assets: Mapped[str] = mapped_column(Text, default="[]")
