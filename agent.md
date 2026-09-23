@@ -17,6 +17,15 @@ Brief inputs: tape (mark, vs prev day, funding), Top3 whale book (+ per-asset), 
 - **Phase 1**: Whale Alerts, Trader Profiles, Basic Liquidation Radar
 - **Phase 2**: Collectors, persistence, AI strategy inference, smart money ranking, Telegram alerts
 
+## Git workflow (solo)
+
+This repo is **solo-developed**. There is no second reviewer and no review queue.
+
+- Default: finish the work, then **merge to `main`**. Do not leave PRs open “for review”.
+- Feature branches are only a working copy. Merge them when the change is done.
+- Do not ask whether to open a PR vs merge for ordinary work. Open a PR only if the owner explicitly wants a discussion thread.
+- 단독 개발이다. 리뷰용 PR은 의미가 없으니, 작업이 끝나면 `main`에 바로 합친다.
+
 ## Repository Structure
 
 ```
@@ -34,7 +43,8 @@ HyperPulse/
 │       └── routers/          # api.py (v1), v2.py (phase 2)
 ├── docs/
 ├── docker-compose.yml
-└── agent.md
+├── AGENTS.md             # short pointer + solo git rule (agents read this first)
+└── agent.md              # full product / copy / pipeline guide
 ```
 
 ## Design System (Nansen-inspired)
