@@ -370,6 +370,7 @@ flowchart LR
 | `app/services/ranking.py` | Smart money composite score |
 | `app/services/inference.py` | Rule evidence cards + secondary trader strategy tags |
 | `app/services/market_brief.py` | Market Brief snapshot, LLM/template generation, validation |
+| `app/services/brief_schedule.py` | Telegram Brief cadence: Asia 09:00 + US 09:00, once per slot |
 | `app/services/alerts.py` | Telegram delivery or local queue |
 | `app/routers/v2.py` | Rankings, insights, brief, inferences, alerts, pipeline status |
 

@@ -148,6 +148,7 @@ class StateStore:
         self.last_consensus_label: str | None = None
         self.last_consensus_at: datetime | None = None
         self.last_brief_telegram_hash: str | None = None
+        self.last_brief_telegram_slot: str | None = None
         self.ai_provider: str = "heuristic"
         self.market_brief = None  # MarketBrief | None — set after import-safe bootstrap
 
@@ -232,6 +233,9 @@ class StateStore:
                     snap_hash = payload.get("snapshot_hash")
                     if snap_hash:
                         self.last_brief_telegram_hash = str(snap_hash)
+                    slot_id = payload.get("slot_id")
+                    if slot_id:
+                        self.last_brief_telegram_slot = str(slot_id)
                 except (TypeError, ValueError):
                     pass
 

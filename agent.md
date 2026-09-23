@@ -63,7 +63,7 @@ Collectors -> Store/DB/Redis -> Feature/Ranking -> AI Inference -> Alerts -> API
 - Redis optional (falls back to in-memory cache)
 - AI provider auto-selects OpenAI/DeepSeek, otherwise heuristic classifier
 - Telegram alerts queue locally when bot token is missing
-- Telegram **Market Brief** digest: tape + Funding (1h) + Positioning bullets + coverage band + Read + Stance/Note (hash-deduped). Copy in `brief_telegram.py` + `brief_report.build_brief_digest`. Hyperliquid funding is hourly, not 8h.
+- Telegram **Market Brief** digest: tape + Funding (1h) + Positioning + Read + Stance/Note. **Telegram cadence = Asia 09:00 KST + US 09:00 ET, 90-minute window, once per slot** (`brief_schedule.py`). Insights hero stays live (~20m). Snapshot-hash ticks do not send Telegram.
 
 ## Development Commands
 
