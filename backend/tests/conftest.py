@@ -1,5 +1,21 @@
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+# Pin pytest to a throwaway sqlite BEFORE any app import. Otherwise tests
+# share the live hyperpulse.db and pulse resolve counts leak across runs.
+_TEST_DB = Path(__file__).resolve().parent / "_pytest.db"
+os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB}"
+if _TEST_DB.exists():
+    try:
+        _TEST_DB.unlink()
+    except OSError:
+        pass
+
 from datetime import datetime, timedelta, timezone
 
+from app.db import init_db
 from app.models.schemas import (
     AssetWhaleSummary,
     LiquidationEvent,
@@ -7,6 +23,8 @@ from app.models.schemas import (
     WhaleBookSummary,
 )
 from app.services.store import store
+
+init_db()
 
 NOW = datetime(2026, 9, 14, 12, 0, tzinfo=timezone.utc)
 
@@ -222,3 +240,11 @@ def seed_store() -> None:
     store.traders = []
     store.market_brief = None
     store.insights = []
+
+
+def pytest_sessionfinish(session, exitstatus) -> None:
+    del session, exitstatus
+    try:
+        _TEST_DB.unlink(missing_ok=True)
+    except OSError:
+        pass
