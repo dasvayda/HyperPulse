@@ -578,7 +578,10 @@ def build_template_brief(snapshot: dict[str, Any]) -> MarketBrief:
             lean_txt = "lean short"
         else:
             lean_txt = f"lean {mood.replace('_', ' ').title()}"
-        headline = f"Top3 ({asset_label}) whales {lean_txt}"
+        if len(assets) == 1:
+            headline = f"{assets[0]} whales {lean_txt}"
+        else:
+            headline = f"Top3 ({asset_label}) whales {lean_txt}"
     else:
         headline = "Tracked whale coverage still building"
 
@@ -925,6 +928,9 @@ async def _llm_market_brief(snapshot: dict[str, Any]) -> MarketBrief | None:
 def _should_refresh(snapshot: dict[str, Any]) -> bool:
     current = store.market_brief
     if current is None:
+        return True
+    positioned = int((snapshot.get("coverage") or {}).get("positioned") or 0)
+    if positioned > 0 and "coverage still building" in (current.headline or "").lower():
         return True
     new_hash = str(snapshot.get("snapshot_hash") or "")
     if new_hash and new_hash != (current.snapshot_hash or ""):
