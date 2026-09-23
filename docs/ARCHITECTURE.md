@@ -300,9 +300,9 @@ Possible classifications
 
 Structured snapshot → optional LLM JSON → validate against snapshot allowlist → template fallback.
 
-- Snapshot: tape (mark, vs prev day %, funding, OI/vol for status), Top3 consensus (+ per_asset book), book_wide, coin stances, top3_funding, extreme funding, sampled liq 1h/24h (plus per-asset), biggest positions, coverage
-- Output: `headline` (no Prefer), `tldr` (now / short_read / however), `market_status`, `stance`, `suggestions`, `risks`, `stale`, `tab_assets`, `asset`
-- API: `GET /api/v2/insights/brief` and `?asset=BTC` (coin = template + same TL;DR rules)
+- Snapshot: tape (mark, vs prev day %, funding as Hyperliquid 1h rate, OI/vol for status), Top3 consensus (+ per_asset book), book_wide, coin stances, top3_funding, extreme funding, sampled liq 1h/24h (plus per-asset), biggest positions, coverage
+- Output: `headline` (no Prefer), `digest` (tape / Positioning / Read / Note + coverage Low/Medium/High), `tldr` (dashboard teaser), `stance`, `suggestions`, `risks`, `stale`, `tab_assets`, `asset`
+- API: `GET /api/v2/insights/brief` and `?asset=BTC` (coin = template + same digest rules)
 - Persistence: `market_briefs` latest row (market-wide only) + `store.market_brief`
 - Runs **before** per-trader LLM in the inference pipeline so Brief does not compete for budget on failure paths
 
@@ -370,6 +370,7 @@ flowchart LR
 | `app/services/ranking.py` | Smart money composite score |
 | `app/services/inference.py` | Rule evidence cards + secondary trader strategy tags |
 | `app/services/market_brief.py` | Market Brief snapshot, LLM/template generation, validation |
+| `app/services/brief_schedule.py` | Telegram Brief cadence: Asia 09:00 + US 09:00, once per slot |
 | `app/services/alerts.py` | Telegram delivery or local queue |
 | `app/routers/v2.py` | Rankings, insights, brief, inferences, alerts, pipeline status |
 

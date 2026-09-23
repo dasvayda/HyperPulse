@@ -12,6 +12,7 @@ from app.models.schemas import (
     StrategyInference,
     WhaleAlert,
 )
+from app.services.brief_schedule import due_market_brief_slot
 from app.services.brief_telegram import brief_send_key, format_market_brief_telegram
 from app.services.fresh_entries import is_fresh_entry
 from app.services.store import store
@@ -425,34 +426,45 @@ async def _dispatch(event_type: str, title: str, lines: list[str], payload: dict
 
 
 async def send_market_brief_alert() -> AlertHistoryItem | None:
-    """Desk Market Brief → Telegram (TL;DR + short prose + Stance badge).
+    """Desk Market Brief → Telegram, twice a day (Asia 09:00 + US 09:00).
 
-    Fires when the brief send-key changes, with a per-hour cap. Reuses the Brief
-    already built in the inference cycle (no extra LLM call here).
+    Insights on the website stay live. Telegram only fires inside a 90-minute
+    window after each slot, once per slot. Reuses the Brief already built in
+    the inference cycle (no extra LLM call here).
     """
     brief = getattr(store, "market_brief", None)
-    if brief is None or brief.tldr is None:
+    if brief is None or (brief.digest is None and brief.tldr is None):
+        return None
+
+    slot = due_market_brief_slot(
+        last_slot_id=getattr(store, "last_brief_telegram_slot", None),
+        brief=brief,
+    )
+    if slot is None:
         return None
 
     send_key = brief_send_key(brief)
-    if send_key and send_key == getattr(store, "last_brief_telegram_hash", None):
-        return None
-
     title, lines = format_market_brief_telegram(brief)
+    if lines:
+        lines.insert(1, f"Desk · {slot.label}")
     item = await _dispatch(
         "market_brief",
         title,
         lines,
         {
             "snapshot_hash": send_key,
+            "slot_id": slot.slot_id,
+            "slot_label": slot.label,
             "stance": brief.stance.value if hasattr(brief.stance, "value") else str(brief.stance),
             "source": brief.source,
             "provider": brief.provider,
             "asset": brief.asset,
         },
     )
-    if item and item.status in {"sent", "queued"} and send_key:
-        store.last_brief_telegram_hash = send_key
+    if item and item.status in {"sent", "queued"}:
+        store.last_brief_telegram_slot = slot.slot_id
+        if send_key:
+            store.last_brief_telegram_hash = send_key
     return item
 
 
@@ -678,7 +690,7 @@ async def process_alert_triggers(
 
     Per-type hourly caps (see config) — big_trade is tightest because it fires most.
     Per cycle: at most alert_*_per_cycle of each position type.
-    Market Brief digests when the desk snapshot hash changes.
+    Market Brief Telegram fires at Asia 09:00 and US 09:00 (90-minute window, once per slot).
     Strategy-inference spam is intentionally skipped in the default mix.
     """
     created: list[AlertHistoryItem] = []

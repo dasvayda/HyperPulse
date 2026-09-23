@@ -18,6 +18,9 @@ def test_brief_endpoint_market_and_asset():
     assert market.status_code == 200
     body = market.json()
     assert body["tldr"]["now"]
+    assert body["digest"]["as_of_line"]
+    assert body["digest"]["coverage_band"] in {"Low", "Medium", "High"}
+    assert "Funding (1h)" in (body["digest"].get("funding_line") or "") or "funding (1h)" in body["tldr"]["now"].lower()
     assert "prefer" not in body["headline"].lower()
     assert body["tab_assets"][0] == "HYPE"
 

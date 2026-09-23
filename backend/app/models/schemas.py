@@ -448,6 +448,17 @@ class BriefTldr(BaseModel):
     however: str
 
 
+class BriefDigest(BaseModel):
+    """Labeled Market Brief body shared by Telegram and Insights."""
+
+    as_of_line: str
+    funding_line: str = ""
+    positioning: list[str] = Field(default_factory=list)
+    read: str = ""
+    note: str = ""
+    coverage_band: str = "Low"
+
+
 class MarketBrief(BaseModel):
     """Desk-style market commentary built from a structured HL snapshot."""
 
@@ -458,6 +469,7 @@ class MarketBrief(BaseModel):
     risks: list[str] = Field(default_factory=list)
     evidence_refs: list[str] = Field(default_factory=list)
     tldr: BriefTldr | None = None
+    digest: BriefDigest | None = None
     asset: str | None = None
     stale: bool = False
     tab_assets: list[str] = Field(default_factory=list)

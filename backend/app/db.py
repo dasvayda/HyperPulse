@@ -67,3 +67,5 @@ def _migrate_sqlite() -> None:
                 conn.execute(text("ALTER TABLE market_briefs ADD COLUMN stale INTEGER DEFAULT 0"))
             if "tab_assets" not in brief_names:
                 conn.execute(text("ALTER TABLE market_briefs ADD COLUMN tab_assets TEXT DEFAULT '[]'"))
+            if "digest_json" not in brief_names:
+                conn.execute(text("ALTER TABLE market_briefs ADD COLUMN digest_json TEXT DEFAULT '{}'"))

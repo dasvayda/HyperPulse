@@ -95,12 +95,7 @@ async def get_market_brief(
 ) -> MarketBrief:
     """Desk-style Market Brief (LLM or template fallback). Optional per-coin slice."""
     want = (asset or "").strip().upper() or None
-    if want:
-        brief = await generate_market_brief(force=force, asset=want)
-    elif store.market_brief is not None and not force:
-        brief = store.market_brief
-    else:
-        brief = await generate_market_brief(force=force)
+    brief = await generate_market_brief(force=force, asset=want)
 
     try:
         from app.services.pulse import brief_pulse_asset, get_pulse_snapshot
