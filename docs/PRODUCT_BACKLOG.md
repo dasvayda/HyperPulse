@@ -3,6 +3,8 @@
 **Canonical doc** — 벤치마크 배경 + 실행 백로그를 이 파일 하나로 본다.  
 (구 `.cursor/plans/2026-07-22-coinmarketman-ideation.md`, `2026-07-23-hyperpulse-backlog.md` 병합)
 
+출시 준비와 운영 단계는 [LAUNCH_PLAN.md](./LAUNCH_PLAN.md)에서 관리한다. 이 backlog의 기능 완료와 production 출시 승인은 별도 기준이다.
+
 | | |
 |--|--|
 | 작성 | 2026-07-22 ~ 07-23 |
