@@ -7,5 +7,6 @@ Read [`agent.md`](./agent.md) for product goals, copy rules, pipeline, and comma
 HyperPulse is **solo-developed**. There is no reviewer besides the owner.
 
 - Merge completed work into `main`. Do not leave PRs sitting as drafts for review.
+- 작업이 완료되고 검증이 끝나면 관련 변경을 commit한다. 미완성 작업이나 검증되지 않은 변경은 완료로 보고하지 않는다.
 - Do not treat “open a PR and wait” as the default shipping step.
 - 단독 개발이다. 리뷰용 PR은 열지 말고, 끝나면 `main`에 합친다.

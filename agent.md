@@ -22,6 +22,7 @@ Brief inputs: tape (mark, vs prev day, funding), Top3 whale book (+ per-asset), 
 This repo is **solo-developed**. There is no second reviewer and no review queue.
 
 - Default: finish the work, then **merge to `main`**. Do not leave PRs open “for review”.
+- After the work and its verification are complete, **commit the related changes**. Do not call uncommitted or unverified work complete.
 - Feature branches are only a working copy. Merge them when the change is done.
 - Do not ask whether to open a PR vs merge for ordinary work. Open a PR only if the owner explicitly wants a discussion thread.
 - 단독 개발이다. 리뷰용 PR은 의미가 없으니, 작업이 끝나면 `main`에 바로 합친다.

@@ -45,12 +45,15 @@ app = FastAPI(
     description="AI-powered intelligence platform for Hyperliquid traders",
     version="0.2.0",
     lifespan=lifespan,
+    docs_url="/docs" if settings.api_docs_enabled else None,
+    redoc_url="/redoc" if settings.api_docs_enabled else None,
+    openapi_url="/openapi.json" if settings.api_docs_enabled else None,
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
-    allow_credentials=True,
+    allow_credentials=settings.cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

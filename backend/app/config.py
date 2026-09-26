@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3100"
     api_host: str = "0.0.0.0"
     api_port: int = 8100
+    api_docs_enabled: bool = True
+    cors_allow_credentials: bool = False
 
     # Hyperliquid
     hyperliquid_api_url: str = "https://api.hyperliquid.xyz"

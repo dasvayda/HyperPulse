@@ -40,8 +40,10 @@
 - [ ] 최소한의 사용자 인증 또는 초대 기반 접근 제어 추가
 - [ ] 모든 공개 API와 특히 pipeline 실행 API 보호
 - [ ] production CORS 도메인 제한
+- [x] API 문서 노출을 `API_DOCS_ENABLED`로 제어
+- [x] CORS credential 허용을 `CORS_ALLOW_CREDENTIALS`로 제어하고 기본값을 비활성화
 - [ ] PostgreSQL/Redis 기본 자격 증명을 환경변수 또는 secret store로 이동
-- [ ] 운영 환경에서 API 문서 노출 정책 결정
+- [x] 운영 환경에서 API 문서 노출 정책 결정: production은 `API_DOCS_ENABLED=false` 권장
 - [ ] `.env`, Telegram token, AI API key가 로그·오류 화면에 노출되지 않는지 점검
 
 #### 배포
@@ -217,4 +219,3 @@
 3. 운영자가 장애를 감지하고 복구할 수 있는가?
 4. 잘못된 알림과 보안 사고를 막을 수 있는가?
 5. 현재 사용자 수보다 커져도 비용과 성능을 통제할 수 있는가?
-
