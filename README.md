@@ -116,7 +116,7 @@ HyperPulse/
 ├── backend/           # FastAPI + collectors + AI services
 ├── docs/              # Architecture docs
 ├── docker-compose.yml
-├── agent.md
+├── AGENTS.md
 └── .env.example
 ```
 

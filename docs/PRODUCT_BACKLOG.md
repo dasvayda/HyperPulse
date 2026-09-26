@@ -307,7 +307,7 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
   - [x] `market_brief.py` 스냅샷 + template + LLM 쿨다운/검증
   - [x] Evidence 보드 (Prefer 정렬 + Top3 Consensus 카드)
   - [x] Dashboard 티저(헤드라인만) / Insights 전문 분리
-  - [x] agent.md / ARCHITECTURE / PRODUCT_BACKLOG 페이지 소유권·LLM 용도 기록
+  - [x] AGENTS.md / ARCHITECTURE / PRODUCT_BACKLOG 페이지 소유권·LLM 용도 기록
 
 #### BL-12 · Liquidation proximity (tracked whales)
 - [x] Done (2026-09-15)
