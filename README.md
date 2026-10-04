@@ -98,13 +98,28 @@ npm install
 npm run dev
 ```
 
-Dashboard: http://localhost:3000
+Dashboard: http://localhost:3100
 
-### Docker (full stack)
+### Docker (development)
 
 ```bash
 docker compose up --build
 ```
+
+The development stack mounts source code and runs the backend/frontend dev servers.
+
+### Docker (production-like)
+
+Set a strong `POSTGRES_PASSWORD` and the exact public frontend origin in
+`CORS_ORIGINS`, then run:
+
+```bash
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+The production stack builds the Next.js standalone server, runs Uvicorn
+without reload, keeps PostgreSQL/Redis off host ports, and waits for container
+healthchecks before starting dependants.
 
 ---
 
@@ -116,6 +131,7 @@ HyperPulse/
 ├── backend/           # FastAPI + collectors + AI services
 ├── docs/              # Architecture docs
 ├── docker-compose.yml
+├── docker-compose.prod.yml
 ├── AGENTS.md
 └── .env.example
 ```

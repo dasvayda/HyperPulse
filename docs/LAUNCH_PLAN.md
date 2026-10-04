@@ -48,11 +48,12 @@
 
 #### 배포
 
-- [ ] backend에서 `--reload` 제거
-- [ ] frontend를 `next build` + `next start`로 실행
-- [ ] 개발용 compose와 production compose 분리
+- [x] production backend에서 `--reload` 제거
+- [x] production frontend를 `next build` + standalone server로 실행
+- [x] 개발용 compose와 production compose 분리
 - [ ] HTTPS 및 도메인 연결
-- [ ] backend/frontend/DB/Redis healthcheck와 readiness 구분
+- [x] backend/frontend/DB/Redis 컨테이너 healthcheck 추가
+- [ ] 애플리케이션 readiness에서 DB/Redis/collector 상태 구분
 - [ ] 배포 및 rollback 절차를 문서화
 
 #### 데이터와 운영
@@ -77,7 +78,7 @@
 - [ ] `pytest`가 새 환경에서 바로 실행되도록 의존성 고정
 - [ ] backend 단위 테스트 전체 통과
 - [ ] API 통합 테스트 추가
-- [ ] frontend production build 통과
+- [x] frontend production build 통과
 - [ ] 핵심 화면 E2E smoke test 추가
 - [ ] collector 중단, DB 재시작, Telegram 실패, 외부 API timeout 시나리오 점검
 
