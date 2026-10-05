@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from html import escape
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -8,6 +9,7 @@ import httpx
 from app.config import settings
 from app.models.schemas import (
     AlertHistoryItem,
+    LiqProximityRow,
     LiquidationZone,
     StrategyInference,
     WhaleAlert,
@@ -24,6 +26,10 @@ logger = logging.getLogger(__name__)
 BIG_TRADE_MIN_USD = 2_000_000.0
 # Account value heuristic for "known big whale" framing.
 BIG_WHALE_ACCOUNT_MIN_USD = 5_000_000.0
+# Only Hyperliquid-provided liquidation prices are safe enough for Telegram.
+LIQ_PROXIMITY_WATCH_PCT = 5.0
+LIQ_PROXIMITY_DANGER_PCT = 2.0
+LIQ_PROXIMITY_COOLDOWN = timedelta(hours=6)
 
 
 def _utcnow() -> datetime:
@@ -105,6 +111,32 @@ def _is_recent_duplicate(
     return False
 
 
+def _has_recent_event_title(
+    event_type: str,
+    title: str,
+    *,
+    window: timedelta,
+) -> bool:
+    """Stable-key cooldown even when live distance text changes."""
+    cutoff = _utcnow() - window
+    for existing in store.alerts:
+        created_at = existing.created_at
+        if isinstance(created_at, datetime) and created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        try:
+            if created_at < cutoff:
+                break
+        except TypeError:
+            continue
+        if (
+            existing.event_type == event_type
+            and existing.title == title
+            and existing.status in {"sent", "queued"}
+        ):
+            return True
+    return False
+
+
 def _is_rate_limited(max_per_hour: int) -> bool:
     """Global hourly cap across every Telegram alert."""
     if max_per_hour <= 0:
@@ -150,6 +182,8 @@ def _limit_key_for_event(event_type: str) -> str:
         return "market_brief"
     if event_type == "squeeze_risk":
         return "squeeze"
+    if event_type == "liq_proximity":
+        return "liq_proximity"
     if event_type == "strategy_inference":
         return "style"
     return "other"
@@ -162,6 +196,7 @@ def _type_limit(limit_key: str) -> int:
         "consensus": settings.alert_limit_consensus_per_hour,
         "market_brief": settings.alert_limit_market_brief_per_hour,
         "squeeze": settings.alert_limit_squeeze_per_hour,
+        "liq_proximity": settings.alert_limit_liq_proximity_per_hour,
         "style": settings.alert_limit_style_per_hour,
     }
     return mapping.get(limit_key, settings.alert_max_per_hour)
@@ -174,6 +209,7 @@ def _type_prefixes(limit_key: str) -> tuple[str, ...]:
         "consensus": ("market_consensus",),
         "market_brief": ("market_brief",),
         "squeeze": ("squeeze_risk",),
+        "liq_proximity": ("liq_proximity",),
         "style": ("strategy_inference",),
     }
     return mapping.get(limit_key, (limit_key,))
@@ -651,6 +687,78 @@ async def send_whale_alert(alert: WhaleAlert) -> AlertHistoryItem | None:
     return None
 
 
+def select_liq_proximity_alert(
+    rows: list[LiqProximityRow] | None = None,
+) -> LiqProximityRow | None:
+    """Closest actionable tracked-whale risk using an actual HL liq price."""
+    if rows is None:
+        from app.services.liq_proximity import list_liq_proximity
+
+        rows = list_liq_proximity(limit=25)
+    eligible = [
+        row
+        for row in rows
+        if row.source == "liquidationPx"
+        and 0 < row.distance_pct <= LIQ_PROXIMITY_WATCH_PCT
+        and row.size_usd >= settings.alert_min_size_usd
+    ]
+    if not eligible:
+        return None
+    return min(eligible, key=lambda row: (row.distance_pct, -row.size_usd))
+
+
+def format_liq_proximity_lines(row: LiqProximityRow) -> tuple[str, list[str]]:
+    """Retail-readable tracked-whale liquidation warning."""
+    danger = row.distance_pct <= LIQ_PROXIMITY_DANGER_PCT
+    level = "DANGER" if danger else "WATCH"
+    side = row.side.value.upper()
+    title = f"LIQ {level} · {row.asset} {side} · {_short_addr(row.trader_address)}"
+    move = "falls" if row.side.value == "long" else "rises"
+    pressure = "forced selling" if row.side.value == "long" else "forced buying"
+    lines = [
+        f"<b>{title}</b>",
+        f"{escape(row.trader_alias)} · {_format_usd_short(row.size_usd)} {side} position",
+        (
+            f"Mark {_format_price(row.mark_price)} · liq {_format_price(row.liquidation_px)} "
+            f"· {row.distance_pct:.1f}% away"
+        ),
+        f"Watch {pressure} if {row.asset} {move} toward the liq price.",
+    ]
+    return title, lines
+
+
+async def send_liq_proximity_alert(
+    rows: list[LiqProximityRow] | None = None,
+) -> AlertHistoryItem | None:
+    if rows is None:
+        from app.services.liq_proximity import list_liq_proximity
+
+        rows = list_liq_proximity(limit=25)
+    remaining = list(rows)
+    while remaining:
+        row = select_liq_proximity_alert(remaining)
+        if row is None:
+            return None
+        remaining.remove(row)
+        title, lines = format_liq_proximity_lines(row)
+        # WATCH and DANGER have different titles, so worsening into the <=2%
+        # band can alert immediately. A cooled-down closest wallet must not
+        # starve the next eligible wallet for the whole six-hour window.
+        if _has_recent_event_title(
+            "liq_proximity",
+            title,
+            window=LIQ_PROXIMITY_COOLDOWN,
+        ):
+            continue
+        return await _dispatch(
+            "liq_proximity",
+            title,
+            lines,
+            row.model_dump(mode="json"),
+        )
+    return None
+
+
 async def send_squeeze_alert(zone: LiquidationZone) -> AlertHistoryItem | None:
     if zone.size_usd < 100_000_000:
         return None
@@ -703,6 +811,10 @@ async def process_alert_triggers(
     item = await send_market_consensus_alert()
     if item:
         created.append(item)
+
+    liq_item = await send_liq_proximity_alert()
+    if liq_item:
+        created.append(liq_item)
 
     candidates = list(whale_alerts or store.whale_alerts[:30])
     moves: list[WhaleAlert] = []

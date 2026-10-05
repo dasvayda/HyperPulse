@@ -75,6 +75,7 @@ Collectors -> Store/DB/Redis -> Feature/Ranking -> AI Inference -> Alerts -> API
 - AI provider auto-selects OpenAI/DeepSeek, otherwise heuristic classifier
 - Telegram alerts queue locally when bot token is missing
 - Telegram **Whale Move** ranks: size = wallet rank among all tracked; Smart Money = score rank among the 15 largest wallets (not the same ladder). Copy in `alerts.format_whale_move_lines`
+- Telegram **LIQ WATCH / DANGER** uses only Hyperliquid-provided `liquidationPx`: tracked position ≥ alert size floor and 0–5% from liquidation; ≤2% escalates to DANGER. Same wallet/asset/side/band cools down for 6h.
 - Telegram **Market Brief** digest: tape + Funding (1h) + Positioning + Read + Stance/Note. **Telegram cadence = Asia 09:00 KST + US 09:00 ET, 90-minute window, once per slot** (`brief_schedule.py`). Insights hero stays live (~20m). Snapshot-hash ticks do not send Telegram.
 
 ## Development Commands

@@ -386,6 +386,8 @@ Default local database is SQLite (`hyperpulse.db`). Tables:
 - `inference_results`
 - `alerts`
 - `market_briefs` (latest Market Brief for restart continuity)
+- `paper_strategies`, `paper_rosters` (BL-18 version/config + daily Top 5)
+- `whale_flows`, `paper_decisions`, `paper_trades`, `paper_positions`, `paper_equity_snapshots`
 
 Redis is optional. Cache falls back to process memory when Redis is down.
 
@@ -403,6 +405,7 @@ smart_money_score =
 
 - Whale entry/exit above confidence and size thresholds
 - Large liquidation zones (squeeze risk)
+- Tracked-whale liquidation proximity: actual `liquidationPx`, 5% WATCH / 2% DANGER, 6h per-band cooldown
 - High-confidence strategy inference updates
 
 Without `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`, alerts are stored with status `queued`.

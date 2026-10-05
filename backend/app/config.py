@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     alert_limit_consensus_per_hour: int = 2
     alert_limit_market_brief_per_hour: int = 1
     alert_limit_squeeze_per_hour: int = 1
+    # Allows one WATCH plus an immediate DANGER escalation in the same hour.
+    alert_limit_liq_proximity_per_hour: int = 2
     alert_limit_style_per_hour: int = 1
     # Max events of one type in a single process_alert_triggers cycle.
     alert_big_trade_per_cycle: int = 1

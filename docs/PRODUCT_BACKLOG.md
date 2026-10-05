@@ -36,7 +36,7 @@
 - [x] Coin Pulse live board (vol sort, OI bar, bias label, liq timeline)
 - [x] BL-05 Alert quality (entry/mark, uPnL/ROI, book %, stale, no Unknown)
 - [x] BL-11 Funding crowdedness callout
-- [x] Telegram alert mix — Consensus / Whale Move / Big Trade (short templates)
+- [x] Telegram alert mix — Consensus / Whale Move / Big Trade / LIQ WATCH·DANGER
 - [x] Telegram Market Brief digest (BL-14 TL;DR + desk prose + Stance; hash dedupe)
 - [x] Market Brief (LLM desk commentary + template fallback) + Insights evidence board
 - [x] BL-14/15/16/17 Binance-style Brief TL;DR, coin tabs, tension, chips
@@ -335,7 +335,7 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
 - 세부:
   - [x] distance 계산 (`liq_proximity.py`, collector parses `liquidationPx`)
   - [x] 리스트 UI (Liquidations · Closest Tracked Whales)
-  - [ ] (선택) alert
+  - [x] alert (2026-10-05: actual `liquidationPx` only, ≤5% WATCH / ≤2% DANGER, 6h band cooldown)
 
 #### BL-14 · Brief TL;DR strip (3 bullets)
 - [x] Done (2026-09-14)
