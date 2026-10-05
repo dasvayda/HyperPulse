@@ -8,7 +8,7 @@
 | | |
 |--|--|
 | 작성 | 2026-07-22 ~ 07-23 |
-| 갱신 | 2026-09-23 (15m Pulse signals — Evidence + Brief chip) |
+| 갱신 | 2026-10-05 (BL-18 Paper Portfolio 기획) |
 | 제품 목표 | [README Product Goals](../README.md#product-goals) |
 | 설계 제약 | [ARCHITECTURE](./ARCHITECTURE.md#product-goals--design-constraints) |
 | 벤치마크 참고 | [HyperTracker Perps](https://app.coinmarketman.com/hypertracker/perps) (시그널·UX만). [Binance AI Brief](./BINANCE_AI_BRIEF_REF.md) (답변 패턴만, 챗/TA 복제 아님) |
@@ -62,6 +62,7 @@
 - [x] **P1** BL-08 Copy-worthiness / due-diligence strip
 - [x] **P1** BL-09 userFills recent behavior
 - [x] **P1** BL-15 Coin-scoped Market Brief
+- [ ] **P1** BL-18 HyperPulse Paper Portfolio — $1,000 Forward Test
 - [x] **P2** BL-10 Market pulse strip (3 cards)
 - [x] **P2** BL-11 Funding crowdedness callout
 - [x] **P2** BL-12 Liquidation proximity (tracked whales)
@@ -274,6 +275,22 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
   - [x] open position과 정합성 표시 (`position_check`: Adding / Trimming / No open …)
 - **Rate limit:** 배경 루프에서 tracked 전체를 훑지 않음. 상세 페이지 요청 시 주소 1건만 + 캐시
 
+#### BL-18 · HyperPulse Paper Portfolio
+- [ ] Planned (2026-10-05)
+- **Why:** 신호 적중률이 아니라 whale signal과 시장 지표를 실제 규칙대로 혼합했을 때의 누적 손익·위험·비용을 보여줌
+- **Plan:** [HyperPulse Paper Portfolio 기획서 — 2026-10-05](./PAPER_PORTFOLIO_PLAN_2026-10-05.md)
+- **Deliverable:** $1,000 무레버리지 Forward Test 원장 + NAV/BTC benchmark/최대 낙폭/전체 거래 내역
+- **Launch:** Closed Beta 전 내부 Shadow Trading → 검증 후 공개 판단
+- **Non-goal:** 다년간 backtest warehouse, 실제 주문 실행, 결과가 좋은 기간만 선택한 성과
+- **Effort:** L
+- 세부:
+  - [ ] 전략 v1 입력·임계값·비용·포지션 규칙 동결 및 version hash 저장
+  - [ ] decision/order/trade/position/equity 독립 원장 구현
+  - [ ] fee/slippage/funding을 반영한 net NAV와 benchmark 계산
+  - [ ] 최소 30일·100개 완료 거래 Shadow Trading과 audit 검증
+  - [ ] Dashboard teaser + 상세 성과/거래/가정 페이지
+  - [ ] 가상 성과·손실 가능성·한계 고지 및 공개 전 컴플라이언스 검토
+
 ---
 
 ### P2 — 시장 맥락 (제품 노출 최대 1~2개)
@@ -399,6 +416,7 @@ BL-05 Alert quality
   → BL-17 starter chips
   → BL-16 price vs book (24h Δ 가능할 때)
   → BL-15 coin-scoped Brief
+  → BL-18 Paper Portfolio (Shadow Trading부터 시작)
 ```
 
 한 화면에 동시 상륙 금지. 완료 후 “트레이더 다음 행동에 쓰는가?”로 검수.
@@ -416,6 +434,7 @@ BL-05 Alert quality
 | `userFills` / ByTime | BL-01, 09 |
 | `openOrders` (later) | BL-X4 재검토 시 |
 | 기존 Brief snapshot만 | BL-14, 15, 17 |
+| whale book + cohort + funding + liq + Pulse | BL-18 |
 
 ---
 
