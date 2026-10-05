@@ -152,3 +152,129 @@ class PulseResultRow(Base):
     return_bps: Mapped[float | None] = mapped_column(Float, nullable=True)
     hit: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1/0/null
     resolved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PaperStrategyRow(Base):
+    """Mutable account state for one immutable paper-strategy version."""
+
+    __tablename__ = "paper_strategies"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    version: Mapped[str] = mapped_column(String(64))
+    config_json: Mapped[str] = mapped_column(Text, default="{}")
+    config_hash: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(16), default="shadow")
+    initial_cash: Mapped[float] = mapped_column(Float, default=1000.0)
+    cash: Mapped[float] = mapped_column(Float, default=1000.0)
+    realized_pnl: Mapped[float] = mapped_column(Float, default=0.0)
+    cumulative_fees: Mapped[float] = mapped_column(Float, default=0.0)
+    cumulative_slippage: Mapped[float] = mapped_column(Float, default=0.0)
+    cumulative_funding: Mapped[float] = mapped_column(Float, default=0.0)
+    benchmark_start_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    peak_nav: Mapped[float] = mapped_column(Float, default=1000.0)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PaperRosterRow(Base):
+    """Daily frozen Top-5 Smart Money roster used by decisions."""
+
+    __tablename__ = "paper_rosters"
+
+    id: Mapped[str] = mapped_column(String(96), primary_key=True)
+    strategy_id: Mapped[str] = mapped_column(String(64), index=True)
+    roster_date: Mapped[str] = mapped_column(String(10), index=True)
+    members_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WhaleFlowRow(Base):
+    """Signed position-notional delta from consecutive collector snapshots."""
+
+    __tablename__ = "whale_flows"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    trader_address: Mapped[str] = mapped_column(String(64), index=True)
+    asset: Mapped[str] = mapped_column(String(32), index=True)
+    delta_usd: Mapped[float] = mapped_column(Float)
+    previous_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    current_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class PaperDecisionRow(Base):
+    """Immutable hourly evidence and desired/effective portfolio action."""
+
+    __tablename__ = "paper_decisions"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    strategy_id: Mapped[str] = mapped_column(String(64), index=True)
+    bucket: Mapped[str] = mapped_column(String(32), index=True)
+    asset: Mapped[str] = mapped_column(String(32), index=True)
+    roster_json: Mapped[str] = mapped_column(Text, default="[]")
+    position_signal: Mapped[str] = mapped_column(String(24), default="mixed")
+    position_long_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    flow_signal: Mapped[str] = mapped_column(String(24), default="unavailable")
+    flow_long_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    trend: Mapped[str] = mapped_column(String(16), default="mixed")
+    return_1h_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    return_4h_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    raw_action: Mapped[str] = mapped_column(String(16), default="wait")
+    action: Mapped[str] = mapped_column(String(16), default="wait")
+    target_weight: Mapped[float] = mapped_column(Float, default=0.0)
+    risk_json: Mapped[str] = mapped_column(Text, default="{}")
+    reason: Mapped[str] = mapped_column(Text, default="")
+    mark_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class PaperTradeRow(Base):
+    __tablename__ = "paper_trades"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    strategy_id: Mapped[str] = mapped_column(String(64), index=True)
+    decision_id: Mapped[str] = mapped_column(String(128), index=True)
+    asset: Mapped[str] = mapped_column(String(32), index=True)
+    side: Mapped[str] = mapped_column(String(8))
+    action: Mapped[str] = mapped_column(String(16))
+    quantity: Mapped[float] = mapped_column(Float)
+    mark_price: Mapped[float] = mapped_column(Float)
+    fill_price: Mapped[float] = mapped_column(Float)
+    notional_usd: Mapped[float] = mapped_column(Float)
+    fee_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    slippage_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    realized_pnl_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class PaperPositionRow(Base):
+    __tablename__ = "paper_positions"
+
+    id: Mapped[str] = mapped_column(String(96), primary_key=True)
+    strategy_id: Mapped[str] = mapped_column(String(64), index=True)
+    asset: Mapped[str] = mapped_column(String(32), index=True)
+    direction: Mapped[str] = mapped_column(String(8))
+    quantity: Mapped[float] = mapped_column(Float)
+    average_entry: Mapped[float] = mapped_column(Float)
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PaperEquityRow(Base):
+    __tablename__ = "paper_equity_snapshots"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    strategy_id: Mapped[str] = mapped_column(String(64), index=True)
+    bucket: Mapped[str] = mapped_column(String(32), index=True)
+    cash: Mapped[float] = mapped_column(Float)
+    gross_exposure_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    unrealized_pnl_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    realized_pnl_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    nav: Mapped[float] = mapped_column(Float)
+    return_pct: Mapped[float] = mapped_column(Float, default=0.0)
+    benchmark_nav: Mapped[float | None] = mapped_column(Float, nullable=True)
+    drawdown_pct: Mapped[float] = mapped_column(Float, default=0.0)
+    cumulative_fees: Mapped[float] = mapped_column(Float, default=0.0)
+    cumulative_slippage: Mapped[float] = mapped_column(Float, default=0.0)
+    cumulative_funding: Mapped[float] = mapped_column(Float, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)

@@ -21,6 +21,10 @@ import type {
   WhaleAlert,
   WhaleBookSummary,
   PerformanceRankingResponse,
+  PaperEquityPoint,
+  PaperPortfolioSummary,
+  PaperPortfolioTrade,
+  PaperStrategyDetail,
 } from "@/types";
 
 const API_URL =
@@ -170,6 +174,26 @@ export function getMarketPulse(topN = 20): Promise<MarketPulse> {
 
 export function getFearGreed(): Promise<FearGreedIndex | null> {
   return fetchApi("/api/v2/fear-greed");
+}
+
+export function getPaperPortfolioSummary(): Promise<PaperPortfolioSummary> {
+  return fetchApi("/api/v2/paper-portfolio/summary", { cache: "no-store" });
+}
+
+export function getPaperEquity(limit = 1000): Promise<PaperEquityPoint[]> {
+  return fetchApi(`/api/v2/paper-portfolio/equity?limit=${limit}`, {
+    cache: "no-store",
+  });
+}
+
+export function getPaperTrades(limit = 100): Promise<PaperPortfolioTrade[]> {
+  return fetchApi(`/api/v2/paper-portfolio/trades?limit=${limit}`, {
+    cache: "no-store",
+  });
+}
+
+export function getPaperStrategy(): Promise<PaperStrategyDetail> {
+  return fetchApi("/api/v2/paper-portfolio/strategy", { cache: "no-store" });
 }
 
 export function formatConfidence(value: number): string {

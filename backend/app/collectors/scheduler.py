@@ -38,6 +38,13 @@ async def _collect_cycle() -> None:
     await collect_liquidation_events()
     await collect_whale_events()
     try:
+        from app.services.paper_portfolio import run_paper_portfolio
+
+        if run_paper_portfolio():
+            logger.info("Paper Portfolio hourly decision recorded")
+    except Exception:
+        logger.exception("Paper Portfolio cycle failed")
+    try:
         from app.services.pulse import resolve_due_pulses
 
         n = resolve_due_pulses()

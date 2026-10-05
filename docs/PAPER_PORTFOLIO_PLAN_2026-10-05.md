@@ -3,7 +3,7 @@
 | 항목 | 내용 |
 |---|---|
 | 작성일 | 2026-10-05 |
-| 상태 | 제안 · 구현 전 |
+| 상태 | 구현 완료 · Shadow 관찰 전 |
 | Backlog | [PRODUCT_BACKLOG.md · BL-18](./PRODUCT_BACKLOG.md#bl-18--hyperpulse-paper-portfolio) |
 | Launch 단계 | [Closed Beta](./LAUNCH_PLAN.md#phase-2--closed-beta)에서 Shadow Trading, 공개는 Phase 3 판단 |
 
@@ -291,10 +291,10 @@ ETH·SOL을 포함한 복합 벤치마크는 MVP 이후 검토한다. 비교 대
 
 ### Stage A — 내부 Shadow Trading
 
-- [ ] v1 입력과 규칙 확정 및 config hash 생성
-- [ ] 독립 원장과 결정 audit trail 구현
+- [x] v1 입력과 규칙 확정 및 config hash 생성
+- [x] 독립 원장과 결정 audit trail 구현
 - [ ] $1,000 포트폴리오를 내부에서 시작
-- [ ] 재시작·중복 스케줄에도 주문이 한 번만 생성되는지 검증
+- [x] 재시작·중복 스케줄에도 주문이 한 번만 생성되는지 검증
 - [ ] 최소 30일 및 100개 완료 거래 중 더 늦은 조건까지 관찰
 - [ ] 비용 누락, stale 데이터, 장애 구간을 샘플 검수
 
@@ -362,6 +362,15 @@ ETH·SOL을 포함한 복합 벤치마크는 MVP 이후 검토한다. 비교 대
 BL-18은 HyperPulse의 핵심 신호가 실제 거래 의사결정에 어떤 결과를 만드는지 보여주는 **제품 신뢰 기능**으로 추진할 가치가 있다. 단, 공개용 차트를 먼저 만들지 않고 독립 원장, 고정 전략, 비용 반영, audit trail을 먼저 완성한다.
 
 MVP 성공 기준은 높은 수익률이 아니다. **성과가 좋든 나쁘든 동일한 규칙과 전체 기록을 사용자가 검증할 수 있는 상태**가 성공 기준이다.
+
+### 구현 위치
+
+- 전략·원장·NAV: `backend/app/services/paper_portfolio.py`
+- collector flow 연결: `backend/app/collectors/whales.py`
+- 매시 idempotent 평가: `backend/app/collectors/scheduler.py`
+- API: `/api/v2/paper-portfolio/{summary,equity,positions,trades,strategy}`
+- UI: `/performance` 및 Dashboard Paper Portfolio teaser
+- 검증: `backend/tests/test_paper_portfolio.py`
 
 ## 13. 외부 참고
 

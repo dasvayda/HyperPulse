@@ -478,3 +478,74 @@ class MarketBrief(BaseModel):
     source: str = "template"  # llm | template
     snapshot_hash: str = ""
     pulse: PulseSnapshot | None = None
+
+
+class PaperPortfolioPosition(BaseModel):
+    asset: str
+    direction: str
+    quantity: float
+    average_entry: float
+    mark_price: float | None = None
+    notional_usd: float
+    unrealized_pnl_usd: float
+    weight_pct: float
+    updated_at: datetime
+
+
+class PaperPortfolioTrade(BaseModel):
+    id: str
+    asset: str
+    side: str
+    action: str
+    quantity: float
+    mark_price: float
+    fill_price: float
+    notional_usd: float
+    fee_usd: float
+    slippage_usd: float
+    realized_pnl_usd: float
+    created_at: datetime
+
+
+class PaperEquityPoint(BaseModel):
+    nav: float
+    benchmark_nav: float | None = None
+    drawdown_pct: float
+    created_at: datetime
+
+
+class PaperPortfolioSummary(BaseModel):
+    strategy_id: str
+    version: str
+    status: str
+    initial_cash: float
+    nav: float
+    return_pct: float
+    benchmark_nav: float | None = None
+    benchmark_return_pct: float | None = None
+    max_drawdown_pct: float
+    cash: float
+    gross_exposure_usd: float
+    realized_pnl_usd: float
+    unrealized_pnl_usd: float
+    cumulative_fees: float
+    cumulative_slippage: float
+    cumulative_funding: float
+    trades_count: int
+    closed_trades_count: int
+    win_rate: float | None = None
+    current_positions: list[PaperPortfolioPosition] = Field(default_factory=list)
+    last_decisions: list[dict] = Field(default_factory=list)
+    started_at: datetime
+    updated_at: datetime
+    warming_up: bool = True
+    disclosure: str
+
+
+class PaperStrategyDetail(BaseModel):
+    strategy_id: str
+    version: str
+    status: str
+    config_hash: str
+    config: dict
+    started_at: datetime

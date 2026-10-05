@@ -418,3 +418,85 @@ export interface MarketBrief {
   snapshot_hash?: string;
   pulse?: PulseSnapshot | null;
 }
+
+export interface PaperPortfolioPosition {
+  asset: string;
+  direction: "long" | "short";
+  quantity: number;
+  average_entry: number;
+  mark_price: number | null;
+  notional_usd: number;
+  unrealized_pnl_usd: number;
+  weight_pct: number;
+  updated_at: string;
+}
+
+export interface PaperPortfolioTrade {
+  id: string;
+  asset: string;
+  side: "buy" | "sell";
+  action: "open" | "increase" | "reduce" | "close";
+  quantity: number;
+  mark_price: number;
+  fill_price: number;
+  notional_usd: number;
+  fee_usd: number;
+  slippage_usd: number;
+  realized_pnl_usd: number;
+  created_at: string;
+}
+
+export interface PaperEquityPoint {
+  nav: number;
+  benchmark_nav: number | null;
+  drawdown_pct: number;
+  created_at: string;
+}
+
+export interface PaperDecision {
+  asset: string;
+  position_signal: string;
+  flow_signal: string;
+  trend: string;
+  action: "long" | "short" | "wait";
+  target_weight_pct: number;
+  reason: string;
+  as_of: string;
+}
+
+export interface PaperPortfolioSummary {
+  strategy_id: string;
+  version: string;
+  status: string;
+  initial_cash: number;
+  nav: number;
+  return_pct: number;
+  benchmark_nav: number | null;
+  benchmark_return_pct: number | null;
+  max_drawdown_pct: number;
+  cash: number;
+  gross_exposure_usd: number;
+  realized_pnl_usd: number;
+  unrealized_pnl_usd: number;
+  cumulative_fees: number;
+  cumulative_slippage: number;
+  cumulative_funding: number;
+  trades_count: number;
+  closed_trades_count: number;
+  win_rate: number | null;
+  current_positions: PaperPortfolioPosition[];
+  last_decisions: PaperDecision[];
+  started_at: string;
+  updated_at: string;
+  warming_up: boolean;
+  disclosure: string;
+}
+
+export interface PaperStrategyDetail {
+  strategy_id: string;
+  version: string;
+  status: string;
+  config_hash: string;
+  config: Record<string, unknown>;
+  started_at: string;
+}

@@ -244,6 +244,8 @@ async def collect_whale_events() -> list[WhaleAlert]:
 
     alerts: list[WhaleAlert] = []
     positions_snapshot: list[WhalePosition] = []
+    previous_positions = list(store.whale_positions)
+    observed_addresses: set[str] = set()
     traders_by_addr = {t.address: t for t in store.traders}
 
     # Fetch concurrently (bounded) instead of one-by-one: sequential requests for
@@ -256,6 +258,7 @@ async def collect_whale_events() -> list[WhaleAlert]:
     for address, state in results:
         if state is None:
             continue
+        observed_addresses.add(address.lower())
         positions = _extract_positions(state)
         for pos in positions:
             asset = pos["asset"]
@@ -376,7 +379,24 @@ async def collect_whale_events() -> list[WhaleAlert]:
             _LAST_SIZES[key] = size
             _LAST_USD[key] = usd_size
 
-    store.update_whale_book(positions_snapshot, updated_at=store.last_collect_at or _utcnow())
+    # A failed request is unknown, not an exit. Preserve its last positions so
+    # the next successful cycle cannot create a false Paper Portfolio flow.
+    positions_snapshot.extend(
+        p for p in previous_positions if p.trader_address.lower() not in observed_addresses
+    )
+    flow_at = store.last_collect_at or _utcnow()
+    try:
+        from app.services.paper_portfolio import record_whale_flows
+
+        record_whale_flows(
+            previous_positions,
+            positions_snapshot,
+            observed_addresses=observed_addresses,
+            at=flow_at,
+        )
+    except Exception:
+        logger.exception("Paper Portfolio whale-flow persistence failed")
+    store.update_whale_book(positions_snapshot, updated_at=flow_at)
 
     if alerts:
         with store._lock:

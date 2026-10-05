@@ -16,6 +16,11 @@ from app.models.schemas import (
     MarketInsight,
     MarketPulse,
     MarketStatus,
+    PaperEquityPoint,
+    PaperPortfolioPosition,
+    PaperPortfolioSummary,
+    PaperPortfolioTrade,
+    PaperStrategyDetail,
     PerformanceRankingResponse,
     PipelineStatus,
     SmartMoneyRank,
@@ -31,6 +36,13 @@ from app.services.liq_proximity import list_liq_proximity
 from app.services.liq_windows import pressure_line, rollup_liq_windows
 from app.services.market_brief import generate_market_brief
 from app.services.market_pulse import compute_market_pulse
+from app.services.paper_portfolio import (
+    get_equity_curve,
+    get_paper_summary,
+    get_strategy_detail,
+    get_trades,
+    run_paper_portfolio,
+)
 from app.services.ranking import (
     PERFORMANCE_BASE_THRESHOLD_USD,
     PERFORMANCE_TARGET,
@@ -421,6 +433,36 @@ def market_pulse(
     return compute_market_pulse(top_n=top_n)
 
 
+@router.get("/paper-portfolio/summary", response_model=PaperPortfolioSummary)
+def paper_portfolio_summary() -> PaperPortfolioSummary:
+    """BL-18: net $1,000 forward-test result and latest Top-5 decisions."""
+    return get_paper_summary()
+
+
+@router.get("/paper-portfolio/equity", response_model=list[PaperEquityPoint])
+def paper_portfolio_equity(
+    limit: int = Query(default=1000, ge=1, le=5000),
+) -> list[PaperEquityPoint]:
+    return get_equity_curve(limit=limit)
+
+
+@router.get("/paper-portfolio/positions", response_model=list[PaperPortfolioPosition])
+def paper_portfolio_positions() -> list[PaperPortfolioPosition]:
+    return get_paper_summary().current_positions
+
+
+@router.get("/paper-portfolio/trades", response_model=list[PaperPortfolioTrade])
+def paper_portfolio_trades(
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[PaperPortfolioTrade]:
+    return get_trades(limit=limit)
+
+
+@router.get("/paper-portfolio/strategy", response_model=PaperStrategyDetail)
+def paper_portfolio_strategy() -> PaperStrategyDetail:
+    return get_strategy_detail()
+
+
 @router.post("/pipeline/run", response_model=PipelineStatus)
 async def run_pipeline_now() -> PipelineStatus:
     from app.collectors.hyperliquid import collect_market_snapshot
@@ -428,6 +470,7 @@ async def run_pipeline_now() -> PipelineStatus:
     await collect_market_snapshot()
     results = await run_inference_pipeline()
     run_ranking_pipeline()
+    run_paper_portfolio()
     await process_alert_triggers(
         whale_alerts=store.whale_alerts[:3],
         zones=[z for z in store.liquidation_zones if z.size_usd >= 100_000_000][:2],

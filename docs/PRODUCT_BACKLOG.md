@@ -62,7 +62,7 @@
 - [x] **P1** BL-08 Copy-worthiness / due-diligence strip
 - [x] **P1** BL-09 userFills recent behavior
 - [x] **P1** BL-15 Coin-scoped Market Brief
-- [ ] **P1** BL-18 HyperPulse Paper Portfolio — $1,000 Forward Test
+- [ ] **P1** BL-18 HyperPulse Paper Portfolio — 구현 완료, Shadow 관찰 중
 - [x] **P2** BL-10 Market pulse strip (3 cards)
 - [x] **P2** BL-11 Funding crowdedness callout
 - [x] **P2** BL-12 Liquidation proximity (tracked whales)
@@ -276,7 +276,7 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
 - **Rate limit:** 배경 루프에서 tracked 전체를 훑지 않음. 상세 페이지 요청 시 주소 1건만 + 캐시
 
 #### BL-18 · HyperPulse Paper Portfolio
-- [ ] Planned (2026-10-05)
+- [ ] Implemented (2026-10-05) · 30일/100거래 Shadow 검증 후 완료 처리
 - **Why:** 전체 고래 평균이 아니라 Top 5 Whale/최근 Top 5 거래대금의 방향을 시장 trend로 검증했을 때의 누적 손익·위험·비용을 보여줌
 - **Plan:** [HyperPulse Paper Portfolio 기획서 — 2026-10-05](./PAPER_PORTFOLIO_PLAN_2026-10-05.md)
 - **Deliverable:** $1,000 무레버리지 Forward Test 원장 + NAV/BTC benchmark/최대 낙폭/전체 거래 내역
@@ -284,12 +284,12 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
 - **Non-goal:** 다년간 backtest warehouse, 실제 주문 실행, 결과가 좋은 기간만 선택한 성과
 - **Effort:** L
 - 세부:
-  - [ ] `top5_whale_trend_v1` 명단·합의·flow·trend·위험 감점 규칙 동결 및 version hash 저장
-  - [ ] Top 5 Smart Money 일별 명단과 position delta 기반 최근 1h Top 5 net flow audit snapshot 저장
-  - [ ] decision/order/trade/position/equity 독립 원장 구현
-  - [ ] fee/slippage/funding을 반영한 net NAV와 benchmark 계산
+  - [x] `top5_whale_trend_v1` 명단·합의·flow·trend·위험 감점 규칙 동결 및 version hash 저장
+  - [x] Top 5 Smart Money 일별 명단과 position delta 기반 최근 1h Top 5 net flow audit snapshot 저장
+  - [x] decision/order/trade/position/equity 독립 원장 구현
+  - [x] fee/slippage/funding을 반영한 net NAV와 benchmark 계산
   - [ ] 최소 30일·100개 완료 거래 Shadow Trading과 audit 검증
-  - [ ] Dashboard teaser + 상세 성과/거래/가정 페이지
+  - [x] Dashboard teaser + 상세 성과/거래/가정 페이지
   - [ ] 가상 성과·손실 가능성·한계 고지 및 공개 전 컴플라이언스 검토
 
 ---

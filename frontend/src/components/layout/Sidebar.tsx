@@ -13,6 +13,7 @@ import {
   Brain,
   Trophy,
   Send,
+  ChartNoAxesCombined,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { href: "/traders", label: "Ranking", icon: Trophy },
   { href: "/rankings", label: "Smart Money", icon: Users },
   { href: "/insights", label: "AI Insights", icon: Brain },
+  { href: "/performance", label: "Paper Portfolio", icon: ChartNoAxesCombined },
   { href: "/liquidations", label: "Liquidations", icon: Flame },
   { href: "/alerts", label: "Alerts", icon: Send },
 ];

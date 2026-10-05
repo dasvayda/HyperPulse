@@ -21,6 +21,7 @@ import { WhaleBiasPanel } from "@/components/ui/WhaleBiasPanel";
 import { CohortBiasPanel } from "@/components/ui/CohortBiasPanel";
 import { ScoreMeter } from "@/components/ui/ScoreMeter";
 import { pulseChipLabel } from "@/components/ui/PulseBar";
+import { PaperPortfolioCard } from "@/components/ui/PaperPortfolioCard";
 import {
   getDashboardStats,
   getWhaleAlerts,
@@ -37,6 +38,7 @@ import {
   getCohortBias,
   getMarketPulse,
   getFearGreed,
+  getPaperPortfolioSummary,
   formatUsd,
   formatTimeAgo,
   formatConfidence,
@@ -44,6 +46,8 @@ import {
   formatFundingPct,
   formatPrice,
 } from "@/lib/api";
+
+export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const [
@@ -62,6 +66,7 @@ export default async function HomePage() {
     cohortBias,
     marketPulse,
     fearGreed,
+    paperPortfolio,
   ] = await Promise.all([
     getDashboardStats(),
     getWhaleAlerts(),
@@ -78,6 +83,7 @@ export default async function HomePage() {
     getCohortBias(),
     getMarketPulse(),
     getFearGreed().catch(() => null),
+    getPaperPortfolioSummary(),
   ]);
 
   const recentAlerts = alerts.slice(0, 5);
@@ -231,6 +237,10 @@ export default async function HomePage() {
           change={fearGreedChange}
           positive={fearGreedPositive}
         />
+      </div>
+
+      <div className="mb-8">
+        <PaperPortfolioCard summary={paperPortfolio} compact />
       </div>
 
       <div className="mb-8">
