@@ -277,14 +277,15 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
 
 #### BL-18 · HyperPulse Paper Portfolio
 - [ ] Planned (2026-10-05)
-- **Why:** 신호 적중률이 아니라 whale signal과 시장 지표를 실제 규칙대로 혼합했을 때의 누적 손익·위험·비용을 보여줌
+- **Why:** 전체 고래 평균이 아니라 Top 5 Whale/최근 Top 5 거래대금의 방향을 시장 trend로 검증했을 때의 누적 손익·위험·비용을 보여줌
 - **Plan:** [HyperPulse Paper Portfolio 기획서 — 2026-10-05](./PAPER_PORTFOLIO_PLAN_2026-10-05.md)
 - **Deliverable:** $1,000 무레버리지 Forward Test 원장 + NAV/BTC benchmark/최대 낙폭/전체 거래 내역
 - **Launch:** Closed Beta 전 내부 Shadow Trading → 검증 후 공개 판단
 - **Non-goal:** 다년간 backtest warehouse, 실제 주문 실행, 결과가 좋은 기간만 선택한 성과
 - **Effort:** L
 - 세부:
-  - [ ] 전략 v1 입력·임계값·비용·포지션 규칙 동결 및 version hash 저장
+  - [ ] `top5_whale_trend_v1` 명단·합의·flow·trend·위험 감점 규칙 동결 및 version hash 저장
+  - [ ] Top 5 Smart Money 일별 명단과 position delta 기반 최근 1h Top 5 net flow audit snapshot 저장
   - [ ] decision/order/trade/position/equity 독립 원장 구현
   - [ ] fee/slippage/funding을 반영한 net NAV와 benchmark 계산
   - [ ] 최소 30일·100개 완료 거래 Shadow Trading과 audit 검증

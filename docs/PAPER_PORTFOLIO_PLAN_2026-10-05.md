@@ -54,54 +54,110 @@ BL-X5의 다년간 backtest warehouse 보류와 충돌하지 않는다. BL-18은
 
 ## 4. 전략 v1 초안
 
-전략 식별자는 `hyperpulse_composite_v1`을 사용한다. 아래 값은 구현 시 확정·동결할 초기안이며, 공개 성과가 시작된 뒤 같은 버전에서 변경하지 않는다.
+전략 식별자는 `top5_whale_trend_v1`을 사용한다. 모든 고래와 시장 지표를 하나의 점수로 섞지 않는다. **Top 5 Whale의 방향을 먼저 정하고, 최근 거래대금과 시장 추세가 그 방향을 확인할 때만 거래한다.** Funding과 liquidation은 방향 신호가 아니라 포지션을 줄이는 위험 필터다.
 
-### 4.1 입력 신호
+아래 값은 Shadow Trading 시작 전에 확정·동결할 초기안이며, 공개 성과가 시작된 뒤 같은 버전에서 변경하지 않는다.
 
-| 신호군 | 현재 소스 | 전략에서의 역할 |
-|---|---|---|
-| Whale positioning | whale book, fresh entries | 큰 지갑의 long/short 방향과 신규 포지션 확인 |
-| Smart Money divergence | smart vs rest cohort | 상위 지갑과 나머지 지갑의 방향 차이 확인 |
-| Funding | `metaAndAssetCtxs` | 한쪽으로 과도하게 몰린 포지션 감점 |
-| Liquidation pressure | 1h/4h liquidation rollup | 단기 강제 청산 방향과 강도 확인 |
-| Price/book tension | 24h 가격 변화 vs whale book | 가격과 포지셔닝 충돌 시 확신 축소 |
-| 15m Pulse | `rules_v1` direction/probabilities | 짧은 구간의 진입 타이밍 보조 |
+### 4.1 평가 주기와 대상
 
-LLM이 매매 방향이나 주문을 직접 결정하지 않는다. Market Brief 문장은 설명에만 사용하고, 주문 판단은 저장된 구조화 데이터와 버전이 고정된 규칙으로 수행한다.
+- 평가 주기: 매시 정각 1회
+- 거래 대상: BTC, ETH, SOL
+- 판단 단위: 자산별 독립 판단
+- 출력: LONG / SHORT / WAIT와 목표 비중
+- 필수 데이터가 stale이거나 누락되면 해당 자산은 신규 진입하지 않는다.
 
-### 4.2 Composite score
+LLM이 매매 방향이나 주문을 결정하지 않는다. Market Brief 문장은 설명에만 사용하고, 모든 판단은 저장된 구조화 데이터와 버전이 고정된 규칙으로 수행한다.
 
-- 각 신호군을 `-1.0 ~ +1.0`으로 정규화한다.
-- 양수는 LONG, 음수는 SHORT, 0 부근은 CASH를 뜻한다.
-- 신호군별 가중치와 결측 처리 규칙을 `strategy_versions.config_json`에 저장한다.
-- 필수 신호가 stale이면 신규 진입하지 않는다.
-- 서로 강하게 충돌하는 신호는 방향을 강제하지 않고 CASH 구간을 넓힌다.
+### 4.2 1차 방향 — Top 5 Whale 포지션
 
-초기 진입 기준안:
+Top 5 Whale은 판단 시점에 이용 가능한 Smart Money ranking 상위 5개 지갑이다. 매일 00:00 UTC의 최신 ranking으로 그날의 명단을 고정하고 `rank_snapshot_id`, 주소, 순위, score를 decision과 함께 보존한다.
 
-- score `>= +0.35`: LONG 후보
-- score `<= -0.35`: SHORT 후보
-- score `-0.20 ~ +0.20`: 기존 포지션 청산 후 CASH
-- 그 사이 구간: 기존 포지션 유지, 신규 진입 없음
+자산별 방향 계산:
 
-임계값은 Shadow Trading 시작 전에 확정한다. Shadow 결과의 손익을 보고 유리한 값만 골라 공개하는 방식은 금지한다.
+1. Top 5 중 해당 자산의 유효 포지션을 가진 지갑만 사용한다.
+2. LONG notional은 양수, SHORT notional은 음수로 본다.
+3. 한 지갑이 전체 판단을 지배하지 않도록 지갑별 가중치는 최대 30%로 제한한다.
+4. 유효 포지션 지갑이 3개 미만이면 합의 없음으로 처리한다.
+5. 최소 3개 지갑이 같은 방향이고, 제한 적용 후 notional의 65% 이상이 그 방향이면 `LONG_CONSENSUS` 또는 `SHORT_CONSENSUS`다.
+6. 조건을 만족하지 않으면 `MIXED`이며 Top 5 포지션만으로는 거래하지 않는다.
 
-### 4.3 포지션 크기
+오래 유지된 큰 포지션은 방향을 보여주지만 현재 진입 타이밍까지 보장하지 않는다. 따라서 다음 단계에서 최근 거래 흐름을 별도로 확인한다.
 
-- 자산별 기본 목표 비중: NAV의 25%
-- 강한 신호 구간의 최대 목표 비중: NAV의 40%
+### 4.3 2차 방향 — 최근 Top 5 Whale 거래대금
+
+최근 1시간 동안 주기적으로 수집된 `clearinghouseState` 포지션 snapshot의 차이로 고래별 자산 노출 변화를 USD로 계산하고, 절대 변화액이 큰 서로 다른 지갑 5개를 선택한다. 동일 지갑의 여러 snapshot 변화는 하나의 net flow로 합쳐 반복 변화가 Top 5를 독점하지 않게 한다.
+
+방향성 노출 변화는 다음처럼 계산한다.
+
+- LONG 추가 또는 SHORT 청산: 양수 flow
+- SHORT 추가 또는 LONG 청산: 음수 flow
+- 단순 체결 side가 아니라 **포지션 노출이 늘거나 줄어든 방향**을 사용한다.
+
+유효 flow가 3개 이상이고 거래대금의 60% 이상이 같은 방향이면 `LONG_FLOW` 또는 `SHORT_FLOW`, 아니면 `MIXED_FLOW`다. position snapshot이나 delta가 불완전하면 flow를 억지로 추정하지 않고 `FLOW_UNAVAILABLE`로 남긴다.
+
+이 계산을 위해 `userFillsByTime`을 추적 지갑 전체에 배경 호출하지 않는다. Trader detail 요청으로 이미 캐시된 fill은 audit 보조 자료로만 사용할 수 있으며, 전략의 필수 입력은 collector가 보유한 position snapshot delta다.
+
+### 4.4 시장 Trend 검증
+
+시장 Trend는 새로운 거래 방향을 만들지 않고 Whale 방향을 승인하거나 거부한다. 캔들 기반 MACD 같은 별도 TA를 추가하지 않고 저장된 mark snapshot으로 계산한다.
+
+초기 기준안:
+
+- `UP`: 1h 수익률 `> +0.15%`이고 4h 수익률 `> 0%`
+- `DOWN`: 1h 수익률 `< -0.15%`이고 4h 수익률 `< 0%`
+- 그 외: `MIXED`
+
+임계값, 가격 소스, 허용 가능한 snapshot 지연은 전략 config에 저장한다. 15m Pulse와 OI 변화는 판단 근거 화면에 보조 정보로 표시할 수 있지만 v1의 진입 필수 조건이나 별도 방향 투표로 사용하지 않는다.
+
+### 4.5 최종 결정
+
+| Top 5 포지션 | 최근 Top 5 flow | 시장 Trend | 결정 | 기본 목표 비중 |
+|---|---|---|---|---:|
+| LONG | LONG | UP | LONG | NAV의 40% |
+| SHORT | SHORT | DOWN | SHORT | NAV의 40% |
+| LONG | MIXED/UNAVAILABLE | UP | LONG | NAV의 20% |
+| SHORT | MIXED/UNAVAILABLE | DOWN | SHORT | NAV의 20% |
+| MIXED | LONG | UP | LONG | NAV의 20% |
+| MIXED | SHORT | DOWN | SHORT | NAV의 20% |
+| LONG | SHORT | 모든 상태 | WAIT | 0% |
+| SHORT | LONG | 모든 상태 | WAIT | 0% |
+| LONG | 모든 상태 | DOWN/MIXED | WAIT | 0% |
+| SHORT | 모든 상태 | UP/MIXED | WAIT | 0% |
+| MIXED | MIXED/UNAVAILABLE | 모든 상태 | WAIT | 0% |
+
+Top 5 포지션과 flow가 충돌하면 Trend가 한쪽과 같더라도 거래하지 않는다. Top 5 포지션 합의가 없더라도 최근 대형 flow와 Trend가 일치하면 작은 포지션만 허용한다.
+
+### 4.6 위험 감점
+
+Funding과 liquidation은 LONG/SHORT을 새로 결정하지 않는다. 최종 방향이 나온 뒤 다음 조건에서만 목표 비중을 줄인다.
+
+- 진입 방향과 같은 쪽의 funding이 전략 config의 extreme 기준을 넘으면 목표 비중을 절반으로 축소한다.
+- 최근 liquidation 데이터가 비정상적으로 크거나 stale이면 목표 비중을 절반으로 축소하거나 신규 진입을 건너뛴다.
+- 두 감점이 동시에 발생하면 신규 진입하지 않고 WAIT한다.
+- 감점 사유와 적용 전·후 목표 비중을 decision에 저장한다.
+
+Funding이나 liquidation 수치가 반대 방향을 가리킨다는 이유만으로 반대 포지션을 열지는 않는다.
+
+### 4.7 포지션 제한
+
+- 자산별 최대 목표 비중: NAV의 40%
 - 전체 절대 익스포저 합계: NAV의 100% 이하
+- 여러 자산이 동시에 한도를 넘으면 `40% 신호 → 20% 신호 → 자산 거래대금` 순으로 배정하고 비례 축소한다.
 - 같은 방향의 반복 신호는 목표 비중을 초과해 누적하지 않는다.
+- 레버리지는 사용하지 않는다.
 - 데이터 stale, 가격 누락, 비용 계산 실패 시 주문을 생성하지 않는다.
 
-### 4.4 진입과 청산
+### 4.8 진입과 청산
 
 - 판단 시점의 mark로 즉시 체결한 것으로 간주하지 않는다.
 - 신호 결정 이후 처음 수집된 유효 시장 스냅샷 가격에 슬리피지를 적용해 체결한다.
-- 반대 방향 진입은 기존 포지션을 먼저 청산한 뒤 새 주문으로 기록한다.
-- score가 CASH 구간으로 돌아오거나 반대 임계값을 넘으면 청산한다.
-- 최대 보유 시간은 v1 동결 전에 확정하며, 임의의 수동 청산은 허용하지 않는다.
+- 동일한 최종 결정이 두 번 연속 확인된 뒤 신규 진입하거나 비중을 확대해 일시적 데이터 변동을 줄인다.
+- 기존 포지션의 근거가 사라져 WAIT가 두 번 연속 나오면 전량 청산한다.
+- 반대 방향 결정이 두 번 연속 나오면 기존 포지션을 먼저 청산한 뒤 새 방향으로 진입한다.
+- 수동 청산과 손익을 보고 정하는 임의 최대 보유 시간은 사용하지 않는다.
 - 시스템 장애 중에는 가상 체결을 소급 생성하지 않는다. 해당 구간은 `execution_skipped`로 남긴다.
+
+모든 비율과 임계값은 Shadow Trading 시작 전에 config hash로 고정한다. Shadow 결과의 손익을 보고 유리한 값만 골라 공개하는 방식은 금지한다.
 
 ## 5. 회계와 체결 가정
 
@@ -151,7 +207,8 @@ ETH·SOL을 포함한 복합 벤치마크는 MVP 이후 검토한다. 비교 대
 
 - 평가 시각과 자산
 - 입력 신호 값과 원본 snapshot 참조
-- composite score와 LONG / SHORT / CASH 결정
+- Top 5 ranking 명단, 포지션 합의, 최근 Top 5 flow, 1h/4h trend
+- 위험 감점 전·후 목표 비중과 LONG / SHORT / WAIT 결정
 - stale·결측·충돌에 따른 실행 제외 사유
 
 ### `paper_orders` / `paper_trades`
