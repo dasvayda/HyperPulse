@@ -140,7 +140,8 @@
 - [ ] 로그인 또는 초대 링크 기반 접근 제공
 - [ ] 첫 방문 온보딩 추가
 - [ ] HyperPulse가 추적하는 대상과 데이터 갱신 주기 설명
-- [ ] Telegram 채널 가입 링크를 `/alerts`와 온보딩에 노출
+- [x] Telegram 채널 가입 링크를 `/alerts`에 노출 (`NEXT_PUBLIC_TELEGRAM_CHANNEL_URL`; public URL 또는 private invite URL)
+- [ ] 첫 방문 온보딩에도 Telegram 채널 가입 링크 노출
 - [ ] 알림이 없거나 데이터가 stale일 때 명확한 안내 제공
 - [ ] 문의/버그 신고 경로 제공
 - [ ] Telegram 알림에서 관련 코인·고래·청산 근거 화면으로 이동하는 deep link 제공

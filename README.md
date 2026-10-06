@@ -243,6 +243,9 @@ COLLECTOR_ENABLED=true
 `staging`, set `PIPELINE_RUN_TOKEN` and send it in the `X-Pipeline-Token` header.
 The endpoint returns `503` instead of running when the token is not configured.
 
+Set `NEXT_PUBLIC_TELEGRAM_CHANNEL_URL` to a Telegram public-channel or private-invite
+URL to show the beta join button on `/alerts`.
+
 ---
 
 ## Roadmap
