@@ -70,7 +70,7 @@
 - [x] 개발용 compose와 production compose 분리
 - [ ] HTTPS 및 도메인 연결
 - [x] backend/frontend/DB/Redis 컨테이너 healthcheck 추가
-- [ ] 애플리케이션 readiness에서 DB/Redis/collector 상태 구분
+- [x] 애플리케이션 readiness에서 DB/Redis/collector 상태 구분 (`GET /health/ready`; Redis memory fallback 별도 표시)
 - [ ] 배포 및 rollback 절차를 문서화
 
 #### 데이터와 운영

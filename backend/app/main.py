@@ -4,12 +4,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.collectors.scheduler import run_bootstrap_pipeline, start_background_tasks, stop_background_tasks
 from app.config import settings
 from app.db import init_db
 from app.routers import api, v2, v3
 from app.services.store import store
+from app.services.readiness import get_readiness
 
 logging.basicConfig(
     level=logging.INFO,
@@ -72,3 +74,18 @@ def health() -> dict[str, str | bool]:
         "telegram_configured": status.telegram_configured,
         "ai_provider": status.ai_provider,
     }
+
+
+@app.get("/health/ready")
+def readiness() -> JSONResponse:
+    """Readiness for deploys: DB and fresh collector must be healthy.
+
+    Redis fallback is reported separately and remains usable for the initial
+    single-instance release, so it does not alone make the service unready.
+    """
+
+    result = get_readiness()
+    return JSONResponse(
+        status_code=200 if result.status == "ready" else 503,
+        content=result.model_dump(mode="json"),
+    )

@@ -94,6 +94,10 @@ uvicorn app.main:app --reload --port 8000
 
 API docs: http://localhost:8000/docs
 
+Liveness: `GET /health`. Deployment readiness: `GET /health/ready` returns
+per-dependency DB, cache, and collector state; it returns `503` when the DB or
+collector is not ready.
+
 ### 3. Frontend
 
 ```bash

@@ -58,3 +58,12 @@ def cache_get(key: str) -> Any | None:
     if payload is None:
         return None
     return json.loads(payload)
+
+
+def cache_backend_status() -> tuple[str, str]:
+    """Return the active cache mode without treating Redis fallback as an outage."""
+
+    client = _get_redis()
+    if client is not None:
+        return "ok", "Redis cache connected"
+    return "fallback", "Redis unavailable; using in-memory cache"

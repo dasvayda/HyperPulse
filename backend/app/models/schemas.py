@@ -412,6 +412,22 @@ class PipelineStatus(BaseModel):
     data_source: str
 
 
+class ReadinessComponent(BaseModel):
+    """One operational dependency, reported independently in readiness."""
+
+    status: str
+    detail: str
+    checked_at: datetime
+    last_success_at: datetime | None = None
+
+
+class ReadinessStatus(BaseModel):
+    status: str
+    database: ReadinessComponent
+    cache: ReadinessComponent
+    collector: ReadinessComponent
+
+
 class MarketStatus(BaseModel):
     top_asset: str | None = None
     last_snapshot_at: datetime | None
