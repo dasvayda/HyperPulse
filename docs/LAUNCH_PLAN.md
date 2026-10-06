@@ -1,5 +1,11 @@
 # HyperPulse Launch Plan
 
+| | |
+|--|--|
+| 갱신 | 2026-10-06 (공개 런칭 중간 점검) |
+| 현재 판단 | 핵심 제품 MVP 완료 · Closed Beta 조건부 가능 · 공개 런칭 준비 미완료 |
+| 기능 백로그 | [PRODUCT_BACKLOG.md](./PRODUCT_BACKLOG.md) |
+
 ## 목적
 
 현재 HyperPulse는 핵심 분석 기능과 Telegram 채널 알림이 구현된 상태다. 이 문서는 기능 backlog와 별도로, 실제 사용자에게 서비스를 제공하기 위한 운영 준비와 출시 기준을 정의한다.
@@ -15,15 +21,25 @@
 ## 현재 상태 요약
 
 - 핵심 제품 기능: 대부분 완료
-- Telegram: 단일 채널 발송 가능
+- Telegram: 단일 채널 발송 가능, Whale Move/Big Trade/Market Brief/LIQ WATCH·DANGER 운영
+- Paper Portfolio: `$1,000` Forward Test 구현 완료, Shadow 관찰 중
 - 프론트 production build: 컴파일 및 타입 검사 통과
-- 백엔드 단위 테스트: 환경 의존성 정비 필요
+- 백엔드 단위 테스트: 2026-10-06 기준 `69 passed, 1 skipped`
 - 인증/사용자 계정: 없음
 - 사용자별 Telegram 구독: 없음
-- production Docker 설정: 개발용 실행 모드와 기본 자격 증명 정비 필요
+- production Docker 설정: 개발/production compose 분리와 컨테이너 healthcheck 완료, 실제 배포·rollback 검증 필요
 - 모니터링/알림/백업: 운영 수준 보완 필요
 
-따라서 현재는 공개 런칭 직전이 아니라, 운영 기반을 먼저 마련해야 하는 단계다.
+제품의 핵심 가치는 검증 가능한 상태다. 상위 고래 포지션, 최근 흐름, 시장 trend, funding과 실제 `liquidationPx`를 짧은 판단과 Telegram 알림으로 묶는 구성은 Hyperliquid 재량 트레이더에게 명확한 사용 이유가 있다.
+
+다만 현재는 공개 런칭 직전이 아니다. **초대 기반 Closed Beta를 준비하는 단계**이며, 불특정 사용자 대상 공개 전에는 아래 네 가지 게이트를 모두 통과해야 한다.
+
+| 공개 런칭 게이트 | 현재 | 핵심 미완료 항목 |
+|---|---|---|
+| 운영 안전성 | 미완료 | 인증, 운영 API 보호, migration, 백업/복구, 장애 감지 |
+| 데이터 신뢰 | 일부 완료 | 화면별 freshness, coverage·출처·판단 근거, degraded mode |
+| 사용자 관련성 | 미완료 | 관심 코인/알림 선택, Telegram deep link, 가입·해지 동선 |
+| 성과 표현 | 관찰 중 | Paper Portfolio 30일·100개 완료 거래, 한계 고지, 컴플라이언스 |
 
 ---
 
@@ -73,10 +89,18 @@
 - [ ] 서비스 장애 및 Telegram 발송 실패 알림 채널 마련
 - [ ] 운영자용 상태 확인 절차 작성
 
+#### 데이터 신뢰 표시
+
+- [ ] Dashboard, Insights, Whale Alerts, Liquidations, Ranking에 `as of`와 stale 상태를 일관되게 표시
+- [ ] tracked whale 표본의 규모와 coverage를 전체 Hyperliquid 시장으로 오해하지 않도록 설명
+- [ ] 주요 시그널에서 사용한 지갑/rank, 포지션 delta, 시장 확인 근거를 확인할 수 있는 provenance 화면 또는 펼침 영역 제공
+- [ ] collector 일부 실패 시 마지막 정상 데이터와 degraded 상태를 구분하고 새 데이터처럼 표시하지 않음
+- [ ] Smart Money Score와 whale rank의 산정 기준·한계를 사용자 가까이에 공개
+
 #### 검증
 
-- [ ] `pytest`가 새 환경에서 바로 실행되도록 의존성 고정
-- [ ] backend 단위 테스트 전체 통과
+- [x] `pytest` 실행 의존성 고정
+- [x] backend 단위 테스트 전체 통과 (`69 passed, 1 skipped` · 2026-10-06)
 - [ ] API 통합 테스트 추가
 - [x] frontend production build 통과
 - [ ] 핵심 화면 E2E smoke test 추가
@@ -118,6 +142,7 @@
 - [ ] Telegram 채널 가입 링크를 `/alerts`와 온보딩에 노출
 - [ ] 알림이 없거나 데이터가 stale일 때 명확한 안내 제공
 - [ ] 문의/버그 신고 경로 제공
+- [ ] Telegram 알림에서 관련 코인·고래·청산 근거 화면으로 이동하는 deep link 제공
 
 #### Telegram 운영
 
@@ -134,6 +159,16 @@
 - [ ] Hyperliquid 데이터 누락/지연 케이스 확인
 - [ ] Smart Money, whale size, funding, liquidation 문구가 실제 원천 데이터와 일치하는지 샘플 검수
 - [ ] AI 결과가 실패하거나 heuristic fallback으로 전환될 때 UI가 오해를 만들지 않는지 확인
+- [ ] Whale/Smart Money 시그널의 15분·1시간 후 가격 결과를 표본 검수해 잘못된 해석 패턴 기록
+
+#### Paper Portfolio 검증
+
+- [x] `top5_whale_trend_v1` 규칙·비용 가정·version hash 동결
+- [x] `$1,000` Forward Test 원장과 NAV/BTC benchmark/최대 낙폭/거래 내역 구현
+- [ ] 최소 30일 및 100개 완료 거래 Shadow Trading 확보
+- [ ] 거래·equity·수수료·slippage·funding 계산 audit 표본 검증
+- [ ] Beta 화면에 `실험 전략`, 가상 체결, 손실 가능성, 표본 수를 명확히 표시
+- [ ] 관찰 중인 수익률을 마케팅 성과나 실제 수익 보장처럼 사용하지 않음
 
 #### 제품 지표
 
@@ -153,6 +188,7 @@
 - Telegram 발송 성공률과 장애 대응 절차가 확인된다.
 - 가장 빈번한 사용자 피드백을 backlog에 반영하거나 의도적으로 보류한다.
 - 운영자가 하루 1회 상태 점검으로 서비스 상태를 파악할 수 있다.
+- Paper Portfolio가 공개되는 경우 기간·거래 수·비용·최대 낙폭과 전체 이력이 함께 보인다.
 
 ### 중단 조건
 
@@ -179,14 +215,31 @@
 - [ ] rate limit과 abuse 방지 적용
 - [ ] API 및 frontend 오류 페이지 정비
 - [ ] 사용자별 Telegram 구독/해지 필요 여부 결정
+- [ ] 최소 관심 코인 watchlist와 알림 종류 on/off 제공
+- [ ] Telegram 가입·해지·알림 빈도·지연 가능성을 한 화면에서 안내
 - [ ] 비용 상한과 외부 API 사용량 모니터링 설정
 - [ ] 온콜 또는 장애 대응 담당자와 대응 시간 정의
+- [ ] tracked whale 표본, Smart Money Score, AI/heuristic 사용 여부를 서비스 내에서 설명
+- [ ] Paper Portfolio 공개 조건 충족 여부와 공개 시작일·전략 버전·전체 이력 고정
+
+### 공개 런칭 제품 계약
+
+공개 서비스의 첫 화면과 알림은 다음 질문에 답해야 한다.
+
+1. **무슨 일이 생겼는가?** — 가격·포지션·funding·liq 변화
+2. **누가 어느 방향인가?** — tracked Top whale/Smart Money의 표본과 방향
+3. **사용자가 무엇을 확인해야 하는가?** — Long/Short/Wait 또는 위험 축소 행동
+4. **얼마나 최신이고 믿을 수 있는가?** — as-of, stale, coverage, source
+
+AI 문장 자체를 핵심 가치로 판매하지 않는다. 공개 런칭의 핵심 약속은 **상위 고래 포지션 + 최근 흐름 + 시장 상태 + 청산 위험을 검증 가능한 근거와 함께 빠르게 전달하는 것**이다.
 
 ### 출시 방식
 
-- 소규모 invite-only 공개
-- 안정성 확인 후 초대 범위 확대
-- 대규모 홍보는 오류율과 비용 지표가 안정된 후 진행
+1. 5~20명 private Closed Beta
+2. watchlist·가입 동선·운영 지표를 갖춘 invite-only 공개
+3. 30일 안정성 확인 후 공개 가입 확대
+
+대규모 홍보와 Paper Portfolio 성과 홍보는 오류율, 비용, Shadow 표본과 컴플라이언스 검토가 안정된 후 진행한다.
 
 ### Phase 3 종료 기준
 
@@ -208,8 +261,36 @@
 - Binance식 자유 대화형 AI 채팅
 - 고급 주문/stop radar
 - 개인화된 portfolio coach
+- 실제 주문 실행 또는 지갑 서명 권한 요청
 
 이 기능들은 현재 제품 목표와 운영 리스크를 고려해 공개 런칭 이후 별도 판단한다.
+
+읽기 전용 Hyperliquid 주소 연결과 포지션 기반 알림은 실제 주문 기능과 분리한다. 초기 공개 런칭의 필수 조건은 아니지만, watchlist 다음의 최우선 개인화 후보로 둔다.
+
+## 실행 우선순위
+
+### L0 — Closed Beta를 열기 전에
+
+1. 인증/초대 접근과 `POST /api/v2/pipeline/run` 보호
+2. 전 화면 freshness/degraded 상태와 tracked-sample 설명
+3. Telegram 가입 링크·deep link·발송 성공/실패 기록
+4. PostgreSQL migration, 백업/복구, rollback 검증
+5. collector/Telegram 장애 알림과 운영 runbook
+
+### L1 — Invite-only 공개 전에
+
+1. 관심 코인 watchlist와 알림 on/off
+2. provenance 상세: 사용 지갑, rank, delta, market confirmation
+3. 이용약관·개인정보·투자 비조언·데이터 한계 고지
+4. API rate limit, abuse 방지, 기본 부하 테스트
+5. Paper Portfolio Shadow 기준 충족 또는 공개 화면 비활성화 유지
+
+### L2 — 공개 가입 확대 전에
+
+1. 30일 안정 운영과 오류·비용 상한 확인
+2. 알림 결과의 15분·1시간 사후 측정
+3. 읽기 전용 지갑 연결과 포지션 연계 알림의 우선순위 재평가
+4. 사용자 피드백과 이탈 원인을 근거로 유료 기능 범위 결정
 
 ## 의사결정 기준
 

@@ -35,6 +35,8 @@ Design implications are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.m
 
 Feature backlog (benchmark + checklist): [docs/PRODUCT_BACKLOG.md](docs/PRODUCT_BACKLOG.md).
 
+Public launch gates and rollout criteria: [docs/LAUNCH_PLAN.md](docs/LAUNCH_PLAN.md). Feature completion does not by itself mean production readiness.
+
 Solo repo: ship finished work on `main` (see [AGENTS.md](AGENTS.md)). PRs are not a review gate.
 
 ---
@@ -51,6 +53,8 @@ Solo repo: ship finished work on `main` (see [AGENTS.md](AGENTS.md)). PRs are no
 | 2 | Smart Money Ranking | Done | `/rankings`, `/api/v2/rankings` |
 | 2 | Telegram Alerts | Done | `/alerts`, `/api/v2/alerts` |
 | 2 | Collectors + Persistence | Done | `/api/v2/pipeline/status` |
+| 2 | Paper Portfolio | Shadow validation | `/performance`, `/api/v2/paper-portfolio/*` |
+| Launch | Public production readiness | In progress | [Launch Plan](docs/LAUNCH_PLAN.md) |
 
 Phase 2 runs a background pipeline: collectors → store/DB → ranking → AI inference → Telegram alerts.
 
@@ -209,6 +213,11 @@ Nansen-inspired dark FinTech dashboard:
 | GET | `/api/v2/inferences` | Strategy classifications |
 | GET | `/api/v2/alerts` | Telegram alert history |
 | GET | `/api/v2/pipeline/status` | Collector/inference status |
+| GET | `/api/v2/insights/brief` | Market or coin-scoped Market Brief |
+| GET | `/api/v2/whale-book/liq-proximity` | Tracked positions near actual liquidation price |
+| GET | `/api/v2/paper-portfolio/summary` | `$1,000` forward-test summary |
+| GET | `/api/v2/paper-portfolio/equity` | Paper NAV and benchmark history |
+| GET | `/api/v2/paper-portfolio/trades` | Completed paper trades |
 | POST | `/api/v2/pipeline/run` | Force one pipeline cycle |
 
 ---

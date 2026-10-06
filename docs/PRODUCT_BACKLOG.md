@@ -8,7 +8,7 @@
 | | |
 |--|--|
 | 작성 | 2026-07-22 ~ 07-23 |
-| 갱신 | 2026-10-05 (BL-18 Paper Portfolio 기획) |
+| 갱신 | 2026-10-06 (공개 런칭 준비 항목 정리) |
 | 제품 목표 | [README Product Goals](../README.md#product-goals) |
 | 설계 제약 | [ARCHITECTURE](./ARCHITECTURE.md#product-goals--design-constraints) |
 | 벤치마크 참고 | [HyperTracker Perps](https://app.coinmarketman.com/hypertracker/perps) (시그널·UX만). [Binance AI Brief](./BINANCE_AI_BRIEF_REF.md) (답변 패턴만, 챗/TA 복제 아님) |
@@ -69,6 +69,19 @@
 - [x] **P2** BL-14 Brief TL;DR strip (3 bullets)
 - [x] **P2** BL-16 Price vs whale-book tension
 - [x] **P2** BL-17 Insights starter prompts
+
+### Launch readiness
+
+기능 구현과 공개 승인은 분리한다. 아래 항목의 상세 체크리스트와 종료 기준은 [LAUNCH_PLAN.md](./LAUNCH_PLAN.md)에서 관리한다.
+
+- [ ] **L0** 운영 안전성 — 인증/운영 API 보호, migration, 백업·복구, 장애 감지
+- [ ] **L0** 데이터 신뢰 — 전 화면 freshness/degraded, tracked-sample coverage, provenance
+- [ ] **L0** Telegram Beta 동선 — 가입 링크, 화면 deep link, 발송 성공·실패 기록
+- [ ] **L1** 사용자 관련성 — 관심 코인 watchlist와 알림 종류 on/off
+- [ ] **L1** 공개 정책 — 약관, 개인정보, 투자 비조언, 데이터·가상 체결 한계 고지
+- [ ] **L1** BL-18 공개 게이트 — 최소 30일·100개 완료 거래, audit, 컴플라이언스
+
+현재 판정은 **핵심 제품 MVP 완료 · Closed Beta 조건부 가능 · 공개 런칭 준비 미완료**다. 기능 체크박스가 완료되어도 위 런칭 게이트를 통과하기 전에는 production-ready로 표시하지 않는다.
 
 ### Deferred (의도적 보류)
 
