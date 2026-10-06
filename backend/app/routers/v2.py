@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
@@ -52,6 +52,7 @@ from app.services.ranking import (
     select_smart_money_ranks,
 )
 from app.services.store import store
+from app.security import require_pipeline_run_token
 from app.services.whale_book import (
     asset_market_tag,
     list_biggest_positions,
@@ -464,7 +465,9 @@ def paper_portfolio_strategy() -> PaperStrategyDetail:
 
 
 @router.post("/pipeline/run", response_model=PipelineStatus)
-async def run_pipeline_now() -> PipelineStatus:
+async def run_pipeline_now(
+    _: None = Depends(require_pipeline_run_token),
+) -> PipelineStatus:
     from app.collectors.hyperliquid import collect_market_snapshot
 
     await collect_market_snapshot()

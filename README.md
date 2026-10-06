@@ -235,6 +235,10 @@ AI_PROVIDER=auto
 COLLECTOR_ENABLED=true
 ```
 
+`POST /api/v2/pipeline/run` is an operator endpoint. In `production`, `prod`, or
+`staging`, set `PIPELINE_RUN_TOKEN` and send it in the `X-Pipeline-Token` header.
+The endpoint returns `503` instead of running when the token is not configured.
+
 ---
 
 ## Roadmap

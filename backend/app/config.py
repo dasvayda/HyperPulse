@@ -7,6 +7,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 
 class Settings(BaseSettings):
+    environment: str = "development"
     database_url: str = "sqlite:///./hyperpulse.db"
     redis_url: str = "redis://localhost:6379/0"
     cors_origins: str = "http://localhost:3100"
@@ -14,6 +15,7 @@ class Settings(BaseSettings):
     api_port: int = 8100
     api_docs_enabled: bool = True
     cors_allow_credentials: bool = False
+    pipeline_run_token: str = ""
 
     # Hyperliquid
     hyperliquid_api_url: str = "https://api.hyperliquid.xyz"
@@ -78,6 +80,10 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",")]
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment.strip().lower() in {"production", "prod", "staging"}
 
     @property
     def telegram_configured(self) -> bool:

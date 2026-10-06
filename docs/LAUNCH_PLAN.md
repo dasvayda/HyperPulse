@@ -55,6 +55,7 @@
 
 - [ ] 최소한의 사용자 인증 또는 초대 기반 접근 제어 추가
 - [ ] 모든 공개 API와 특히 pipeline 실행 API 보호
+- [x] `POST /api/v2/pipeline/run` 운영 토큰 보호 (production/staging에서 토큰 미설정 시 fail closed)
 - [ ] production CORS 도메인 제한
 - [x] API 문서 노출을 `API_DOCS_ENABLED`로 제어
 - [x] CORS credential 허용을 `CORS_ALLOW_CREDENTIALS`로 제어하고 기본값을 비활성화
