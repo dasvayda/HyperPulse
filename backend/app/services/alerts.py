@@ -740,9 +740,6 @@ def format_whale_move_lines(alert: WhaleAlert) -> tuple[str, list[str]]:
     title = f"WHALE MOVE · {side} {action} {alert.asset}"
 
     line2 = f"{alert.trader_alias} {side} position {_format_usd_short(alert.size_usd)} @ {alert.leverage:.0f}x"
-    avg_entry = _format_price(alert.entry_price)
-    if avg_entry:
-        line2 = f"{line2} · avg entry {avg_entry}"
 
     bits: list[str] = []
     if alert.whale_long_pct is not None:
@@ -784,9 +781,6 @@ async def send_big_trade(alert: WhaleAlert) -> AlertHistoryItem | None:
     title = f"BIG TRADE · {side} {action} {alert.asset}"
 
     line2 = f"{side} position {_format_usd_short(alert.size_usd)} @ {alert.leverage:.0f}x"
-    avg_entry = _format_price(alert.entry_price)
-    if avg_entry:
-        line2 = f"{line2} · avg entry {avg_entry}"
 
     lines = [
         f"<b>{title}</b>",

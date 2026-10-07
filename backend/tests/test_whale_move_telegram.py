@@ -149,7 +149,7 @@ def test_whale_move_copy_labels_price_delta_and_ranks(monkeypatch):
     text = "\n".join(lines)
     assert title == "WHALE MOVE · LONG POSITION UP BTC"
     assert "LONG position $2.4M @ 3x" in text
-    assert "avg entry $86,222" in text
+    assert "avg entry" not in text
     assert "Snapshot change: up $547K" in text
     assert "Fills not verified" in text
     assert "Wallet $68.3M · 8th largest of 100 tracked" in text
@@ -181,6 +181,6 @@ def test_whale_move_copy_uses_verified_fill_price_not_position_average(monkeypat
     )
     text = "\n".join(lines)
 
-    assert "avg entry $86,222" in text
+    assert "avg entry" not in text
     assert "Verified fills: opened $547K @ $86,800–$86,810" in text
     assert "Snapshot change" not in text
