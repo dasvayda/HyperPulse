@@ -1,6 +1,7 @@
 "use client";
 
 import { Search } from "lucide-react";
+import { DataFreshnessIndicator } from "@/components/ui/DataFreshnessIndicator";
 
 export function Header() {
   return (
@@ -20,6 +21,7 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-3">
+        <DataFreshnessIndicator />
         <span className="hidden md:inline text-xs text-text-muted bg-bg-surface border border-border rounded-lg px-3 py-1.5">
           Hyperliquid Intelligence Platform
         </span>

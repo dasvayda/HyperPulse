@@ -92,7 +92,7 @@
 
 #### 데이터 신뢰 표시
 
-- [ ] Dashboard, Insights, Whale Alerts, Liquidations, Ranking에 `as of`와 stale 상태를 일관되게 표시
+- [x] Dashboard, Insights, Whale Alerts, Liquidations, Ranking에 collector freshness/stale 상태를 전역 헤더로 일관되게 표시
 - [ ] tracked whale 표본의 규모와 coverage를 전체 Hyperliquid 시장으로 오해하지 않도록 설명
 - [ ] 주요 시그널에서 사용한 지갑/rank, 포지션 delta, 시장 확인 근거를 확인할 수 있는 provenance 화면 또는 펼침 영역 제공
 - [ ] collector 일부 실패 시 마지막 정상 데이터와 degraded 상태를 구분하고 새 데이터처럼 표시하지 않음
