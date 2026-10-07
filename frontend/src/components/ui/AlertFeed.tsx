@@ -14,6 +14,20 @@ const statusVariant: Record<string, "accent" | "default" | "short"> = {
   failed: "short",
 };
 
+/** Historical Telegram rows preserve their payload, but not misleading copy. */
+function isLegacySnapshotCopy(title: string, message: string): boolean {
+  return /\b(one-shot|added)\b|FRESH ENTRY|\b(?:LONG|SHORT) (?:IN|OUT)\b/i.test(
+    `${title}\n${message}`,
+  );
+}
+
+function displayAlertTitle(title: string): string {
+  return title
+    .replace(/FRESH ENTRY/gi, "POSITION UP")
+    .replace(/\b(LONG|SHORT) IN\b/gi, "$1 POSITION UP")
+    .replace(/\b(LONG|SHORT) OUT\b/gi, "$1 POSITION DOWN");
+}
+
 /** Drop the title line when the stored message repeats it (Telegram payload). */
 function alertBody(title: string, message: string): string {
   const lines = message
@@ -24,7 +38,11 @@ function alertBody(title: string, message: string): string {
     lines[0]?.toLowerCase() === title.trim().toLowerCase()
       ? lines.slice(1)
       : lines;
-  return body.join(" · ") || message;
+  return (body.join(" · ") || message)
+    .replace(/\bone-shot\b/gi, "position")
+    .replace(/ · entry /gi, " · avg entry ")
+    .replace(/ · added /gi, " · snapshot change ")
+    .replace(/\b(?:entered|exited) (LONG|SHORT) /gi, "$1 position ");
 }
 
 export function AlertFeed({
@@ -48,10 +66,12 @@ export function AlertFeed({
     <div
       className={`rounded-xl border border-border bg-bg-surface divide-y divide-border-subtle overflow-hidden ${className}`}
     >
-      {items.map((alert) => (
+      {items.map((alert) => {
+        const legacySnapshot = isLegacySnapshotCopy(alert.title, alert.message);
+        return (
         <div key={alert.id} className="p-4 flex flex-col gap-2">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-medium text-text-primary">{alert.title}</p>
+            <p className="text-sm font-medium text-text-primary">{displayAlertTitle(alert.title)}</p>
             <div className="flex items-center gap-2 shrink-0">
               <Badge variant={statusVariant[alert.status] ?? "default"}>
                 {alert.status}
@@ -67,8 +87,14 @@ export function AlertFeed({
           <p className="text-xs text-text-dim">
             {alert.channel} · {alert.event_type}
           </p>
+          {legacySnapshot ? (
+            <p className="text-xs text-text-dim">
+              Legacy snapshot alert · fills not verified
+            </p>
+          ) : null}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
