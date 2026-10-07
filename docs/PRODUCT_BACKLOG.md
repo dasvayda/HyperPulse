@@ -75,7 +75,7 @@
 기능 구현과 공개 승인은 분리한다. 아래 항목의 상세 체크리스트와 종료 기준은 [LAUNCH_PLAN.md](./LAUNCH_PLAN.md)에서 관리한다.
 
 - [ ] **L0** 운영 안전성 — 인증/운영 API 보호, migration, 백업·복구, 장애 감지
-- [ ] **L0** 데이터 신뢰 — 전 화면 freshness/degraded, tracked-sample coverage, provenance
+- [ ] **L0** 데이터 신뢰 — 전 화면 freshness/degraded, tracked-sample coverage, provenance (Smart Money score/rank 한계 공개 완료; provenance·degraded 잔여)
 - [ ] **L0** Telegram Beta 동선 — 가입 링크, 화면 deep link, 발송 성공·실패 기록
 - [ ] **L1** 사용자 관련성 — 관심 코인 watchlist와 알림 종류 on/off
 - [ ] **L1** 공개 정책 — 약관, 개인정보, 투자 비조언, 데이터·가상 체결 한계 고지

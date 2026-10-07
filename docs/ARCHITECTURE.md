@@ -393,13 +393,15 @@ Redis is optional. Cache falls back to process memory when Redis is down.
 
 ## Ranking formula
 
-```
-smart_money_score =
-  win_rate * 0.35 +
-  momentum * 0.25 +
-  consistency * 0.25 +
-  risk_adjustment * 0.15
-```
+`Smart Money` first selects the 15 largest **tracked** accounts by account
+value, then orders only that cohort by a historical track-record score. It is
+not a rating of an open position and must not be presented as a copy-trade
+signal.
+
+In the normal live-leaderboard path (no fill-level win-rate history), the score
+is all-time PnL 35%, all-time ROI peer rank 30%, PnL consistency 20%, and swing
+adjustment 15%. When fill-level win rate or trade counts exist, win rate is
+20% and the other components are reweighted in `services/ranking.py`.
 
 ## Alert triggers
 

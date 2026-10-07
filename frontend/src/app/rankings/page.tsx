@@ -19,7 +19,7 @@ import { getRankings, getPipelineStatus, formatUsd, formatConfidence } from "@/l
 const SMART_MONEY_SCORE_HELP = (
   <>
     <p className="mb-2 font-medium text-text-primary">
-      Score out of 100 — bar fill = how close to max
+      Historical track-record score out of 100
     </p>
     <ul className="mb-2 list-disc space-y-1 pl-4">
       <li>All-time PnL (log-normalized among peers): 35%</li>
@@ -29,7 +29,8 @@ const SMART_MONEY_SCORE_HELP = (
     </ul>
     <p className="text-text-dim">
       When fill-level win rate / trade counts exist, the score also blends win
-      rate (20%) and reweights the other terms. Higher is better.
+      rate (20%) and reweights the other terms. It does not rate a trader&apos;s
+      current position or tell you to copy a trade.
     </p>
   </>
 );
@@ -41,7 +42,7 @@ export default async function RankingsPage() {
     <DashboardLayout>
       <PageHeader
         title="Smart Money"
-        description="Top 15 accounts by asset size, ordered by Smart Money Score"
+        description="15 largest tracked accounts, sorted by historical track record"
       />
 
       <TrackedSampleNotice tracked={pipeline.traders_tracked} />
@@ -171,9 +172,11 @@ export default async function RankingsPage() {
       </DataTable>
 
       <p className="text-xs text-text-dim mt-4">
-        Universe: top 15 traders by account value. Sort: Smart Money Score
-        (PnL 35% + ROI peer 30% + consistency 20% + swing adj 15%). For Open
-        ROI / PnL performance board, see Ranking.
+        Selection: the 15 largest tracked accounts by account value. Sort:
+        historical track record (all-time PnL, ROI among tracked peers,
+        consistency, and swing adjustment). This is not a rating of an open
+        position or a copy-trade signal. For current open ROI / PnL, use the
+        Ranking board.
       </p>
     </DashboardLayout>
   );
