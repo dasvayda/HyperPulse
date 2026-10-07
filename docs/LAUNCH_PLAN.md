@@ -144,7 +144,7 @@
 - [ ] 첫 방문 온보딩에도 Telegram 채널 가입 링크 노출
 - [ ] 알림이 없거나 데이터가 stale일 때 명확한 안내 제공
 - [ ] 문의/버그 신고 경로 제공
-- [ ] Telegram 알림에서 관련 코인·고래·청산 근거 화면으로 이동하는 deep link 제공
+- [x] Telegram 알림에서 관련 고래·청산·Market Brief 근거 화면으로 이동하는 deep link 제공 (`PUBLIC_APP_URL` 설정 시)
 
 #### Telegram 운영
 

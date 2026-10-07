@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     api_docs_enabled: bool = True
     cors_allow_credentials: bool = False
     pipeline_run_token: str = ""
+    public_app_url: str = ""
 
     # Hyperliquid
     hyperliquid_api_url: str = "https://api.hyperliquid.xyz"

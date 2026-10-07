@@ -247,6 +247,9 @@ The endpoint returns `503` instead of running when the token is not configured.
 Set `NEXT_PUBLIC_TELEGRAM_CHANNEL_URL` to a Telegram public-channel or private-invite
 URL to show the beta join button on `/alerts`.
 
+Set `PUBLIC_APP_URL` to the public frontend origin after HTTPS is configured. Telegram
+alerts then include a link to the relevant trader, liquidation, or Market Brief screen.
+
 ---
 
 ## Roadmap

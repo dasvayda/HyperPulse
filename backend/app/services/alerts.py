@@ -37,6 +37,23 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _alert_detail_link(event_type: str, payload: dict | None) -> str | None:
+    """Return a safe click-through link for the evidence behind a Telegram alert."""
+
+    base = settings.public_app_url.strip().rstrip("/")
+    if not base.startswith(("https://", "http://")):
+        return None
+
+    if event_type.startswith(("whale_move_", "big_trade_")):
+        address = str((payload or {}).get("trader_address") or "").strip()
+        if address:
+            return f"{base}/traders/{address}"
+        return f"{base}/whale-alerts"
+    if event_type in {"liq_proximity", "squeeze_risk"}:
+        return f"{base}/liquidations"
+    return f"{base}/insights"
+
+
 async def _send_telegram_once(message: str) -> bool:
     if not settings.telegram_configured:
         return False
@@ -460,7 +477,11 @@ async def _dispatch(event_type: str, title: str, lines: list[str], payload: dict
         return None
     if _is_type_rate_limited(event_type):
         return None
-    message = "\n".join(lines)
+    full_lines = list(lines)
+    detail_link = _alert_detail_link(event_type, payload)
+    if detail_link:
+        full_lines.append(f'<a href="{escape(detail_link, quote=True)}">Open details</a>')
+    message = "\n".join(full_lines)
     plain = message.replace("<b>", "").replace("</b>", "")
     if _is_recent_duplicate(event_type, title, plain):
         return None
