@@ -16,6 +16,7 @@ import {
   formatUsd,
   formatPrice,
   formatTimeAgo,
+  getExplorerTxUrl,
 } from "@/lib/api";
 
 const STALE_MS = 45 * 60 * 1000;
@@ -48,7 +49,7 @@ export default async function WhaleAlertsPage({
     <DashboardLayout>
       <PageHeader
         title="Whale Alerts"
-        description="Position entry and exit detection for top Hyperliquid traders"
+        description="Tracked position changes. Verified fills are linked when they match the snapshot change."
       />
 
       <div className="flex flex-wrap gap-2 mb-4">
@@ -66,8 +67,8 @@ export default async function WhaleAlertsPage({
           <DataTableHeaderCell>Asset</DataTableHeaderCell>
           <DataTableHeaderCell>Type</DataTableHeaderCell>
           <DataTableHeaderCell>Side</DataTableHeaderCell>
-          <DataTableHeaderCell>Size</DataTableHeaderCell>
-          <DataTableHeaderCell>Entry / Mark</DataTableHeaderCell>
+          <DataTableHeaderCell>Position / change</DataTableHeaderCell>
+          <DataTableHeaderCell>Avg entry / mark</DataTableHeaderCell>
           <DataTableHeaderCell>uPnL / ROI</DataTableHeaderCell>
           <DataTableHeaderCell>Leverage</DataTableHeaderCell>
           <DataTableHeaderCell>Book</DataTableHeaderCell>
@@ -108,9 +109,9 @@ export default async function WhaleAlertsPage({
                 <DataTableCell>
                   <div className="flex flex-col gap-1">
                     <Badge variant={alert.alert_type}>
-                      {alert.alert_type.toUpperCase()}
+                      {alert.alert_type === "entry" ? "POSITION UP" : "POSITION DOWN"}
                     </Badge>
-                    {isFreshEntry && <Badge variant="entry">FRESH</Badge>}
+                    {isFreshEntry && <Badge variant="entry">LAST 24H</Badge>}
                     {stale && <Badge variant="exit">STALE</Badge>}
                   </div>
                 </DataTableCell>
@@ -120,20 +121,51 @@ export default async function WhaleAlertsPage({
                   </Badge>
                 </DataTableCell>
                 <DataTableCell className="font-medium">
-                  <div className="flex flex-col">
-                    <span>{formatUsd(alert.size_usd)}</span>
+                  <div className="flex flex-col gap-1">
+                    <span>Position {formatUsd(alert.size_usd)}</span>
                     {alert.size_delta_usd != null &&
                     alert.size_delta_usd !== 0 ? (
                       <span className="text-xs text-text-muted">
-                        Δ {formatUsd(alert.size_delta_usd)}
+                        {alert.execution?.verified ? "Verified fill" : "Snapshot change"} {formatUsd(alert.size_delta_usd)}
                       </span>
+                    ) : null}
+                    {alert.execution?.verified ? (
+                      <div className="text-xs text-positive">
+                        <span>
+                          {alert.execution.fill_count} fills @{" "}
+                          {alert.execution.price_low != null
+                            ? formatPrice(alert.execution.price_low, alert.asset)
+                            : "—"}
+                          {alert.execution.price_high != null &&
+                          alert.execution.price_high !== alert.execution.price_low
+                            ? `–${formatPrice(alert.execution.price_high, alert.asset)}`
+                            : ""}
+                        </span>
+                        {alert.execution.tx_hashes.length > 0 ? (
+                          <span className="ml-2">
+                            {alert.execution.tx_hashes.slice(0, 3).map((hash, index) => (
+                              <a
+                                key={hash}
+                                href={getExplorerTxUrl(hash)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-accent hover:underline mr-1"
+                              >
+                                Tx {index + 1}
+                              </a>
+                            ))}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : alert.size_delta_usd != null ? (
+                      <span className="text-xs text-text-dim">Fills not verified</span>
                     ) : null}
                   </div>
                 </DataTableCell>
                 <DataTableCell>
                   <div className="flex flex-col text-xs text-text-muted">
                     <span>
-                      E{" "}
+                      Avg E{" "}
                       {alert.entry_price != null
                         ? formatPrice(alert.entry_price, alert.asset)
                         : "—"}
@@ -207,10 +239,11 @@ export default async function WhaleAlertsPage({
       </DataTable>
 
       <p className="text-xs text-text-dim mt-4">
-        Fresh 24h is entry alerts in the last day. Size Δ is the USD add (or
-        first fill) vs the previous tracked size. STALE means the event is
-        older than 45 minutes. Book % is tracked-whale long share for that
-        asset.
+        Last 24h means a position-up alert in the past day. Position change is
+        a tracked snapshot delta; it becomes Verified fill only when the
+        matching HyperCore fills reconcile within the same collector window.
+        Avg E is the whole position&apos;s average entry, not the latest fill price.
+        STALE means the event is older than 45 minutes.
       </p>
     </DashboardLayout>
   );

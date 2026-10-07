@@ -6,6 +6,7 @@ and cached, never swept across the whole tracked universe on a timer.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -13,6 +14,8 @@ from typing import Any
 from app.collectors.hyperliquid_client import info as hl_info
 from app.config import settings
 from app.models.schemas import (
+    AlertExecutionEvidence,
+    AlertType,
     OpenPosition,
     PositionSide,
     TraderFillAsset,
@@ -24,6 +27,8 @@ logger = logging.getLogger(__name__)
 
 FILLS_CACHE_TTL_SECONDS = 180
 FILLS_WINDOW_HOURS = 24
+ALERT_EXECUTION_TOLERANCE = 0.05
+MAX_ALERT_TX_HASHES = 5
 
 
 def _utcnow() -> datetime:
@@ -37,6 +42,104 @@ def _safe_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _expected_fill_direction(side: PositionSide, alert_type: AlertType) -> str:
+    if alert_type == AlertType.ENTRY:
+        return "Open Long" if side == PositionSide.LONG else "Open Short"
+    return "Close Long" if side == PositionSide.LONG else "Close Short"
+
+
+def summarize_alert_execution(
+    raw: list[dict],
+    *,
+    asset: str,
+    side: PositionSide,
+    alert_type: AlertType,
+    expected_notional_usd: float | None,
+) -> AlertExecutionEvidence | None:
+    """Reconcile matching HyperCore fills with one snapshot position change.
+
+    A position snapshot is not itself an execution. Evidence is marked verified
+    only when fills in the same collector window match the detected USD delta.
+    """
+
+    expected_direction = _expected_fill_direction(side, alert_type)
+    fills: list[tuple[float, float, str]] = []
+    for fill in raw:
+        if not isinstance(fill, dict) or str(fill.get("coin") or "") != asset:
+            continue
+        if str(fill.get("dir") or "") != expected_direction:
+            continue
+        price = _safe_float(fill.get("px"))
+        size = _safe_float(fill.get("sz"))
+        if price is None or size is None or price <= 0 or size <= 0:
+            continue
+        fills.append((price, size, str(fill.get("hash") or "").strip()))
+
+    if not fills:
+        return None
+
+    notional = sum(price * size for price, size, _ in fills)
+    expected = abs(expected_notional_usd or 0.0)
+    verified = expected > 0 and abs(notional - expected) / expected <= ALERT_EXECUTION_TOLERANCE
+    hashes: list[str] = []
+    for _, _, tx_hash in fills:
+        if not tx_hash or tx_hash.lower() == f"0x{'0' * 64}" or tx_hash in hashes:
+            continue
+        hashes.append(tx_hash)
+        if len(hashes) >= MAX_ALERT_TX_HASHES:
+            break
+
+    return AlertExecutionEvidence(
+        verified=verified,
+        fill_count=len(fills),
+        notional_usd=round(notional, 2),
+        quantity=round(sum(size for _, size, _ in fills), 8),
+        price_low=round(min(price for price, _, _ in fills), 8),
+        price_high=round(max(price for price, _, _ in fills), 8),
+        tx_hashes=hashes if verified else [],
+    )
+
+
+async def fetch_alert_execution(
+    address: str,
+    *,
+    asset: str,
+    side: PositionSide,
+    alert_type: AlertType,
+    start_at: datetime,
+    end_at: datetime,
+    expected_notional_usd: float | None,
+) -> AlertExecutionEvidence | None:
+    """Fetch fills for one qualifying alert only; never sweep tracked wallets."""
+
+    if settings.use_mock_data or end_at <= start_at:
+        return None
+    try:
+        data = await asyncio.wait_for(
+            hl_info(
+                {
+                    "type": "userFillsByTime",
+                    "user": address,
+                    "startTime": int(start_at.timestamp() * 1000),
+                    "endTime": int(end_at.timestamp() * 1000),
+                }
+            ),
+            timeout=5.0,
+        )
+    except Exception as exc:
+        logger.warning("alert execution lookup failed for %s: %s", address, exc)
+        return None
+    if not isinstance(data, list):
+        return None
+    return summarize_alert_execution(
+        [fill for fill in data if isinstance(fill, dict)],
+        asset=asset,
+        side=side,
+        alert_type=alert_type,
+        expected_notional_usd=expected_notional_usd,
+    )
 
 
 def position_check_line(

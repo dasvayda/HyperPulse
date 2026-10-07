@@ -18,7 +18,6 @@ from app.models.schemas import (
 )
 from app.services.brief_schedule import due_market_brief_slot
 from app.services.brief_telegram import brief_send_key, format_market_brief_telegram
-from app.services.fresh_entries import is_fresh_entry
 from app.services.store import store
 from app.services.telegram_log import append_telegram_log
 
@@ -62,16 +61,15 @@ def _explorer_base(url: str) -> str | None:
     return base if base.startswith(("https://", "http://")) else None
 
 
-def _alert_explorer_link(event_type: str, payload: dict | None) -> tuple[str, str] | None:
-    """Return the most specific public explorer link available for an alert.
+def _alert_explorer_links(event_type: str, payload: dict | None) -> list[tuple[str, str]]:
+    """Return public explorer links backed by the alert's actual evidence.
 
-    Position-change alerts are inferred from account snapshots, so they do not
-    have a canonical transaction hash. Those link to the wallet on HypurrScan.
-    Any alert that does carry an exact transaction hash links to the execution
-    domain's transaction view instead.
+    Position-change alerts always retain a wallet link. Reconciled fill windows
+    additionally expose their verified HyperCore transaction hashes.
     """
 
     data = payload or {}
+    links: list[tuple[str, str]] = []
     tx_hash = str(data.get("tx_hash") or "").strip()
     if tx_hash:
         chain = str(
@@ -84,14 +82,35 @@ def _alert_explorer_link(event_type: str, payload: dict | None) -> tuple[str, st
             base = _explorer_base(settings.hypercore_explorer_url)
             label = "View HyperCore tx"
         if base:
-            return label, f"{base}/tx/{quote(tx_hash, safe='')}"
+            links.append((label, f"{base}/tx/{quote(tx_hash, safe='')}"))
+
+    execution = data.get("execution")
+    if isinstance(execution, dict) and execution.get("verified"):
+        base = _explorer_base(settings.hypercore_explorer_url)
+        hashes = execution.get("tx_hashes")
+        if base and isinstance(hashes, list):
+            valid_hashes = [str(item).strip() for item in hashes if str(item).strip()]
+            for idx, verified_hash in enumerate(valid_hashes[:3], start=1):
+                links.append(
+                    (
+                        f"View verified tx {idx}/{len(valid_hashes)}",
+                        f"{base}/tx/{quote(verified_hash, safe='')}",
+                    )
+                )
 
     if event_type.startswith(("whale_move_", "big_trade_", "liq_proximity")):
         address = str(data.get("trader_address") or data.get("address") or "").strip()
         base = _explorer_base(settings.hypurrscan_url)
         if address and base:
-            return "View wallet", f"{base}/address/{quote(address, safe='')}"
-    return None
+            links.append(("View wallet", f"{base}/address/{quote(address, safe='')}"))
+    return links
+
+
+def _alert_explorer_link(event_type: str, payload: dict | None) -> tuple[str, str] | None:
+    """Backward-compatible first explorer link for callers that only need one."""
+
+    links = _alert_explorer_links(event_type, payload)
+    return links[0] if links else None
 
 
 async def _send_telegram_once(message: str) -> bool:
@@ -546,9 +565,7 @@ async def _dispatch(event_type: str, title: str, lines: list[str], payload: dict
     detail_link = _alert_detail_link(event_type, payload)
     if detail_link:
         full_lines.append(f'<a href="{escape(detail_link, quote=True)}">Open details</a>')
-    explorer_link = _alert_explorer_link(event_type, payload)
-    if explorer_link:
-        label, url = explorer_link
+    for label, url in _alert_explorer_links(event_type, payload):
         full_lines.append(f'<a href="{escape(url, quote=True)}">{label}</a>')
     message = "\n".join(full_lines)
     plain = message.replace("<b>", "").replace("</b>", "")
@@ -693,32 +710,39 @@ def _whale_size_context_lines(alert: WhaleAlert) -> list[str]:
     return lines
 
 
+def _execution_lines(alert: WhaleAlert) -> list[str]:
+    """Describe a change honestly: verified fills first, snapshot second."""
+
+    evidence = alert.execution
+    if evidence and evidence.verified:
+        action = "opened" if alert.alert_type.value == "entry" else "closed"
+        price = _format_price(evidence.price_low)
+        if evidence.price_high and evidence.price_high != evidence.price_low:
+            price = f"{price}–{_format_price(evidence.price_high)}"
+        line = f"Verified fills: {action} {_format_usd_short(evidence.notional_usd)}"
+        if price:
+            line = f"{line} @ {price}"
+        return [line, f"{evidence.fill_count} fills · {len(evidence.tx_hashes)} tx linked"]
+
+    if alert.size_delta_usd:
+        direction = "up" if alert.size_delta_usd > 0 else "down"
+        return [
+            f"Snapshot change: {direction} {_format_usd_short(abs(alert.size_delta_usd))}",
+            "Fills not verified — check the wallet before acting.",
+        ]
+    return ["Snapshot change detected — fills not verified."]
+
+
 def format_whale_move_lines(alert: WhaleAlert) -> tuple[str, list[str]]:
     """Title + HTML body lines for a whale-move Telegram."""
-    action = "ENTRY" if alert.alert_type.value == "entry" else "EXIT"
+    action = "POSITION UP" if alert.alert_type.value == "entry" else "POSITION DOWN"
     side = alert.side.value.upper()
-    fresh = is_fresh_entry(alert)
-    title = (
-        f"WHALE MOVE · FRESH {action} {alert.asset}"
-        if fresh and action == "ENTRY"
-        else f"WHALE MOVE · {action} {alert.asset}"
-    )
+    title = f"WHALE MOVE · {side} {action} {alert.asset}"
 
-    px = _format_price(
-        alert.entry_price
-        if alert.alert_type.value == "entry"
-        else (alert.exit_price or alert.entry_price)
-    )
-    verb = "entered" if action == "ENTRY" else "exited"
-    line2 = (
-        f"{alert.trader_alias} {verb} {side} "
-        f"{_format_usd_short(alert.size_usd)} @ {alert.leverage:.0f}x"
-    )
-    if px:
-        px_label = "entry" if action == "ENTRY" else "exit"
-        line2 = f"{line2} · {px_label} {px}"
-    if alert.size_delta_usd and alert.size_delta_usd > 0 and action == "ENTRY":
-        line2 = f"{line2} · added {_format_usd_short(alert.size_delta_usd)}"
+    line2 = f"{alert.trader_alias} {side} position {_format_usd_short(alert.size_usd)} @ {alert.leverage:.0f}x"
+    avg_entry = _format_price(alert.entry_price)
+    if avg_entry:
+        line2 = f"{line2} · avg entry {avg_entry}"
 
     bits: list[str] = []
     if alert.whale_long_pct is not None:
@@ -730,6 +754,7 @@ def format_whale_move_lines(alert: WhaleAlert) -> tuple[str, list[str]]:
         bits.append(f"this pos uPnL {sign}{_format_usd_short(abs(alert.unrealized_pnl_usd))}")
 
     lines = [f"<b>{title}</b>", line2]
+    lines.extend(_execution_lines(alert))
     lines.extend(_whale_size_context_lines(alert))
     if bits:
         lines.append(" · ".join(bits))
@@ -752,32 +777,21 @@ async def send_big_whale_move(alert: WhaleAlert) -> AlertHistoryItem | None:
 
 
 async def send_big_trade(alert: WhaleAlert) -> AlertHistoryItem | None:
-    """Large one-shot notional bet — size-first, identity secondary.
-
-    Inspired by whale-alerts.net: category + size matter; keep it punchy.
-    """
+    """Large position change, with execution evidence when available."""
     alert = _enrich_alert_for_send(alert)
     side = alert.side.value.upper()
-    action = "IN" if alert.alert_type.value == "entry" else "OUT"
-    fresh = is_fresh_entry(alert)
-    title = (
-        f"BIG TRADE · FRESH {side} {action} {alert.asset}"
-        if fresh and action == "IN"
-        else f"BIG TRADE · {side} {action} {alert.asset}"
-    )
+    action = "POSITION UP" if alert.alert_type.value == "entry" else "POSITION DOWN"
+    title = f"BIG TRADE · {side} {action} {alert.asset}"
 
-    px = _format_price(
-        alert.entry_price
-        if alert.alert_type.value == "entry"
-        else (alert.exit_price or alert.entry_price or alert.mark_price)
-    )
-    line2 = f"{_format_usd_short(alert.size_usd)} one-shot · {alert.leverage:.0f}x"
-    if px:
-        line2 = f"{line2} · {px}"
+    line2 = f"{side} position {_format_usd_short(alert.size_usd)} @ {alert.leverage:.0f}x"
+    avg_entry = _format_price(alert.entry_price)
+    if avg_entry:
+        line2 = f"{line2} · avg entry {avg_entry}"
 
     lines = [
         f"<b>{title}</b>",
         line2,
+        *_execution_lines(alert),
         f"Wallet {_short_addr(alert.trader_address)}",
     ]
     if alert.whale_long_pct is not None:

@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta, timezone
 
 from app.models.schemas import (
+    AlertExecutionEvidence,
     AlertType,
     PositionSide,
     SmartMoneyRank,
@@ -146,10 +147,11 @@ def test_whale_move_copy_labels_price_delta_and_ranks(monkeypatch):
 
     title, lines = format_whale_move_lines(_alert())
     text = "\n".join(lines)
-    assert title == "WHALE MOVE · FRESH ENTRY BTC"
-    assert "entered LONG $2.4M @ 3x" in text
-    assert "entry $86,222" in text
-    assert "added $547K" in text
+    assert title == "WHALE MOVE · LONG POSITION UP BTC"
+    assert "LONG position $2.4M @ 3x" in text
+    assert "avg entry $86,222" in text
+    assert "Snapshot change: up $547K" in text
+    assert "Fills not verified" in text
     assert "Wallet $68.3M · 8th largest of 100 tracked" in text
     assert "Smart Money score: 14th of 15 large wallets" in text
     assert "Tracked BTC whales: 83% short / 17% long" in text
@@ -157,3 +159,28 @@ def test_whale_move_copy_labels_price_delta_and_ranks(monkeypatch):
     assert "Size #" not in text
     assert "Smart Money #" not in text
     assert "AV $" not in text
+
+
+def test_whale_move_copy_uses_verified_fill_price_not_position_average(monkeypatch):
+    traders, ranks = _book_of_100()
+    monkeypatch.setattr(store, "traders", traders)
+    monkeypatch.setattr(store, "rankings", ranks)
+
+    _, lines = format_whale_move_lines(
+        _alert(
+            execution=AlertExecutionEvidence(
+                verified=True,
+                fill_count=2,
+                notional_usd=547_250,
+                quantity=6.3,
+                price_low=86_800,
+                price_high=86_810,
+                tx_hashes=["0xabc"],
+            )
+        )
+    )
+    text = "\n".join(lines)
+
+    assert "avg entry $86,222" in text
+    assert "Verified fills: opened $547K @ $86,800–$86,810" in text
+    assert "Snapshot change" not in text

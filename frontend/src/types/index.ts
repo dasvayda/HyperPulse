@@ -2,6 +2,16 @@ export type PositionSide = "long" | "short";
 export type AlertType = "entry" | "exit";
 export type LiquidationSide = "long" | "short";
 
+export interface AlertExecutionEvidence {
+  verified: boolean;
+  fill_count: number;
+  notional_usd: number;
+  quantity: number;
+  price_low?: number | null;
+  price_high?: number | null;
+  tx_hashes: string[];
+}
+
 export interface WhaleAlert {
   id: string;
   trader_address: string;
@@ -22,6 +32,7 @@ export interface WhaleAlert {
   inferred_strategy: string;
   confidence_score: number;
   timestamp: string;
+  execution?: AlertExecutionEvidence | null;
 }
 
 export interface TraderProfile {

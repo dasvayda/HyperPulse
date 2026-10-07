@@ -19,6 +19,18 @@ class LiquidationSide(str, Enum):
     SHORT = "short"
 
 
+class AlertExecutionEvidence(BaseModel):
+    """Executed-fill evidence reconciled against a whale position change."""
+
+    verified: bool = False
+    fill_count: int = 0
+    notional_usd: float = 0.0
+    quantity: float = 0.0
+    price_low: float | None = None
+    price_high: float | None = None
+    tx_hashes: list[str] = Field(default_factory=list)
+
+
 class WhaleAlert(BaseModel):
     id: str
     trader_address: str
@@ -39,6 +51,7 @@ class WhaleAlert(BaseModel):
     inferred_strategy: str
     confidence_score: float = Field(ge=0, le=100)
     timestamp: datetime
+    execution: AlertExecutionEvidence | None = None
 
 
 class TraderProfile(BaseModel):

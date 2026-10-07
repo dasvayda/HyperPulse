@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 # (trader_address, asset) -> current coin size / notional
 _LAST_SIZES: Dict[Tuple[str, str], float] = {}
 _LAST_USD: Dict[Tuple[str, str], float] = {}
+_LAST_OBSERVED_AT: Dict[Tuple[str, str], datetime] = {}
 
 
 def _utcnow() -> datetime:
@@ -244,6 +245,8 @@ async def collect_whale_events() -> list[WhaleAlert]:
 
     alerts: list[WhaleAlert] = []
     positions_snapshot: list[WhalePosition] = []
+    observed_at = _utcnow()
+    execution_lookups_remaining = max(0, settings.alert_execution_lookups_per_cycle)
     previous_positions = list(store.whale_positions)
     observed_addresses: set[str] = set()
     traders_by_addr = {t.address: t for t in store.traders}
@@ -284,16 +287,19 @@ async def collect_whale_events() -> list[WhaleAlert]:
             if usd_size < settings.alert_min_size_usd:
                 _LAST_SIZES[key] = size
                 _LAST_USD[key] = usd_size
+                _LAST_OBSERVED_AT[key] = observed_at
                 continue
 
             # First observation seeds baseline; only later deltas emit alerts.
             if key not in _LAST_SIZES:
                 _LAST_SIZES[key] = size
                 _LAST_USD[key] = usd_size
+                _LAST_OBSERVED_AT[key] = observed_at
                 continue
 
             prev = _LAST_SIZES[key]
             prev_usd = _LAST_USD.get(key, 0.0)
+            previous_observed_at = _LAST_OBSERVED_AT.get(key)
             min_add = settings.alert_min_size_usd * 0.5
             alert_type, size_delta_usd = classify_size_change(
                 prev, size, prev_usd, usd_size, min_add
@@ -301,6 +307,7 @@ async def collect_whale_events() -> list[WhaleAlert]:
             if alert_type is None:
                 _LAST_SIZES[key] = size
                 _LAST_USD[key] = usd_size
+                _LAST_OBSERVED_AT[key] = observed_at
                 continue
 
             trader = traders_by_addr.get(address)
@@ -375,9 +382,27 @@ async def collect_whale_events() -> list[WhaleAlert]:
                 confidence_score=confidence,
                 timestamp=store.last_collect_at or store.last_inference_at or _utcnow(),
             )
+            if previous_observed_at and execution_lookups_remaining > 0:
+                # Fetch only for a qualifying position change, after the cheap
+                # snapshot filter. This preserves the no-universe-sweep policy.
+                from app.collectors.fills import fetch_alert_execution
+
+                execution_lookups_remaining -= 1
+                evidence = await fetch_alert_execution(
+                    address,
+                    asset=asset,
+                    side=side,
+                    alert_type=alert_type,
+                    start_at=previous_observed_at,
+                    end_at=observed_at,
+                    expected_notional_usd=size_delta_usd,
+                )
+                if evidence is not None:
+                    alert = alert.model_copy(update={"execution": evidence})
             alerts.append(alert)
             _LAST_SIZES[key] = size
             _LAST_USD[key] = usd_size
+            _LAST_OBSERVED_AT[key] = observed_at
 
     # A failed request is unknown, not an exit. Preserve its last positions so
     # the next successful cycle cannot create a false Paper Portfolio flow.
