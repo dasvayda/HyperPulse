@@ -124,7 +124,7 @@ def test_size_rank_is_wallet_size_not_smart_money(monkeypatch):
 
     lines = _whale_size_context_lines(_alert())
     assert lines[0] == "Wallet $68.3M · 8th largest of 100 tracked"
-    assert lines[1] == "Smart Money score: 14th of 15 large wallets"
+    assert lines[1] == "Track record: 14th of 15 large wallets (not a trade rating)"
 
 
 def test_off_smart_money_board_omits_score_line(monkeypatch):
@@ -148,12 +148,12 @@ def test_whale_move_copy_labels_price_delta_and_ranks(monkeypatch):
     title, lines = format_whale_move_lines(_alert())
     text = "\n".join(lines)
     assert title == "WHALE MOVE · LONG POSITION UP BTC"
-    assert "LONG position $2.4M @ 3x" in text
-    assert "avg entry" not in text
-    assert "Snapshot change: up $547K" in text
-    assert "Fills not verified" in text
+    assert "This move: LONG position up $547K in the snapshot" in text
+    assert "No confirmed fill price" in text
+    assert "Total position: LONG $2.4M · 3x" in text
+    assert "Position avg entry: $86,222 (not this fill price)" in text
     assert "Wallet $68.3M · 8th largest of 100 tracked" in text
-    assert "Smart Money score: 14th of 15 large wallets" in text
+    assert "Track record: 14th of 15 large wallets (not a trade rating)" in text
     assert "Tracked BTC whales: 83% short / 17% long" in text
     assert "this pos ROI +0.0%" in text
     assert "Size #" not in text
@@ -181,6 +181,8 @@ def test_whale_move_copy_uses_verified_fill_price_not_position_average(monkeypat
     )
     text = "\n".join(lines)
 
-    assert "avg entry" not in text
-    assert "Verified fills: opened $547K @ $86,800–$86,810" in text
-    assert "Snapshot change" not in text
+    assert "This move: verified opened LONG $547K @ $86,800–$86,810" in text
+    assert "Total position: LONG $2.4M · 3x" in text
+    assert "Position avg entry: $86,222 (not this fill price)" in text
+    assert "in the snapshot" not in text
+    assert text.index("This move:") < text.index("Total position:")

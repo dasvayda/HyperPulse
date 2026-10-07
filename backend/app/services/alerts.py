@@ -668,11 +668,12 @@ async def send_market_consensus_alert() -> AlertHistoryItem | None:
 
 
 def _whale_size_context_lines(alert: WhaleAlert) -> list[str]:
-    """Wallet size rank vs Smart Money score rank — two different ladders.
+    """Wallet size rank vs track-record rank — two different ladders.
 
     Size = account value among every tracked whale (1st = biggest wallet).
-    Smart Money = score among the 15 largest wallets, not a size rank.
-    A whale can be 8th largest and still 14th on the Smart Money board.
+    Track record = historical score among the 15 largest wallets, not a size
+    rank or a rating for the position in this alert. A whale can be 8th
+    largest and still 14th on the track-record board.
     """
     trader = _trader_for(alert)
     lines: list[str] = []
@@ -700,8 +701,9 @@ def _whale_size_context_lines(alert: WhaleAlert) -> list[str]:
         for row in select_smart_money_ranks():
             if row.address.lower() == alert.trader_address.lower():
                 lines.append(
-                    "Smart Money score: "
-                    f"{_ordinal(row.rank)} of {SMART_MONEY_SIZE} large wallets"
+                    "Track record: "
+                    f"{_ordinal(row.rank)} of {SMART_MONEY_SIZE} large wallets "
+                    "(not a trade rating)"
                 )
                 break
     except Exception:
@@ -711,7 +713,7 @@ def _whale_size_context_lines(alert: WhaleAlert) -> list[str]:
 
 
 def _execution_lines(alert: WhaleAlert) -> list[str]:
-    """Describe a change honestly: verified fills first, snapshot second."""
+    """State why the alert fired without overstating snapshot evidence."""
 
     evidence = alert.execution
     if evidence and evidence.verified:
@@ -719,7 +721,10 @@ def _execution_lines(alert: WhaleAlert) -> list[str]:
         price = _format_price(evidence.price_low)
         if evidence.price_high and evidence.price_high != evidence.price_low:
             price = f"{price}–{_format_price(evidence.price_high)}"
-        line = f"Verified fills: {action} {_format_usd_short(evidence.notional_usd)}"
+        line = (
+            f"This move: verified {action} {alert.side.value.upper()} "
+            f"{_format_usd_short(evidence.notional_usd)}"
+        )
         if price:
             line = f"{line} @ {price}"
         return [line, f"{evidence.fill_count} fills · {len(evidence.tx_hashes)} tx linked"]
@@ -727,10 +732,24 @@ def _execution_lines(alert: WhaleAlert) -> list[str]:
     if alert.size_delta_usd:
         direction = "up" if alert.size_delta_usd > 0 else "down"
         return [
-            f"Snapshot change: {direction} {_format_usd_short(abs(alert.size_delta_usd))}",
-            "Fills not verified — check the wallet before acting.",
+            f"This move: {alert.side.value.upper()} position {direction} "
+            f"{_format_usd_short(abs(alert.size_delta_usd))} in the snapshot",
+            "No confirmed fill price — check the wallet before acting.",
         ]
-    return ["Snapshot change detected — fills not verified."]
+    return ["This move: position snapshot changed — fills not verified."]
+
+
+def _position_summary_lines(alert: WhaleAlert) -> list[str]:
+    """Separate the current total position from the trigger that caused the alert."""
+
+    lines = [
+        f"Total position: {alert.side.value.upper()} "
+        f"{_format_usd_short(alert.size_usd)} · {alert.leverage:.0f}x"
+    ]
+    position_average = _format_price(alert.entry_price)
+    if position_average:
+        lines.append(f"Position avg entry: {position_average} (not this fill price)")
+    return lines
 
 
 def format_whale_move_lines(alert: WhaleAlert) -> tuple[str, list[str]]:
@@ -738,8 +757,6 @@ def format_whale_move_lines(alert: WhaleAlert) -> tuple[str, list[str]]:
     action = "POSITION UP" if alert.alert_type.value == "entry" else "POSITION DOWN"
     side = alert.side.value.upper()
     title = f"WHALE MOVE · {side} {action} {alert.asset}"
-
-    line2 = f"{alert.trader_alias} {side} position {_format_usd_short(alert.size_usd)} @ {alert.leverage:.0f}x"
 
     bits: list[str] = []
     if alert.whale_long_pct is not None:
@@ -750,8 +767,9 @@ def format_whale_move_lines(alert: WhaleAlert) -> tuple[str, list[str]]:
         sign = "+" if alert.unrealized_pnl_usd >= 0 else "-"
         bits.append(f"this pos uPnL {sign}{_format_usd_short(abs(alert.unrealized_pnl_usd))}")
 
-    lines = [f"<b>{title}</b>", line2]
+    lines = [f"<b>{title}</b>", alert.trader_alias]
     lines.extend(_execution_lines(alert))
+    lines.extend(_position_summary_lines(alert))
     lines.extend(_whale_size_context_lines(alert))
     if bits:
         lines.append(" · ".join(bits))
@@ -780,12 +798,10 @@ async def send_big_trade(alert: WhaleAlert) -> AlertHistoryItem | None:
     action = "POSITION UP" if alert.alert_type.value == "entry" else "POSITION DOWN"
     title = f"BIG TRADE · {side} {action} {alert.asset}"
 
-    line2 = f"{side} position {_format_usd_short(alert.size_usd)} @ {alert.leverage:.0f}x"
-
     lines = [
         f"<b>{title}</b>",
-        line2,
         *_execution_lines(alert),
+        *_position_summary_lines(alert),
         f"Wallet {_short_addr(alert.trader_address)}",
     ]
     if alert.whale_long_pct is not None:
