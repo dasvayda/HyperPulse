@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     # Telegram
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+    telegram_send_attempts: int = 3
+    telegram_retry_delay_seconds: float = 1.0
     alerts_enabled: bool = True
     alert_min_confidence: float = 70.0
     alert_min_size_usd: float = 500_000.0

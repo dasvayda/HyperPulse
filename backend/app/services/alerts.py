@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from html import escape
 from datetime import datetime, timedelta, timezone
@@ -36,7 +37,7 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-async def _send_telegram(message: str) -> bool:
+async def _send_telegram_once(message: str) -> bool:
     if not settings.telegram_configured:
         return False
     url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
@@ -56,6 +57,20 @@ async def _send_telegram(message: str) -> bool:
     except Exception as exc:
         logger.warning("Telegram send failed: %s", exc)
         return False
+
+
+async def _send_telegram(message: str) -> bool:
+    """Send with a bounded retry for transient Telegram/network failures."""
+
+    attempts = max(1, settings.telegram_send_attempts)
+    for attempt in range(1, attempts + 1):
+        if await _send_telegram_once(message):
+            return True
+        if attempt < attempts:
+            logger.warning("Telegram send attempt %d/%d failed; retrying", attempt, attempts)
+            if settings.telegram_retry_delay_seconds > 0:
+                await asyncio.sleep(settings.telegram_retry_delay_seconds)
+    return False
 
 
 def _record_alert(
