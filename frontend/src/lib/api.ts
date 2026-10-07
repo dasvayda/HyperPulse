@@ -1,5 +1,6 @@
 import type {
   AlertHistoryItem,
+  AlertDeliverySummary,
   CoinPulse,
   BiggestPosition,
   CohortBiasResponse,
@@ -117,6 +118,10 @@ export function getInferences(): Promise<StrategyInference[]> {
 export function getAlertsHistory(status?: string): Promise<AlertHistoryItem[]> {
   const qs = status ? `?status=${status}` : "";
   return fetchApi(`/api/v2/alerts${qs}`);
+}
+
+export function getAlertDeliverySummary(): Promise<AlertDeliverySummary> {
+  return fetchApi("/api/v2/alerts/summary", { cache: "no-store" });
 }
 
 export function getPipelineStatus(): Promise<PipelineStatus> {

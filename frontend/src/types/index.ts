@@ -348,6 +348,17 @@ export interface AlertHistoryItem {
   sent_at: string | null;
 }
 
+export interface AlertDeliverySummary {
+  window_hours: number;
+  sent: number;
+  failed: number;
+  queued: number;
+  attempted: number;
+  delivery_rate_pct: number | null;
+  last_sent_at: string | null;
+  last_failed_at: string | null;
+}
+
 export interface PipelineStatus {
   collector_enabled: boolean;
   last_collect_at: string | null;

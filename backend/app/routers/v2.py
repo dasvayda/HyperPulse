@@ -7,6 +7,7 @@ from app.db import SessionLocal
 from app.models.orm import LiquidationRow, MarketSnapshotRow
 from app.models.schemas import (
     AlertHistoryItem,
+    AlertDeliverySummary,
     BiggestPosition,
     CohortBiasResponse,
     CoinPulse,
@@ -143,6 +144,33 @@ def list_alerts(
     if status:
         results = [a for a in results if a.status == status]
     return results[:limit]
+
+
+@router.get("/alerts/summary", response_model=AlertDeliverySummary)
+def alert_delivery_summary() -> AlertDeliverySummary:
+    """Recent Telegram delivery health for the operator Alerts page."""
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    recent = []
+    for item in store.alerts:
+        created_at = item.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        if created_at >= cutoff:
+            recent.append(item)
+
+    sent = [item for item in recent if item.status == "sent"]
+    failed = [item for item in recent if item.status == "failed"]
+    queued = [item for item in recent if item.status == "queued"]
+    attempted = len(sent) + len(failed)
+    return AlertDeliverySummary(
+        sent=len(sent),
+        failed=len(failed),
+        queued=len(queued),
+        attempted=attempted,
+        delivery_rate_pct=round(len(sent) / attempted * 100.0, 1) if attempted else None,
+        last_sent_at=max((item.sent_at for item in sent if item.sent_at), default=None),
+        last_failed_at=max((item.created_at for item in failed), default=None),
+    )
 
 
 @router.get("/pipeline/status", response_model=PipelineStatus)

@@ -7,19 +7,17 @@ import { AlertFeed } from "@/components/ui/AlertFeed";
 import { ExternalLink, Send } from "lucide-react";
 import {
   getAlertsHistory,
+  getAlertDeliverySummary,
   getPipelineStatus,
   formatTimeAgo,
 } from "@/lib/api";
 
 export default async function AlertsPage() {
-  const [alerts, pipeline] = await Promise.all([
+  const [alerts, pipeline, delivery] = await Promise.all([
     getAlertsHistory(),
     getPipelineStatus(),
+    getAlertDeliverySummary(),
   ]);
-
-  const sent = alerts.filter((a) => a.status === "sent").length;
-  const queued = alerts.filter((a) => a.status === "queued").length;
-  const failed = alerts.filter((a) => a.status === "failed").length;
   const telegramChannelUrl = process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_URL?.trim();
 
   return (
@@ -71,22 +69,33 @@ export default async function AlertsPage() {
           }
           positive={pipeline.telegram_configured}
         />
-        <StatCard label="Sent" value={String(sent)} change="Delivered" positive />
         <StatCard
-          label="Queued"
-          value={String(queued)}
-          change="Awaiting bot token"
-          positive={queued === 0}
+          label="Sent (24h)"
+          value={String(delivery.sent)}
+          change={
+            delivery.delivery_rate_pct != null
+              ? `${delivery.delivery_rate_pct.toFixed(0)}% delivered`
+              : "No attempts yet"
+          }
+          positive={delivery.failed === 0}
         />
         <StatCard
-          label="Last Alert"
-          value={
-            pipeline.last_alert_at
-              ? formatTimeAgo(pipeline.last_alert_at)
-              : "—"
+          label="Queued (24h)"
+          value={String(delivery.queued)}
+          change={delivery.queued === 0 ? "No backlog" : "Awaiting delivery"}
+          positive={delivery.queued === 0}
+        />
+        <StatCard
+          label="Delivery failures"
+          value={String(delivery.failed)}
+          change={
+            delivery.last_failed_at
+              ? `Last ${formatTimeAgo(delivery.last_failed_at)}`
+              : pipeline.last_alert_at
+                ? `Last alert ${formatTimeAgo(pipeline.last_alert_at)}`
+                : "No alerts yet"
           }
-          change={`${failed} failed`}
-          positive={failed === 0}
+          positive={delivery.failed === 0}
         />
       </div>
 

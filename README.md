@@ -216,6 +216,7 @@ Nansen-inspired dark FinTech dashboard:
 | GET | `/api/v2/insights` | AI market insights |
 | GET | `/api/v2/inferences` | Strategy classifications |
 | GET | `/api/v2/alerts` | Telegram alert history |
+| GET | `/api/v2/alerts/summary` | Telegram delivery results in the last 24 hours |
 | GET | `/api/v2/pipeline/status` | Collector/inference status |
 | GET | `/api/v2/insights/brief` | Market or coin-scoped Market Brief |
 | GET | `/api/v2/whale-book/liq-proximity` | Tracked positions near actual liquidation price |

@@ -398,6 +398,17 @@ class AlertHistoryItem(BaseModel):
     sent_at: datetime | None = None
 
 
+class AlertDeliverySummary(BaseModel):
+    window_hours: int = 24
+    sent: int = 0
+    failed: int = 0
+    queued: int = 0
+    attempted: int = 0
+    delivery_rate_pct: float | None = None
+    last_sent_at: datetime | None = None
+    last_failed_at: datetime | None = None
+
+
 class PipelineStatus(BaseModel):
     collector_enabled: bool
     last_collect_at: datetime | None
