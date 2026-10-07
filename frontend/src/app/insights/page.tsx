@@ -6,6 +6,7 @@ import { InsightCard } from "@/components/ui/InsightCard";
 import { MarketBriefHero } from "@/components/ui/MarketBriefHero";
 import { CohortHeatmap } from "@/components/ui/CohortHeatmap";
 import { WhaleStyleTagsTable } from "@/components/ui/WhaleStyleTagsTable";
+import { TrackedSampleNotice } from "@/components/ui/TrackedSampleNotice";
 import {
   getAIInsights,
   getCohortHeatmap,
@@ -54,6 +55,8 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
         title="AI Insights"
         description="Desk brief from whale book + funding + liquidations — prefer long / short / wait"
       />
+
+      <TrackedSampleNotice tracked={pipeline.traders_tracked} />
 
       <div className="flex flex-wrap gap-2 mb-4">
         <Link href="/insights#brief" className={chipClass(!asset)}>

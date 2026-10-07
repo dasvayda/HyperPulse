@@ -13,7 +13,8 @@ import {
 import { Badge } from "@/components/ui/Badge";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { ScoreMeter, SwingLabel } from "@/components/ui/ScoreMeter";
-import { getRankings, formatUsd, formatConfidence } from "@/lib/api";
+import { TrackedSampleNotice } from "@/components/ui/TrackedSampleNotice";
+import { getRankings, getPipelineStatus, formatUsd, formatConfidence } from "@/lib/api";
 
 const SMART_MONEY_SCORE_HELP = (
   <>
@@ -34,7 +35,7 @@ const SMART_MONEY_SCORE_HELP = (
 );
 
 export default async function RankingsPage() {
-  const rankings = await getRankings();
+  const [rankings, pipeline] = await Promise.all([getRankings(), getPipelineStatus()]);
 
   return (
     <DashboardLayout>
@@ -42,6 +43,8 @@ export default async function RankingsPage() {
         title="Smart Money"
         description="Top 15 accounts by asset size, ordered by Smart Money Score"
       />
+
+      <TrackedSampleNotice tracked={pipeline.traders_tracked} />
 
       <DataTable>
         <DataTableHead>
