@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     hyperliquid_api_url: str = "https://api.hyperliquid.xyz"
     hyperliquid_ws_url: str = "wss://api.hyperliquid.xyz/ws"
     hyperliquid_stats_url: str = "https://stats-data.hyperliquid.xyz/Mainnet"
+    # Telegram explorer links. Keep the two execution domains explicit: HyperCore
+    # transactions use Hyperliquid's explorer, while HyperEVM transactions use
+    # its EVM-native explorer.
+    hypercore_explorer_url: str = "https://app.hyperliquid.xyz/explorer"
+    hyperevm_explorer_url: str = "https://hyperevmscan.io"
+    hypurrscan_url: str = "https://hypurrscan.io"
     collector_enabled: bool = True
     collector_interval_seconds: int = 60
     tracked_trader_limit: int = 100

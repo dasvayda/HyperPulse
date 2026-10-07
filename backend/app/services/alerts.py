@@ -4,6 +4,7 @@ import asyncio
 import logging
 from html import escape
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 import httpx
 
@@ -52,6 +53,45 @@ def _alert_detail_link(event_type: str, payload: dict | None) -> str | None:
     if event_type in {"liq_proximity", "squeeze_risk"}:
         return f"{base}/liquidations"
     return f"{base}/insights"
+
+
+def _explorer_base(url: str) -> str | None:
+    """Return an HTTP(S) explorer origin suitable for a Telegram link."""
+
+    base = url.strip().rstrip("/")
+    return base if base.startswith(("https://", "http://")) else None
+
+
+def _alert_explorer_link(event_type: str, payload: dict | None) -> tuple[str, str] | None:
+    """Return the most specific public explorer link available for an alert.
+
+    Position-change alerts are inferred from account snapshots, so they do not
+    have a canonical transaction hash. Those link to the wallet on HypurrScan.
+    Any alert that does carry an exact transaction hash links to the execution
+    domain's transaction view instead.
+    """
+
+    data = payload or {}
+    tx_hash = str(data.get("tx_hash") or "").strip()
+    if tx_hash:
+        chain = str(
+            data.get("chain") or data.get("source_chain") or "hypercore"
+        ).strip().lower()
+        if chain in {"hyperevm", "evm"}:
+            base = _explorer_base(settings.hyperevm_explorer_url)
+            label = "View HyperEVM tx"
+        else:
+            base = _explorer_base(settings.hypercore_explorer_url)
+            label = "View HyperCore tx"
+        if base:
+            return label, f"{base}/tx/{quote(tx_hash, safe='')}"
+
+    if event_type.startswith(("whale_move_", "big_trade_", "liq_proximity")):
+        address = str(data.get("trader_address") or data.get("address") or "").strip()
+        base = _explorer_base(settings.hypurrscan_url)
+        if address and base:
+            return "View wallet", f"{base}/address/{quote(address, safe='')}"
+    return None
 
 
 async def _send_telegram_once(message: str) -> bool:
@@ -506,6 +546,10 @@ async def _dispatch(event_type: str, title: str, lines: list[str], payload: dict
     detail_link = _alert_detail_link(event_type, payload)
     if detail_link:
         full_lines.append(f'<a href="{escape(detail_link, quote=True)}">Open details</a>')
+    explorer_link = _alert_explorer_link(event_type, payload)
+    if explorer_link:
+        label, url = explorer_link
+        full_lines.append(f'<a href="{escape(url, quote=True)}">{label}</a>')
     message = "\n".join(full_lines)
     plain = message.replace("<b>", "").replace("</b>", "")
     if not dedupe_key and _is_recent_duplicate(event_type, title, plain):
