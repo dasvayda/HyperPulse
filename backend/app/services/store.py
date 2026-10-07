@@ -296,7 +296,12 @@ class StateStore:
         finally:
             db.close()
 
-    def persist_alert(self, item: AlertHistoryItem, payload: dict | None = None) -> None:
+    def persist_alert(
+        self,
+        item: AlertHistoryItem,
+        payload: dict | None = None,
+        dedupe_key: str | None = None,
+    ) -> None:
         db = SessionLocal()
         try:
             db.add(
@@ -307,6 +312,7 @@ class StateStore:
                     title=item.title,
                     message=item.message,
                     payload=json.dumps(payload or {}),
+                    dedupe_key=dedupe_key,
                     status=item.status,
                     created_at=item.created_at,
                     sent_at=item.sent_at,
@@ -315,6 +321,76 @@ class StateStore:
             db.commit()
         finally:
             db.close()
+
+    def sent_alert_exists(self, dedupe_key: str) -> bool:
+        db = SessionLocal()
+        try:
+            return (
+                db.query(AlertRow.id)
+                .filter(AlertRow.dedupe_key == dedupe_key, AlertRow.status == "sent")
+                .first()
+                is not None
+            )
+        finally:
+            db.close()
+
+    def latest_failed_alert(self, dedupe_key: str) -> AlertHistoryItem | None:
+        db = SessionLocal()
+        try:
+            row = (
+                db.query(AlertRow)
+                .filter(AlertRow.dedupe_key == dedupe_key, AlertRow.status == "failed")
+                .order_by(AlertRow.created_at.desc())
+                .first()
+            )
+            if row is None:
+                return None
+            return AlertHistoryItem(
+                id=row.id,
+                channel=row.channel,
+                event_type=row.event_type,
+                title=row.title,
+                message=row.message,
+                status=row.status,
+                created_at=row.created_at,
+                sent_at=row.sent_at,
+            )
+        finally:
+            db.close()
+
+    def update_alert_delivery(
+        self,
+        item: AlertHistoryItem,
+        *,
+        message: str,
+        status: str,
+        payload: dict | None,
+    ) -> AlertHistoryItem:
+        now = _utcnow()
+        updated = item.model_copy(
+            update={
+                "message": message,
+                "status": status,
+                "sent_at": now if status == "sent" else None,
+            }
+        )
+        db = SessionLocal()
+        try:
+            row = db.get(AlertRow, item.id)
+            if row is not None:
+                row.title = updated.title
+                row.message = message
+                row.payload = json.dumps(payload or {})
+                row.status = status
+                row.sent_at = updated.sent_at
+                db.commit()
+        finally:
+            db.close()
+        with self._lock:
+            self.alerts = [updated if existing.id == updated.id else existing for existing in self.alerts]
+            self.last_alert_at = now
+        self.refresh_dashboard()
+        return updated
 
     def persist_liquidations(self, events: list[LiquidationEvent]) -> None:
         db = SessionLocal()

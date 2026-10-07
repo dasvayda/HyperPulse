@@ -69,3 +69,9 @@ def _migrate_sqlite() -> None:
                 conn.execute(text("ALTER TABLE market_briefs ADD COLUMN tab_assets TEXT DEFAULT '[]'"))
             if "digest_json" not in brief_names:
                 conn.execute(text("ALTER TABLE market_briefs ADD COLUMN digest_json TEXT DEFAULT '{}'"))
+
+        alert_columns = conn.execute(text("PRAGMA table_info(alerts)")).fetchall()
+        alert_names = {row[1] for row in alert_columns}
+        if alert_names and "dedupe_key" not in alert_names:
+            conn.execute(text("ALTER TABLE alerts ADD COLUMN dedupe_key VARCHAR(160)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_alerts_dedupe_key ON alerts (dedupe_key)"))

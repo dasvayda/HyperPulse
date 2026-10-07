@@ -94,6 +94,7 @@ class AlertRow(Base):
     title: Mapped[str] = mapped_column(String(256))
     message: Mapped[str] = mapped_column(Text)
     payload: Mapped[str] = mapped_column(Text, default="{}")
+    dedupe_key: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(32), default="queued")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

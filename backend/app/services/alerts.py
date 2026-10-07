@@ -96,6 +96,7 @@ def _record_alert(
     message: str,
     status: str,
     payload: dict | None = None,
+    dedupe_key: str | None = None,
 ) -> AlertHistoryItem:
     now = _utcnow()
     item = AlertHistoryItem(
@@ -112,9 +113,28 @@ def _record_alert(
         store.alerts.insert(0, item)
         store.alerts = store.alerts[:100]
         store.last_alert_at = now
-    store.persist_alert(item, payload)
+    store.persist_alert(item, payload, dedupe_key)
     store.refresh_dashboard()
     return item
+
+
+def _delivery_dedupe_key(event_type: str, payload: dict | None) -> str | None:
+    """Stable source-event key for deliveries that must never be sent twice."""
+
+    body = payload or {}
+    source_id = str(body.get("id") or "").strip()
+    if event_type.startswith(("whale_move_", "big_trade_", "liq_proximity", "squeeze_risk")) and source_id:
+        return f"{event_type}:{source_id}"
+    if event_type == "market_brief":
+        snapshot_hash = str(body.get("snapshot_hash") or "").strip()
+        slot_id = str(body.get("slot_id") or "").strip()
+        if snapshot_hash and slot_id:
+            return f"market_brief:{slot_id}:{snapshot_hash}"
+    if event_type == "market_consensus":
+        mood = str(body.get("mood") or "").strip()
+        if mood:
+            return f"market_consensus:{mood}"
+    return None
 
 
 def _is_recent_duplicate(
@@ -477,13 +497,18 @@ async def _dispatch(event_type: str, title: str, lines: list[str], payload: dict
         return None
     if _is_type_rate_limited(event_type):
         return None
+    dedupe_key = _delivery_dedupe_key(event_type, payload)
+    if dedupe_key and store.sent_alert_exists(dedupe_key):
+        logger.info("Skipping already delivered Telegram event %s", dedupe_key)
+        return None
+
     full_lines = list(lines)
     detail_link = _alert_detail_link(event_type, payload)
     if detail_link:
         full_lines.append(f'<a href="{escape(detail_link, quote=True)}">Open details</a>')
     message = "\n".join(full_lines)
     plain = message.replace("<b>", "").replace("</b>", "")
-    if _is_recent_duplicate(event_type, title, plain):
+    if not dedupe_key and _is_recent_duplicate(event_type, title, plain):
         return None
     sent = await _send_telegram(message)
     status = "sent" if sent else ("queued" if not settings.telegram_configured else "failed")
@@ -494,7 +519,16 @@ async def _dispatch(event_type: str, title: str, lines: list[str], payload: dict
         message_plain=plain,
         status=status,
     )
-    return _record_alert(event_type, title, plain, status, payload)
+    if dedupe_key:
+        previous_failure = store.latest_failed_alert(dedupe_key)
+        if previous_failure is not None:
+            return store.update_alert_delivery(
+                previous_failure,
+                message=plain,
+                status=status,
+                payload=payload,
+            )
+    return _record_alert(event_type, title, plain, status, payload, dedupe_key)
 
 
 async def send_market_brief_alert() -> AlertHistoryItem | None:

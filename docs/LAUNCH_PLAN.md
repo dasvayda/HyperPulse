@@ -81,6 +81,7 @@
 - [ ] Redis 장애 시 동작과 재시작 후 복구 범위 명시
 - [ ] Hyperliquid, AI provider, Telegram API의 timeout/retry/backoff 정책 점검
 - [x] Telegram 발송 실패 재시도와 실패 이벤트 기록 추가 (최대 3회; 실패는 alert history와 최근 Telegram log에 보존)
+- [x] 동일 Hyperliquid 원본 이벤트 ID의 Telegram 재발송 차단 (성공 건은 영구 차단, 실패 건은 같은 alert record로 재시도)
 
 #### 관측성
 
