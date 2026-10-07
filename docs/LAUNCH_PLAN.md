@@ -95,7 +95,7 @@
 
 - [x] Dashboard, Insights, Whale Alerts, Liquidations, Ranking에 collector freshness/stale 상태를 전역 헤더로 일관되게 표시
 - [x] tracked whale 표본의 규모와 coverage를 전체 Hyperliquid 시장으로 오해하지 않도록 Insights·Smart Money 화면에 설명
-- [ ] 주요 시그널에서 사용한 지갑/rank, 포지션 delta, 시장 확인 근거를 확인할 수 있는 provenance 화면 또는 펼침 영역 제공
+- [ ] 주요 시그널에서 사용한 지갑/rank, 포지션 delta, 시장 확인 근거를 확인할 수 있는 provenance 화면 또는 펼침 영역 제공 (2026-10-08: Whale Alerts에 snapshot delta·verified-fill 창·account/market 원천 설명 추가; Insights·Liquidations 잔여)
 - [ ] collector 일부 실패 시 마지막 정상 데이터와 degraded 상태를 구분하고 새 데이터처럼 표시하지 않음
 - [x] Smart Money Score와 whale rank의 산정 기준·한계를 사용자 가까이에 공개 (2026-10-08: tracked 표본·계정가치 선별·과거 성과 정렬과 현재 포지션 매매 등급이 아님을 Ranking 화면에 명시)
 

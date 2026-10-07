@@ -11,6 +11,7 @@ import {
   AssetIcon,
 } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import {
   getWhaleAlerts,
   formatUsd,
@@ -67,8 +68,19 @@ export default async function WhaleAlertsPage({
           <DataTableHeaderCell>Asset</DataTableHeaderCell>
           <DataTableHeaderCell>Type</DataTableHeaderCell>
           <DataTableHeaderCell>Side</DataTableHeaderCell>
-          <DataTableHeaderCell>Position / change</DataTableHeaderCell>
-          <DataTableHeaderCell>Avg entry / mark</DataTableHeaderCell>
+          <DataTableHeaderCell>
+            <InfoTooltip label="Position / change">
+              Total position comes from the latest Hyperliquid account snapshot.
+              Change compares this snapshot with the prior tracked snapshot.
+            </InfoTooltip>
+          </DataTableHeaderCell>
+          <DataTableHeaderCell>
+            <InfoTooltip label="Avg entry / mark">
+              Avg entry is for the whole open position. Mark is the latest market
+              price. Neither is the price of the latest fill unless a Verified
+              fill line says so.
+            </InfoTooltip>
+          </DataTableHeaderCell>
           <DataTableHeaderCell>uPnL / ROI</DataTableHeaderCell>
           <DataTableHeaderCell>Leverage</DataTableHeaderCell>
           <DataTableHeaderCell>Book</DataTableHeaderCell>
@@ -238,13 +250,36 @@ export default async function WhaleAlertsPage({
         </DataTableBody>
       </DataTable>
 
-      <p className="text-xs text-text-dim mt-4">
-        Last 24h means a position-up alert in the past day. Position change is
-        a tracked snapshot delta; it becomes Verified fill only when the
-        matching HyperCore fills reconcile within the same collector window.
-        Avg E is the whole position&apos;s average entry, not the latest fill price.
-        STALE means the event is older than 45 minutes.
-      </p>
+      <details className="mt-4 rounded-xl border border-border bg-bg-surface px-4 py-3 text-xs text-text-muted">
+        <summary className="cursor-pointer font-medium text-text-primary">
+          How each whale alert is sourced
+        </summary>
+        <div className="mt-3 space-y-2 leading-relaxed">
+          <p>
+            <span className="font-medium text-text-primary">Why it appeared:</span>{" "}
+            POSITION UP or DOWN is the change between two tracked Hyperliquid
+            account snapshots. It is not automatically a single trade.
+          </p>
+          <p>
+            <span className="font-medium text-text-primary">Verified fill:</span>{" "}
+            HyperCore fills are checked only inside that same snapshot window.
+            A matching fill gets its real price and explorer links; otherwise we
+            show “Snapshot change” and no fill price.
+          </p>
+          <p>
+            <span className="font-medium text-text-primary">Position numbers:</span>{" "}
+            size, average entry, leverage, and unrealized PnL come from
+            Hyperliquid&apos;s account state. Mark comes from the latest market
+            snapshot. Avg E is the accumulated position average, not the latest
+            fill price.
+          </p>
+          <p>
+            <span className="font-medium text-text-primary">Confidence:</span>{" "}
+            a rule-based alert-quality score, not a forecast of profit. STALE
+            means the alert is older than 45 minutes.
+          </p>
+        </div>
+      </details>
     </DashboardLayout>
   );
 }
