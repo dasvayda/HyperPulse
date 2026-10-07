@@ -129,6 +129,11 @@ The production stack builds the Next.js standalone server, runs Uvicorn
 without reload, keeps PostgreSQL/Redis off host ports, and waits for container
 healthchecks before starting dependants.
 
+For the production deployment preflight, smoke checks, and source-ref rollback
+procedure, see [Deployment Runbook](docs/DEPLOYMENT_RUNBOOK.md). Do not use the
+pipeline-run endpoint as a deployment smoke test because it can create real
+alert candidates.
+
 ---
 
 ## Project Structure

@@ -71,7 +71,7 @@
 - [ ] HTTPS 및 도메인 연결
 - [x] backend/frontend/DB/Redis 컨테이너 healthcheck 추가
 - [x] 애플리케이션 readiness에서 DB/Redis/collector 상태 구분 (`GET /health/ready`; Redis memory fallback 별도 표시)
-- [ ] 배포 및 rollback 절차를 문서화
+- [x] 배포 및 rollback 절차를 문서화 ([DEPLOYMENT_RUNBOOK.md](./DEPLOYMENT_RUNBOOK.md), 2026-10-08; 실제 rollback·복구 검증은 잔여)
 
 #### 데이터와 운영
 
