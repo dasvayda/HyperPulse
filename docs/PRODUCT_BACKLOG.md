@@ -63,6 +63,7 @@
 - [x] **P1** BL-09 userFills recent behavior
 - [x] **P1** BL-15 Coin-scoped Market Brief
 - [ ] **P1** BL-18 HyperPulse Paper Portfolio — 구현 완료, Shadow 관찰 중
+  - 2026-10-09: [데이터 신뢰·로컬 원장 audit](./DATA_VALIDATION_2026-10-09.md) 완료. 37시간 bucket/완전 종료 3건으로 표본 부족. 청산 원천 오분류 확인에 따라 불완전 source 중 평가 일시 중지; source 재검증 후 Shadow 재개.
 - [x] **P2** BL-10 Market pulse strip (3 cards)
 - [x] **P2** BL-11 Funding crowdedness callout
 - [x] **P2** BL-12 Liquidation proximity (tracked whales)

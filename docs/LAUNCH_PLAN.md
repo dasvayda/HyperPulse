@@ -95,8 +95,9 @@
 
 - [x] Dashboard, Insights, Whale Alerts, Liquidations, Ranking에 collector freshness/stale 상태를 전역 헤더로 일관되게 표시
 - [x] tracked whale 표본의 규모와 coverage를 전체 Hyperliquid 시장으로 오해하지 않도록 Insights·Smart Money 화면에 설명
-- [ ] 주요 시그널에서 사용한 지갑/rank, 포지션 delta, 시장 확인 근거를 확인할 수 있는 provenance 화면 또는 펼침 영역 제공 (2026-10-08: Whale Alerts에 snapshot delta·verified-fill 창·account/market 원천 설명 추가; Insights·Liquidations 잔여)
-- [ ] collector 일부 실패 시 마지막 정상 데이터와 degraded 상태를 구분하고 새 데이터처럼 표시하지 않음
+- [ ] 주요 시그널에서 사용한 지갑/rank, 포지션 delta, 시장 확인 근거를 확인할 수 있는 provenance 화면 또는 펼침 영역 제공 (2026-10-09: Whale Alerts·Insights·Liquidations 원천/룰/AI/추정 구간 설명 완료; Insights 판단 시점의 지갑 명단·rank 고정 snapshot 연결은 잔여)
+- [ ] 검증된 청산 이벤트 feed 도입 및 기존 recentTrades 기반 청산 원장 audit (2026-10-09: 일반 거래 오분류 경로 중지, 기존 DB는 보존; 실시간 청산 집계 unavailable 및 Paper Portfolio 평가 일시 중지)
+- [x] collector 일부 실패 시 마지막 정상 데이터와 degraded 상태를 구분하고 새 데이터처럼 표시하지 않음 (2026-10-09: 시장 실패 시 성공 시각 보존, 지갑 조회 성공/전체 수·partial/error 상태 API 및 전역 헤더 표시; 상태는 프로세스 재시작 시 초기화)
 - [x] Smart Money Score와 whale rank의 산정 기준·한계를 사용자 가까이에 공개 (2026-10-08: tracked 표본·계정가치 선별·과거 성과 정렬과 현재 포지션 매매 등급이 아님을 Ranking 화면에 명시)
 
 #### 검증
@@ -169,7 +170,7 @@
 - [x] `top5_whale_trend_v1` 규칙·비용 가정·version hash 동결
 - [x] `$1,000` Forward Test 원장과 NAV/BTC benchmark/최대 낙폭/거래 내역 구현
 - [ ] 최소 30일 및 100개 완료 거래 Shadow Trading 확보
-- [ ] 거래·equity·수수료·slippage·funding 계산 audit 표본 검증
+- [ ] 거래·equity·수수료·slippage·funding 계산 audit 표본 검증 (2026-10-09: [로컬 원장 회계 audit 및 롱/숏 비용·funding 방향 테스트](./DATA_VALIDATION_2026-10-09.md) 완료; 실제 funding 이력·청산 입력 원천 검증 잔여)
 - [ ] Beta 화면에 `실험 전략`, 가상 체결, 손실 가능성, 표본 수를 명확히 표시
 - [ ] 관찰 중인 수익률을 마케팅 성과나 실제 수익 보장처럼 사용하지 않음
 
