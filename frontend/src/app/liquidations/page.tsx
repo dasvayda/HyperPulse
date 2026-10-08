@@ -58,6 +58,7 @@ export default async function LiquidationsPage() {
       pressure: market.liq_24h_pressure || "sampled liq quiet",
     },
   ];
+  const liquidationUnavailable = pipeline.collectors?.liquidations?.status !== "ok" && pipeline.data_source === "live";
 
   return (
     <DashboardLayout>
@@ -71,14 +72,23 @@ export default async function LiquidationsPage() {
         }
       />
 
+      <details className="mb-5 rounded-xl border border-border bg-bg-surface p-4 text-sm text-text-muted">
+        <summary className="cursor-pointer text-text-primary">Where these risk levels come from</summary>
+        <div className="mt-3 space-y-2">
+          <p>Closest Tracked Whales uses each wallet&apos;s open positions. Actual liquidation prices come from Hyperliquid account state; rows marked estimate use a model. Distance compares that price with the market mark.</p>
+          <p>LIQ WATCH and DANGER alerts use actual liquidation prices only. Open a trader to check their positions. Liquidation Zones are modeled risk levels, not confirmed resting orders or executed liquidations.</p>
+          <p>Verified liquidation totals and recent liquidation trades are currently unavailable. Public recent trades alone do not identify liquidations.</p>
+        </div>
+      </details>
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         {strip.map((row) => (
           <StatCard
             key={row.label}
             label={row.label}
-            value={formatUsd(row.total)}
-            change={row.pressure}
-            details={[
+            value={liquidationUnavailable ? "Unavailable" : formatUsd(row.total)}
+            change={liquidationUnavailable ? "Waiting for a verified liquidation feed" : row.pressure}
+            details={liquidationUnavailable ? [] : [
               {
                 label: "Longs",
                 value: formatUsd(row.long),

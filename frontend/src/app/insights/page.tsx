@@ -58,6 +58,17 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
 
       <TrackedSampleNotice tracked={pipeline.traders_tracked} />
 
+      <details className="mb-5 rounded-xl border border-border bg-bg-surface p-4 text-sm text-text-muted">
+        <summary className="cursor-pointer text-text-primary">What supports this read?</summary>
+        <div className="mt-3 space-y-2">
+          <p>Whale positioning uses tracked account positions. Funding is Hyperliquid&apos;s hourly rate; price change compares the current mark with the previous day.</p>
+          <p>Evidence cards show the signals used for each rule. Their confidence measures agreement between rules. The Market Brief uses AI wording when available and a template when it falls back; its source and time are shown below the brief.</p>
+          <p>Smart is the 15 largest tracked accounts sorted by historical score. Open their wallets in Smart Money to check current positions and losses before following the direction.</p>
+          <Link href="/rankings" className="inline-block text-accent hover:underline">Check Smart Money wallets →</Link>
+          <p>Verified liquidation totals are currently unavailable. Public recent trades cannot establish that a trade was a liquidation; do not use the displayed liquidation totals as confirmed market pressure.</p>
+        </div>
+      </details>
+
       <div className="flex flex-wrap gap-2 mb-4">
         <Link href="/insights#brief" className={chipClass(!asset)}>
           Market

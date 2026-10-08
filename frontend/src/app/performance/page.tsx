@@ -21,16 +21,18 @@ import {
   getPaperPortfolioSummary,
   getPaperStrategy,
   getPaperTrades,
+  getPipelineStatus,
 } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 export default async function PerformancePage() {
-  const [summary, equity, trades, strategy] = await Promise.all([
+  const [summary, equity, trades, strategy, pipeline] = await Promise.all([
     getPaperPortfolioSummary(),
     getPaperEquity(),
     getPaperTrades(),
     getPaperStrategy(),
+    getPipelineStatus(),
   ]);
 
   const netCosts =
@@ -48,6 +50,12 @@ export default async function PerformancePage() {
 
       <div className="mb-6">
         <PaperPortfolioCard summary={summary} />
+        {Object.values(pipeline.collectors ?? {}).some((source) => source.status !== "ok") && (
+          <p className="mt-3 rounded-lg border border-negative/40 p-3 text-sm text-negative">
+            Evaluation paused while source data is incomplete. These are the last
+            recorded results; no new simulated trades are being added.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

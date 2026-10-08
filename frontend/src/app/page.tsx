@@ -290,12 +290,16 @@ export default async function HomePage() {
           <StatCard
             label="24h Liquidations"
             value={
-              marketPulse.liq_usd_24h > 0
+              pipeline.data_source === "live" && pipeline.collectors?.liquidations?.status !== "ok"
+                ? "Unavailable"
+                : marketPulse.liq_usd_24h > 0
                 ? formatUsd(marketPulse.liq_usd_24h)
                 : "$0"
             }
             change={
-              marketPulse.liq_delta_pct != null
+              pipeline.data_source === "live" && pipeline.collectors?.liquidations?.status !== "ok"
+                ? "Waiting for a verified liquidation feed"
+                : marketPulse.liq_delta_pct != null
                 ? `1h vs avg hour ${formatPct(marketPulse.liq_delta_pct)}`
                 : market.liq_24h_pressure || "sampled liq quiet"
             }
