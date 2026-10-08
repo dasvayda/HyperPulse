@@ -422,6 +422,14 @@ class AlertDeliverySummary(BaseModel):
     last_failed_at: datetime | None = None
 
 
+class CollectorStatus(BaseModel):
+    status: str
+    last_success_at: datetime | None = None
+    checked_at: datetime
+    successful: int
+    expected: int
+
+
 class PipelineStatus(BaseModel):
     collector_enabled: bool
     last_collect_at: datetime | None
@@ -434,6 +442,7 @@ class PipelineStatus(BaseModel):
     inferences_count: int
     alerts_count: int
     data_source: str
+    collectors: dict[str, CollectorStatus] = Field(default_factory=dict)
 
 
 class ReadinessComponent(BaseModel):

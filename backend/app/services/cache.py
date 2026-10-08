@@ -22,7 +22,10 @@ def _get_redis():
     try:
         import redis
 
-        client = redis.from_url(settings.redis_url, decode_responses=True)
+        client = redis.from_url(
+            settings.redis_url, decode_responses=True,
+            socket_connect_timeout=2, socket_timeout=2,
+        )
         client.ping()
         _redis = client
         logger.info("Redis cache connected")

@@ -27,6 +27,7 @@ from app.models.orm import (
 )
 from app.models.schemas import (
     AlertHistoryItem,
+    CollectorStatus,
     DashboardStats,
     LiquidationEvent,
     LiquidationZone,
@@ -142,6 +143,7 @@ class StateStore:
         # Latest per-asset Hyperliquid ctx (volume/funding/mark) for live Coin Pulse.
         self.market_ticks: dict[str, dict] = {}
         self.last_collect_at: datetime | None = None
+        self.collectors: dict[str, CollectorStatus] = {}
         self.last_inference_at: datetime | None = None
         self.last_ranking_at: datetime | None = None
         self.last_alert_at: datetime | None = None
@@ -709,6 +711,20 @@ class StateStore:
         )
         return self.dashboard
 
+    def record_collection(self, name: str, successful: int, expected: int) -> None:
+        """Keep success time unchanged when part or all of a source fails."""
+        now = _utcnow()
+        with self._lock:
+            previous = self.collectors.get(name)
+            complete = expected > 0 and successful == expected
+            self.collectors[name] = CollectorStatus(
+                status="ok" if complete else "partial" if successful else "error",
+                last_success_at=now if complete else previous.last_success_at if previous else None,
+                checked_at=now,
+                successful=successful,
+                expected=expected,
+            )
+
     def pipeline_status(self) -> PipelineStatus:
         if settings.use_mock_data and self.last_collect_at is None:
             source = "mock"
@@ -729,6 +745,7 @@ class StateStore:
             inferences_count=len(self.inferences),
             alerts_count=len(self.alerts),
             data_source=source,
+            collectors=dict(self.collectors),
         )
 
     @staticmethod

@@ -206,7 +206,7 @@ def _apply_live_meta(data: list | dict) -> None:
 
 async def collect_market_snapshot() -> dict:
     live = await fetch_meta_and_asset_ctxs()
-    source = "hyperliquid" if live is not None else "simulated"
+    source = "hyperliquid" if live is not None else "simulated" if settings.use_mock_data else "unavailable"
 
     if live is not None:
         _apply_live_meta(live)
@@ -248,8 +248,10 @@ async def collect_market_snapshot() -> dict:
     elif settings.use_mock_data:
         _simulate_market_tick()
 
-    with store._lock:
-        store.last_collect_at = _utcnow()
+    store.record_collection("market", int(live is not None), 1)
+    if live is not None or settings.use_mock_data:
+        with store._lock:
+            store.last_collect_at = _utcnow()
 
     store.persist_traders(store.traders)
     store.persist_liquidations(store.liquidation_events)

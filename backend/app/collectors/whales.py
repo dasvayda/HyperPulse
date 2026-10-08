@@ -228,6 +228,9 @@ async def _fetch_clearinghouse_state(
     async with semaphore:
         try:
             state = await hl_info({"type": "clearinghouseState", "user": address})
+            if not isinstance(state, dict) or not isinstance(state.get("assetPositions"), list):
+                logger.warning("Invalid clearinghouseState payload for %s", address)
+                return address, None
         except Exception as exc:
             logger.warning("clearinghouseState failed for %s: %s", address, exc)
             return address, None
@@ -409,7 +412,8 @@ async def collect_whale_events() -> list[WhaleAlert]:
     positions_snapshot.extend(
         p for p in previous_positions if p.trader_address.lower() not in observed_addresses
     )
-    flow_at = store.last_collect_at or _utcnow()
+    store.record_collection("whales", len(observed_addresses), len(addresses))
+    flow_at = observed_at
     try:
         from app.services.paper_portfolio import record_whale_flows
 

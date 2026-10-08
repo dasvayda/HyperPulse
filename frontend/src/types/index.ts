@@ -371,6 +371,13 @@ export interface AlertDeliverySummary {
 }
 
 export interface PipelineStatus {
+  collectors?: Record<string, {
+    status: string;
+    last_success_at: string | null;
+    checked_at: string;
+    successful: number;
+    expected: number;
+  }>;
   collector_enabled: boolean;
   last_collect_at: string | null;
   last_inference_at: string | null;

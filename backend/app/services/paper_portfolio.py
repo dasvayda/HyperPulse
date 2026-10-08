@@ -576,6 +576,10 @@ def run_paper_portfolio(at: datetime | None = None) -> bool:
 
     Returns True when a new bucket was recorded, False when already processed.
     """
+    # Preserve the forward-test ledger during incomplete source cycles. In
+    # particular, missing liquidation evidence must not mean zero liq risk.
+    if any(state.status != "ok" for state in store.collectors.values()):
+        return False
     at = (at or _utcnow()).astimezone(timezone.utc)
     bucket = _hour_bucket(at)
     db = SessionLocal()

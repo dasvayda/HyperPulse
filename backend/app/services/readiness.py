@@ -84,6 +84,12 @@ def get_readiness(*, now: datetime | None = None) -> ReadinessStatus:
     database = database_readiness(now=checked_at)
     cache = cache_readiness(now=checked_at)
     collector = collector_readiness(store.last_collect_at, now=checked_at)
+    failed = [name for name, state in store.collectors.items() if state.status != "ok"]
+    if failed and collector.status == "ok":
+        collector = collector.model_copy(update={
+            "status": "degraded",
+            "detail": "Collection incomplete: " + ", ".join(failed),
+        })
     ready = database.status == "ok" and collector.status == "ok"
     return ReadinessStatus(
         status="ready" if ready else "degraded",
