@@ -78,7 +78,7 @@
 - [ ] PostgreSQL을 production 기본 DB로 확정
 - [ ] Alembic 등 정식 schema migration 도입
 - [ ] DB 백업 및 복구 테스트
-- [ ] Redis 장애 시 동작과 재시작 후 복구 범위 명시
+- [x] Redis 장애 시 동작과 재시작 후 복구 범위 명시 (2026-10-09: TTL 유지·60초 재연결·Redis 복귀 시 메모리 폐기·재시작 시 캐시 소실; runbook 및 장애/복귀 테스트)
 - [ ] Hyperliquid, AI provider, Telegram API의 timeout/retry/backoff 정책 점검
 - [x] Telegram 발송 실패 재시도와 실패 이벤트 기록 추가 (최대 3회; 실패는 alert history와 최근 Telegram log에 보존)
 - [x] 동일 Hyperliquid 원본 이벤트 ID의 Telegram 재발송 차단 (성공 건은 영구 차단, 실패 건은 같은 alert record로 재시도)

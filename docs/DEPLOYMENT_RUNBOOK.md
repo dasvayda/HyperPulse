@@ -85,6 +85,14 @@ git switch main
 
 ## Incident quick checks
 
+Redis failure switches cache reads/writes to process memory with the same TTL.
+Connection and command timeouts are 2 seconds; reconnect is attempted after
+60 seconds when a cache operation or readiness check runs. On recovery Redis
+becomes authoritative and fallback entries are discarded rather than replayed.
+Memory entries do not survive a backend restart and are not shared between
+workers. DB-backed records remain separate from this disposable cache.
+`/health/ready` reports `cache.status=fallback` during an outage.
+
 - `docker compose -f docker-compose.prod.yml logs --tail=200 backend`
 - `docker compose -f docker-compose.prod.yml logs --tail=200 frontend`
 - `docker compose -f docker-compose.prod.yml logs --tail=200 postgres redis`
