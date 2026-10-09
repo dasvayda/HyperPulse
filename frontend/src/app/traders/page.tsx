@@ -18,6 +18,8 @@ import {
   formatUsd,
 } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 export default async function RankingPage() {
   const [performance, pipeline] = await Promise.all([
     getPerformanceRankings(),

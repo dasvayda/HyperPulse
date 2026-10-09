@@ -774,6 +774,12 @@ def get_paper_summary() -> PaperPortfolioSummary:
             .all()
         )
         wins = sum(1 for row in closed if row.realized_pnl_usd > 0)
+        fully_closed = sum(row.action == "close" for row in closed)
+        observed_hours = (
+            db.query(func.count(func.distinct(PaperEquityRow.bucket)))
+            .filter(PaperEquityRow.strategy_id == strategy.id)
+            .scalar() or 0
+        )
         max_dd = float(
             db.query(func.coalesce(func.min(PaperEquityRow.drawdown_pct), 0.0))
             .filter(PaperEquityRow.strategy_id == strategy.id)
@@ -810,6 +816,12 @@ def get_paper_summary() -> PaperPortfolioSummary:
             cumulative_funding=round(float(strategy.cumulative_funding), 4),
             trades_count=trade_count,
             closed_trades_count=len(closed),
+            fully_closed_positions_count=fully_closed,
+            observed_hour_buckets=observed_hours,
+            minimum_sample_met=observed_hours >= 720 and fully_closed >= 100,
+            evaluation_paused=not store.collectors or any(
+                state.status != "ok" for state in store.collectors.values()
+            ),
             win_rate=round(wins / len(closed) * 100.0, 1) if closed else None,
             current_positions=_position_models(db, strategy, marks, nav),
             last_decisions=[

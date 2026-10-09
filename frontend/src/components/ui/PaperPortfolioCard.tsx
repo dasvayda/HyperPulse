@@ -17,7 +17,7 @@ export function PaperPortfolioCard({
         <div>
           <div className="flex items-center gap-2">
             <p className="text-[10px] uppercase tracking-wide text-text-dim">
-              HyperPulse Paper Portfolio
+              Paper Portfolio · experimental strategy
             </p>
             <Badge variant={summary.warming_up ? "hold" : "accent"}>
               {summary.warming_up ? "WARMING UP" : summary.status.toUpperCase()}
@@ -45,7 +45,7 @@ export function PaperPortfolioCard({
           }
         />
         <Metric label="Max drawdown" value={formatPct(summary.max_drawdown_pct)} />
-        <Metric label="Trades" value={String(summary.trades_count)} />
+        <Metric label="Simulated fills" value={String(summary.trades_count)} />
         {!compact && (
           <Metric
             label="Exposure"
@@ -54,9 +54,27 @@ export function PaperPortfolioCard({
         )}
       </div>
 
+      <p className="mt-4 text-xs text-text-muted">
+        Recorded sample: {summary.observed_hour_buckets ?? 0}/720 hourly evaluations
+        {" · "}{summary.fully_closed_positions_count ?? 0}/100 full closes.
+        {summary.minimum_sample_met
+          ? " Minimum counts reached; source and accounting review still required."
+          : " Still below the minimum validation sample."}
+      </p>
+      {summary.evaluation_paused !== false && (
+        <p className="mt-2 text-xs text-negative">
+          Evaluation paused while source data is unverified or incomplete.
+          Showing the last recorded results.
+        </p>
+      )}
+
       <p className="mt-4 text-[11px] leading-relaxed text-text-dim">
         Top 5 Whale + recent Top 5 flow, confirmed by 1h/4h trend · fees,
         slippage and funding included · updated {formatTimeAgo(summary.updated_at)}
+      </p>
+      <p className="mt-2 text-[11px] leading-relaxed text-text-dim">
+        Simulated trades with {formatUsd(summary.initial_cash)} virtual capital.
+        Losses are possible. Past paper results do not predict future returns.
       </p>
     </div>
   );

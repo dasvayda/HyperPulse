@@ -304,7 +304,7 @@ Priority: **P0** now-insight → **P1** smart-money 해석 → **P2** 맥락 1~2
   - [x] fee/slippage/funding을 반영한 net NAV와 benchmark 계산
   - [ ] 최소 30일·100개 완료 거래 Shadow Trading과 audit 검증
   - [x] Dashboard teaser + 상세 성과/거래/가정 페이지
-  - [ ] 가상 성과·손실 가능성·한계 고지 및 공개 전 컴플라이언스 검토
+  - [ ] 가상 성과·손실 가능성·한계 고지 및 공개 전 컴플라이언스 검토 (2026-10-09: Dashboard/상세 공통 카드에 실험·가상체결·표본수·손실 가능성·평가중지 고지 완료; 공개 검토 잔여)
 
 ---
 

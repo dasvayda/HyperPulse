@@ -512,6 +512,10 @@ export interface PaperPortfolioSummary {
   cumulative_funding: number;
   trades_count: number;
   closed_trades_count: number;
+  fully_closed_positions_count: number;
+  observed_hour_buckets: number;
+  minimum_sample_met: boolean;
+  evaluation_paused: boolean;
   win_rate: number | null;
   current_positions: PaperPortfolioPosition[];
   last_decisions: PaperDecision[];

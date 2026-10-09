@@ -35,6 +35,8 @@ const SMART_MONEY_SCORE_HELP = (
   </>
 );
 
+export const dynamic = "force-dynamic";
+
 export default async function RankingsPage() {
   const [rankings, pipeline] = await Promise.all([getRankings(), getPipelineStatus()]);
 

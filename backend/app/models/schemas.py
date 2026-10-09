@@ -582,6 +582,10 @@ class PaperPortfolioSummary(BaseModel):
     cumulative_funding: float
     trades_count: int
     closed_trades_count: int
+    fully_closed_positions_count: int = 0
+    observed_hour_buckets: int = 0
+    minimum_sample_met: bool = False
+    evaluation_paused: bool = True
     win_rate: float | None = None
     current_positions: list[PaperPortfolioPosition] = Field(default_factory=list)
     last_decisions: list[dict] = Field(default_factory=list)
