@@ -58,6 +58,30 @@ export default async function AlertsPage() {
         </div>
       </section>
 
+      <section className="mb-6 rounded-xl border border-border bg-bg-surface p-5 text-sm text-text-muted">
+        <h2 className="font-medium text-text-primary">Before you join</h2>
+        <p className="mt-2">
+          All subscribers receive the same channel posts. Coin filters and
+          personal alert switches are not available yet. No wallet connection
+          or private key is needed to read the channel.
+        </p>
+        <details className="mt-4">
+          <summary className="cursor-pointer text-text-primary">Alert types and timing</summary>
+          <ul className="mt-3 list-disc space-y-2 pl-5">
+            <li>WHALE MOVE / BIG TRADE: a tracked position changed. “This move” explains the change; “Total position” is the accumulated holding. Only verified fills show a trade price.</li>
+            <li>LIQ WATCH / DANGER: a tracked position is close to its reported liquidation price. These warnings use actual wallet liquidation prices.</li>
+            <li>Market Brief: scheduled around 09:00 Korea time and 09:00 New York time, once per session when a brief is available. New York time follows daylight saving time.</li>
+            <li>Other market reads appear when their thresholds are met. Hourly limits and cooldowns reduce repeated posts, so not every change gets an alert.</li>
+          </ul>
+          <p className="mt-3">Updates can be delayed by collection or delivery failures. Check the message time and verified wallet details before acting. Quiet periods do not mean that there is no market risk.</p>
+        </details>
+        <details className="mt-4">
+          <summary className="cursor-pointer text-text-primary">Join, mute, or leave</summary>
+          <p className="mt-3">Use Join Telegram above, then join the channel in Telegram. Private channels may require the invite shared by the operator.</p>
+          <p className="mt-2">Mute notifications in the Telegram channel to keep reading without alerts. To unsubscribe from all posts, leave the channel from its menu. You can return using a valid channel or invite link.</p>
+        </details>
+      </section>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
           label="Total Alerts"
@@ -82,7 +106,7 @@ export default async function AlertsPage() {
         <StatCard
           label="Queued (24h)"
           value={String(delivery.queued)}
-          change={delivery.queued === 0 ? "No backlog" : "Awaiting delivery"}
+          change={delivery.queued === 0 ? "No queued records" : "Stored locally · not sent"}
           positive={delivery.queued === 0}
         />
         <StatCard
