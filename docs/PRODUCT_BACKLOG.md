@@ -467,6 +467,11 @@ BL-05 Alert quality
 
 ## 8. 한 줄 결론
 
+운영 안정성 보완(2026-10-10): 랭킹 계산의 이벤트 루프 차단 제거, 최신 가격 공유,
+스냅샷 인덱스, Home 부분 로딩/timeout 및 안전한 보관 DB 이동 도구를 추가했다.
+상세 원인과 적용 절차는 [성능·DB 보관 문서](PERFORMANCE_AND_STORAGE_2026-10-10.md)를 참고한다.
+기존 원본의 자동 삭제와 시간별 집계는 적용하지 않는다.
+
 경쟁사는 **무엇을 보여주면 먹히는지**의 벤치마크다.  
 HyperPulse는 HL 온체인으로 **ROI(완료) / Fresh bias / Smart-money 대비 / Liq 요약**을 골라, **지금 쓸 수 있는 insight**로만 제품화한다.  
 Binance AI는 **분석/행동 분리 + 3슬롯 TL;DR(Now / short / however)**만 가져오고, 챗·이평·MACD는 가져오지 않는다.

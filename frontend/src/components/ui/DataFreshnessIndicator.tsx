@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8100";
 const STALE_AFTER_MS = 3 * 60 * 1000;
 
 type PipelineFreshness = {
@@ -28,7 +26,7 @@ export function DataFreshnessIndicator() {
     let alive = true;
     const load = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/v2/pipeline/status`, {
+        const response = await fetch("/api/pipeline/status", {
           cache: "no-store",
           signal: AbortSignal.timeout(5_000),
         });

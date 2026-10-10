@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -314,7 +315,7 @@ async def run_inference_pipeline() -> list[StrategyInference]:
         store.ai_provider = results[0].provider if results else provider
 
     store.refresh_dashboard()
-    _build_market_insights()
+    await asyncio.to_thread(_build_market_insights)
     return results
 
 
@@ -898,9 +899,10 @@ def enrich_rankings_with_inference() -> None:
         item.trader_address.lower(): item.strategy for item in store.inferences
     }
     # Compute outside the lock — summarize_open_pnl hits the DB.
+    marks = store.current_mark_prices()
     refreshed: list[SmartMoneyRank] = []
     for rank in list(store.rankings):
-        open_roi_pct, open_unrealized_pnl_usd = store.summarize_open_pnl(rank.address)
+        open_roi_pct, open_unrealized_pnl_usd = store.summarize_open_pnl(rank.address, marks=marks)
         refreshed.append(
             rank.model_copy(
                 update={

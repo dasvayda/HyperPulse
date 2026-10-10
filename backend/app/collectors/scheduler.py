@@ -40,14 +40,14 @@ async def _collect_cycle() -> None:
     try:
         from app.services.paper_portfolio import run_paper_portfolio
 
-        if run_paper_portfolio():
+        if await asyncio.to_thread(run_paper_portfolio):
             logger.info("Paper Portfolio hourly decision recorded")
     except Exception:
         logger.exception("Paper Portfolio cycle failed")
     try:
         from app.services.pulse import resolve_due_pulses
 
-        n = resolve_due_pulses()
+        n = await asyncio.to_thread(resolve_due_pulses)
         if n:
             logger.info("Pulse resolve: %s signals", n)
     except Exception:
@@ -70,7 +70,7 @@ async def _trader_cycle() -> None:
 async def _inference_cycle() -> None:
     results = await run_inference_pipeline()
     store.whale_alerts = apply_inference_to_alerts(store.whale_alerts)
-    enrich_rankings_with_inference()
+    await asyncio.to_thread(enrich_rankings_with_inference)
     await process_alert_triggers(
         whale_alerts=store.whale_alerts[:3],
         zones=[z for z in store.liquidation_zones if z.size_usd >= 100_000_000][:2],
@@ -80,7 +80,9 @@ async def _inference_cycle() -> None:
 
 
 async def _ranking_cycle() -> None:
-    rankings = run_ranking_pipeline()
+    t0 = time.monotonic()
+    rankings = await asyncio.to_thread(run_ranking_pipeline)
+    logger.info("Ranking cycle duration: %.2fs", time.monotonic() - t0)
     logger.info("Ranking cycle complete: top=%s", rankings[0].alias if rankings else None)
 
 

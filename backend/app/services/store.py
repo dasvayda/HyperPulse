@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import uuid
 from datetime import datetime, timezone
@@ -483,7 +484,26 @@ class StateStore:
                 return positions
         return []
 
-    def summarize_open_pnl(self, address: str) -> tuple[float | None, float | None]:
+    def current_mark_prices(self) -> dict[str, float]:
+        """Share one price map per calculation; prefer the live collector cache."""
+        with self._lock:
+            assets = {p.asset for p in self.whale_positions}
+            ticks = dict(self.market_ticks)
+        marks: dict[str, float] = {}
+        for asset in assets:
+            raw = (ticks.get(asset) or {}).get("mark_price")
+            try:
+                mark = float(raw)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(mark) and mark > 0:
+                marks[asset] = mark
+        marks.update(_latest_mark_prices(assets - marks.keys()))
+        return marks
+
+    def summarize_open_pnl(
+        self, address: str, *, marks: dict[str, float] | None = None,
+    ) -> tuple[float | None, float | None]:
         """Return (open_roi_pct, open_unrealized_pnl_usd) for a trader.
 
         Portfolio ROI approximates margin ROI: sum(uPnL) / sum(notional/leverage).
@@ -491,7 +511,8 @@ class StateStore:
         positions = self.get_open_positions(address)
         if not positions:
             return None, None
-        marks = _latest_mark_prices({p.asset for p in positions})
+        if marks is None:
+            marks = _latest_mark_prices({p.asset for p in positions})
         total_upnl = 0.0
         total_margin = 0.0
         priced = 0

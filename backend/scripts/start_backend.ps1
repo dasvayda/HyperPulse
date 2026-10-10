@@ -46,4 +46,6 @@ if (-not (Test-Path ".venv")) {
 $env:PYTHONPATH = "."
 $env:API_PORT = "$port"
 # No --reload: avoids zombie reloader processes and port conflicts on Windows.
-.venv\Scripts\uvicorn.exe app.main:app --host 127.0.0.1 --port $port
+New-Item -ItemType Directory -Path "logs" -Force | Out-Null
+.venv\Scripts\uvicorn.exe app.main:app --host 127.0.0.1 --port $port 2>&1 |
+  Tee-Object -FilePath "logs/backend-live.log"

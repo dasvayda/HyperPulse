@@ -143,6 +143,7 @@ def run_ranking_pipeline() -> list[SmartMoneyRank]:
     roi_low, roi_high = _robust_bounds(rois)
 
     scored: list[SmartMoneyRank] = []
+    marks = store.current_mark_prices()
     score_map: dict[str, float] = {}
     inference_map = {
         item.trader_address.lower(): item.strategy for item in store.inferences
@@ -157,7 +158,7 @@ def run_ranking_pipeline() -> list[SmartMoneyRank]:
             roi_high=roi_high,
         )
         score_map[trader.address] = score
-        open_roi_pct, open_unrealized_pnl_usd = store.summarize_open_pnl(trader.address)
+        open_roi_pct, open_unrealized_pnl_usd = store.summarize_open_pnl(trader.address, marks=marks)
         scored.append(
             SmartMoneyRank(
                 address=trader.address,

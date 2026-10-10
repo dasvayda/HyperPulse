@@ -7,7 +7,8 @@ for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":3100" ^| findstr "LISTENING
   taskkill /F /PID %%p >nul 2>&1
 )
 
-if exist ".next" (
+REM Keep the build cache normally; opt in only when diagnosing stale artifacts.
+if "%HP_CLEAR_NEXT_CACHE%"=="1" if exist ".next" (
   echo Clearing stale .next cache...
   rmdir /s /q ".next"
 )

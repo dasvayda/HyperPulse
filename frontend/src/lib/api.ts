@@ -50,6 +50,7 @@ async function fetchApi<T>(
   const res = await fetch(`${API_URL}${path}`, {
     next: { revalidate: 30 },
     ...init,
+    signal: init?.signal ?? AbortSignal.timeout(10_000),
   });
   if (!res.ok) {
     throw new ApiError(res.status, `API error: ${res.status}`);

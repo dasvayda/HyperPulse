@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, Integer, String, Text
+from sqlalchemy import DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -60,6 +60,10 @@ class LiquidationRow(Base):
 
 class MarketSnapshotRow(Base):
     __tablename__ = "market_snapshots"
+    __table_args__ = (
+        Index("ix_market_snapshots_asset_timestamp", "asset", "timestamp"),
+        Index("ix_market_snapshots_timestamp", "timestamp"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     asset: Mapped[str] = mapped_column(String(32), index=True)

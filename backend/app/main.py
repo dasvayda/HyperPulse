@@ -37,7 +37,7 @@ async def lifespan(_: FastAPI):
     t3 = time.monotonic()
     logger.info("Startup: run_bootstrap_pipeline took %.2fs", t3 - t2)
     start_background_tasks()
-    logger.info("HyperPulse Phase 2 pipeline ready (total startup %.2fs)", t3 - t0)
+    logger.info("Pipeline initialized (%.2fs); API readiness requires a successful HTTP health check", t3 - t0)
     yield
     await stop_background_tasks()
 

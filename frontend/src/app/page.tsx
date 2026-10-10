@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import {
   DataTable,
@@ -49,6 +50,25 @@ import {
 
 export const dynamic = "force-dynamic";
 
+async function FearGreedCard() {
+  const item = await getFearGreed().catch(() => null);
+  const delta = item?.yesterday_value != null ? item.value - item.yesterday_value : null;
+  return <StatCard label="Fear & Greed" value={item ? String(item.value) : "—"}
+    change={item ? `${item.classification} · CMC${delta != null ? ` · ${delta > 0 ? "+" : ""}${delta} vs yesterday (${item.yesterday_value})` : ""}` : "CMC unavailable"}
+    positive={(delta != null ? delta === 0 ? item?.positive : delta > 0 : item?.positive) ?? undefined} />;
+}
+
+async function BriefTeaser() {
+  const brief = await getMarketBrief().catch(() => null);
+  return (
+    <Link href="/insights" className="mb-4 block rounded-xl border border-border bg-bg-elevated/40 px-4 py-3 hover:border-accent/40 transition-colors">
+      <p className="text-[10px] uppercase tracking-wide text-text-dim mb-1">Market Brief</p>
+      <p className="text-sm font-medium text-text-primary line-clamp-2">{brief?.tldr?.now || brief?.headline || "Brief temporarily unavailable — check the live market data below."}</p>
+      {brief?.pulse ? <p className="mt-1.5 text-xs text-text-dim">{pulseChipLabel(brief.pulse)}</p> : null}
+    </Link>
+  );
+}
+
 export default async function HomePage() {
   const [
     stats,
@@ -62,10 +82,8 @@ export default async function HomePage() {
     coinPulse,
     whaleSummary,
     biggestPositions,
-    marketBrief,
     cohortBias,
     marketPulse,
-    fearGreed,
     paperPortfolio,
   ] = await Promise.all([
     getDashboardStats(),
@@ -79,10 +97,8 @@ export default async function HomePage() {
     getCoinPulse(),
     getWhaleBookSummary(),
     getBiggestPositions(8),
-    getMarketBrief(),
     getCohortBias(),
     getMarketPulse(),
-    getFearGreed().catch(() => null),
     getPaperPortfolioSummary(),
   ]);
 
@@ -165,25 +181,6 @@ export default async function HomePage() {
   const liq1hShort = market.liq_1h_short_usd ?? 0;
   const liq1hTotal = market.liq_1h_total_usd ?? liq1hLong + liq1hShort;
 
-  const fearGreedDelta =
-    fearGreed?.yesterday_value != null
-      ? fearGreed.value - fearGreed.yesterday_value
-      : null;
-  const fearGreedChange =
-    fearGreed == null
-      ? "CMC unavailable"
-      : fearGreedDelta != null
-        ? `${fearGreed.classification} · ${fearGreedDelta > 0 ? `+${fearGreedDelta}` : String(fearGreedDelta)} vs yesterday (${fearGreed.yesterday_value})`
-        : `${fearGreed.classification} · CMC`;
-  const fearGreedPositive =
-    fearGreedDelta != null
-      ? fearGreedDelta > 0
-        ? true
-        : fearGreedDelta < 0
-          ? false
-          : fearGreed?.positive ?? undefined
-      : fearGreed?.positive ?? undefined;
-
   return (
     <DashboardLayout>
       <PageHeader
@@ -231,12 +228,9 @@ export default async function HomePage() {
             { label: "Shorts", value: formatUsd(liq1hShort), tone: "positive" },
           ]}
         />
-        <StatCard
-          label="Fear & Greed"
-          value={fearGreed ? String(fearGreed.value) : "—"}
-          change={fearGreedChange}
-          positive={fearGreedPositive}
-        />
+        <Suspense fallback={<StatCard label="Fear & Greed" value="—" change="Loading CMC data…" />}>
+          <FearGreedCard />
+        </Suspense>
       </div>
 
       <div className="mb-8">
@@ -322,22 +316,9 @@ export default async function HomePage() {
               Full brief
             </Link>
           </div>
-          <Link
-            href="/insights"
-            className="mb-4 block rounded-xl border border-border bg-bg-elevated/40 px-4 py-3 hover:border-accent/40 transition-colors"
-          >
-            <p className="text-[10px] uppercase tracking-wide text-text-dim mb-1">
-              Market Brief
-            </p>
-            <p className="text-sm font-medium text-text-primary line-clamp-2">
-              {marketBrief.tldr?.now || marketBrief.headline}
-            </p>
-            {marketBrief.pulse ? (
-              <p className="mt-1.5 text-xs text-text-dim">
-                {pulseChipLabel(marketBrief.pulse)}
-              </p>
-            ) : null}
-          </Link>
+          <Suspense fallback={<p role="status" className="mb-4 text-sm text-text-muted">Loading Market Brief…</p>}>
+            <BriefTeaser />
+          </Suspense>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 items-stretch">
             <WhaleBiasPanel summary={whaleSummary} className="h-full" />
             <InsightCardCarousel
