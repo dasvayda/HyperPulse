@@ -6,6 +6,8 @@ interface AlertFeedProps {
   alerts: AlertHistoryItem[];
   className?: string;
   limit?: number;
+  /** Home preview only; the alerts page retains its detailed layout. */
+  compact?: boolean;
 }
 
 const statusVariant: Record<string, "accent" | "default" | "short"> = {
@@ -49,6 +51,7 @@ export function AlertFeed({
   alerts,
   className = "",
   limit = 6,
+  compact = false,
 }: AlertFeedProps) {
   const items = alerts.slice(0, limit);
 
@@ -70,9 +73,9 @@ export function AlertFeed({
         const legacySnapshot = isLegacySnapshotCopy(alert.title, alert.message);
         return (
         <div key={alert.id} className="p-4 flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-medium text-text-primary">{displayAlertTitle(alert.title)}</p>
-            <div className="flex items-center gap-2 shrink-0">
+          <div className={compact ? "flex flex-col gap-2" : "flex items-center justify-between gap-3"}>
+            <p className={`text-sm font-medium text-text-primary ${compact ? "line-clamp-2" : ""}`}>{displayAlertTitle(alert.title)}</p>
+            <div className={`flex items-center gap-2 shrink-0 ${compact ? "justify-between" : ""}`}>
               <Badge variant={statusVariant[alert.status] ?? "default"}>
                 {alert.status}
               </Badge>
@@ -84,13 +87,15 @@ export function AlertFeed({
           <p className="text-xs text-text-muted leading-relaxed line-clamp-3">
             {alertBody(alert.title, alert.message)}
           </p>
-          <p className="text-xs text-text-dim">
+          {!compact ? <p className="text-xs text-text-dim">
             {alert.channel} · {alert.event_type}
-          </p>
+          </p> : null}
           {legacySnapshot ? (
             <p className="text-xs text-text-dim">
               Legacy snapshot alert · fills not verified
             </p>
+          ) : compact && /fills not verified|unverified/i.test(alert.message) ? (
+            <p className="text-xs text-text-dim">Fills not verified — check the wallet before acting.</p>
           ) : null}
         </div>
         );

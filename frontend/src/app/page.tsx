@@ -22,6 +22,7 @@ import { WhaleBiasPanel } from "@/components/ui/WhaleBiasPanel";
 import { CohortBiasPanel } from "@/components/ui/CohortBiasPanel";
 import { ScoreMeter } from "@/components/ui/ScoreMeter";
 import { pulseChipLabel } from "@/components/ui/PulseBar";
+import { marketBriefPreview } from "@/lib/market-brief-preview";
 import { PaperPortfolioCard } from "@/components/ui/PaperPortfolioCard";
 import {
   getDashboardStats,
@@ -60,11 +61,26 @@ async function FearGreedCard() {
 
 async function BriefTeaser() {
   const brief = await getMarketBrief().catch(() => null);
+  const preview = marketBriefPreview(brief);
   return (
-    <Link href="/insights" className="mb-4 block rounded-xl border border-border bg-bg-elevated/40 px-4 py-3 hover:border-accent/40 transition-colors">
-      <p className="text-[10px] uppercase tracking-wide text-text-dim mb-1">Market Brief</p>
-      <p className="text-sm font-medium text-text-primary line-clamp-2">{brief?.tldr?.now || brief?.headline || "Brief temporarily unavailable — check the live market data below."}</p>
-      {brief?.pulse ? <p className="mt-1.5 text-xs text-text-dim">{pulseChipLabel(brief.pulse)}</p> : null}
+    <Link href="/insights" aria-label="Market Brief — read the full analysis" className="mb-4 block rounded-xl border border-border bg-bg-elevated/40 p-4 hover:border-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent transition-colors">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[10px] uppercase tracking-wide text-text-dim">Market Brief · Read</p>
+        <div className="flex flex-wrap items-center gap-2">
+          {brief?.stale ? <Badge variant="exit">STALE</Badge> : null}
+          {brief ? <Badge variant={brief.stance === "prefer_long" ? "buy" : brief.stance === "prefer_short" ? "sell" : "hold"}>
+            {brief.stance === "prefer_long" ? "Prefer longs" : brief.stance === "prefer_short" ? "Prefer shorts" : "Wait"}
+          </Badge> : null}
+        </div>
+      </div>
+      <p className="text-sm font-medium text-text-primary leading-relaxed">{preview.read}</p>
+      {preview.caution ? <p className="mt-2 text-xs text-text-muted leading-relaxed"><span className="text-text-dim">Watch out · </span>{preview.caution}</p> : null}
+      {preview.context ? <p className="mt-3 border-t border-border pt-3 text-xs text-text-dim leading-relaxed">{preview.context}</p> : null}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <span className="text-text-dim">Tracked whales · {brief ? formatTimeAgo(brief.as_of) : "Brief unavailable"}</span>
+        <span className="text-accent">Read full analysis →</span>
+      </div>
+      {brief?.pulse ? <p className="mt-2 text-xs text-text-dim">{pulseChipLabel(brief.pulse)}</p> : null}
     </Link>
   );
 }
@@ -319,15 +335,12 @@ export default async function HomePage() {
           <Suspense fallback={<p role="status" className="mb-4 text-sm text-text-muted">Loading Market Brief…</p>}>
             <BriefTeaser />
           </Suspense>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 items-stretch">
-            <WhaleBiasPanel summary={whaleSummary} className="h-full" />
+          <div className="grid grid-cols-1 gap-4">
+            <WhaleBiasPanel summary={whaleSummary} />
             <InsightCardCarousel
               insights={previewInsights}
-              className="h-full min-h-[200px]"
+              className="min-h-[200px]"
             />
-          </div>
-          <div className="mt-4">
-            <CohortBiasPanel data={cohortBias} />
           </div>
         </div>
         <div className="flex flex-col min-h-0">
@@ -339,8 +352,8 @@ export default async function HomePage() {
               More
             </Link>
           </div>
-          <AlertFeed alerts={alertHistory} limit={6} />
-          {alertHistory.length > 6 ? (
+          <AlertFeed alerts={alertHistory} limit={5} compact />
+          {alertHistory.length > 5 ? (
             <Link
               href="/alerts"
               className="mt-3 text-xs text-accent hover:underline self-end"
@@ -349,6 +362,10 @@ export default async function HomePage() {
             </Link>
           ) : null}
         </div>
+      </div>
+
+      <div className="mb-8">
+        <CohortBiasPanel data={cohortBias} />
       </div>
 
       <div className="mb-8">
