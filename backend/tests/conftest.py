@@ -7,6 +7,14 @@ from pathlib import Path
 # share the live hyperpulse.db and pulse resolve counts leak across runs.
 _TEST_DB = Path(__file__).resolve().parent / "_pytest.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB}"
+# Never inherit paid-provider or Telegram credentials from a developer's .env.
+# Tests needing credentials install explicit fake values with monkeypatch.
+for _name in ("OPENAI_API_KEY", "DEEPSEEK_API_KEY", "TELEGRAM_BOT_TOKEN",
+              "TELEGRAM_CHAT_ID", "CMC_API_KEY", "PIPELINE_RUN_TOKEN", "LANGGRAPH_URL"):
+    os.environ[_name] = ""
+os.environ["AI_PROVIDER"] = "heuristic"
+os.environ["ENVIRONMENT"] = "development"
+os.environ["CORS_ORIGINS"] = "http://localhost:3100"
 if _TEST_DB.exists():
     try:
         _TEST_DB.unlink()
@@ -14,6 +22,10 @@ if _TEST_DB.exists():
         pass
 
 from datetime import datetime, timedelta, timezone
+
+import httpx
+import pytest
+import redis
 
 from app.db import init_db
 from app.models.schemas import (
@@ -27,6 +39,54 @@ from app.services.store import store
 init_db()
 
 NOW = datetime(2026, 9, 14, 12, 0, tzinfo=timezone.utc)
+
+
+def pytest_addoption(parser):
+    parser.addoption("--run-live", action="store_true", default=False,
+                     help="Explicitly enable tests marked live (external network)")
+
+
+def pytest_collection_modifyitems(config, items):
+    if not config.getoption("--run-live"):
+        for item in items:
+            if "live" in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="Use --run-live to opt into external HTTP"))
+
+
+@pytest.fixture(autouse=True)
+def no_external_http(request, monkeypatch):
+    if request.node.get_closest_marker("live") and request.config.getoption("--run-live"):
+        return
+    sync_send, async_send = httpx.Client.send, httpx.AsyncClient.send
+
+    def allowed(client):
+        transport = client._transport
+        return (isinstance(transport, (httpx.MockTransport, httpx.ASGITransport))
+                or type(transport).__module__ == "starlette.testclient")
+
+    def send(client, *args, **kwargs):
+        if not allowed(client):
+            raise AssertionError("External HTTP disabled in tests; install a mock transport")
+        return sync_send(client, *args, **kwargs)
+
+    async def asend(client, *args, **kwargs):
+        if not allowed(client):
+            raise AssertionError("External HTTP disabled in tests; install a mock transport")
+        return await async_send(client, *args, **kwargs)
+
+    monkeypatch.setattr(httpx.Client, "send", send)
+    monkeypatch.setattr(httpx.AsyncClient, "send", asend)
+
+
+@pytest.fixture(autouse=True)
+def isolated_runtime_artifacts(monkeypatch, tmp_path):
+    from app.services import telegram_log
+    monkeypatch.setattr(telegram_log, "LOG_DIR", tmp_path)
+    monkeypatch.setattr(telegram_log, "LOG_PATH", tmp_path / "telegram_recent.json")
+
+    def no_live_redis(*args, **kwargs):
+        raise ConnectionError("Live Redis is disabled in tests")
+    monkeypatch.setattr(redis, "from_url", no_live_redis)
 
 
 def sample_snapshot(**overrides):

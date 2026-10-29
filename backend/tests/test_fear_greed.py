@@ -16,6 +16,7 @@ def test_tone_mapping():
     assert _tone("Neutral") is None
 
 
+@pytest.mark.live
 def test_fetch_fear_greed_live():
     from app.services.fear_greed import fetch_fear_greed
 

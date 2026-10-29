@@ -7,6 +7,28 @@ versioned registry images.
 
 ## Before deploying
 
+Pre-deploy verification (also defined in `.github/workflows/verify.yml`):
+
+```bash
+# backend/
+python -m pytest -q
+# frontend/ (Node 24 in CI)
+npm ci
+npm test
+npm run build
+```
+
+The default backend suite is offline: it overrides local credentials, uses the
+throwaway `tests/_pytest.db`, blocks unmocked HTTP and live Redis creation, and
+redirects Telegram copy logs to pytest temporary files. Do not run two pytest
+processes concurrently: they currently share the throwaway DB path. Optional
+external CMC verification requires `python -m pytest -m live --run-live` and is
+not part of CI. No live Telegram or paid LLM call is required for validation.
+Integration tests exercise real routes/middleware in-process without lifespan;
+they do not prove production startup, migration, restore, or external API access.
+Check the GitHub Actions result at the exact deployed commit; a workflow file or
+successful local run alone is not a successful hosted CI run.
+
 1. Pick the exact Git commit to deploy. Do not deploy an uncommitted working
    tree.
 2. Create `.env` from `.env.example` on the host. Set a strong

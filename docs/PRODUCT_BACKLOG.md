@@ -79,7 +79,14 @@
 - [x] OPS-02 로그의 secret 마스킹 및 예외 traceback 검증
 - [x] OPS-03 단계별 pipeline 성공/실패/소요시간 관측
 - [x] OPS-04 읽기 전용 운영 점검 CLI와 장애 대응 runbook
-- [ ] OPS-05 API 계약·장애 통합 테스트와 CI 자동 검증
+- [x] OPS-05 API 계약·장애 통합 테스트와 CI 자동 검증
+
+검증 결과: backend **177 passed, 1 skipped** (외부 CMC live 테스트 opt-in),
+frontend **7 passed**, 분리 production build 통과. CI는 main push/PR에서 동일
+검증을 실행하도록 추가했으며 GitHub runner의 실행 결과는 별도 확인한다.
+테스트는 가짜 DB·credentials·HTTP transport·Telegram 임시 로그를 사용하고
+실제 Redis 연결을 차단한다. 운영 포트 8100의 읽기 전용 점검은 응답 없음으로
+critical을 반환했다(서버 재기동·실제 배포는 이번 범위 제외).
 
 기능 구현과 공개 승인은 분리한다. 아래 항목의 상세 체크리스트와 종료 기준은 [LAUNCH_PLAN.md](./LAUNCH_PLAN.md)에서 관리한다.
 

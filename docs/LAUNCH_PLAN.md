@@ -2,7 +2,7 @@
 
 | | |
 |--|--|
-| 갱신 | 2026-10-06 (공개 런칭 중간 점검) |
+| 갱신 | 2026-10-29 (운영 안전성·검증 보강) |
 | 현재 판단 | 핵심 제품 MVP 완료 · Closed Beta 조건부 가능 · 공개 런칭 준비 미완료 |
 | 기능 백로그 | [PRODUCT_BACKLOG.md](./PRODUCT_BACKLOG.md) |
 
@@ -24,7 +24,7 @@
 - Telegram: 단일 채널 발송 가능, Whale Move/Big Trade/Market Brief/LIQ WATCH·DANGER 운영
 - Paper Portfolio: `$1,000` Forward Test 구현 완료, Shadow 관찰 중
 - 프론트 production build: 컴파일 및 타입 검사 통과
-- 백엔드 단위 테스트: 2026-10-06 기준 `69 passed, 1 skipped`
+- 백엔드 단위·API 계약 통합 테스트: 2026-10-29 기준 `177 passed, 1 skipped` (외부 live 조회 opt-in)
 - 인증/사용자 계정: 없음
 - 사용자별 Telegram 구독: 없음
 - production Docker 설정: 개발/production compose 분리와 컨테이너 healthcheck 완료, 실제 배포·rollback 검증 필요
@@ -103,9 +103,10 @@
 #### 검증
 
 - [x] `pytest` 실행 의존성 고정
-- [x] backend 단위 테스트 전체 통과 (`69 passed, 1 skipped` · 2026-10-06)
-- [ ] API 통합 테스트 추가
+- [x] backend 테스트 전체 통과 (`177 passed, 1 skipped` · 2026-10-29; live CMC 제외, paid AI/Telegram/Redis 및 운영 로그 격리)
+- [x] API 통합 테스트 추가 (2026-10-29: 실제 app/router/middleware의 health/readiness/운영 토큰/문서 비노출/status·alert 계약과 generic 오류 응답. 외부 의존성은 대역이며 실제 배포 E2E는 잔여)
 - [x] frontend production build 통과
+- [x] main push/PR CI 정의 추가 (2026-10-29: backend pytest, frontend test/build. GitHub runner 결과는 배포 전에 확인)
 - [ ] 핵심 화면 E2E smoke test 추가
 - [ ] collector 중단, DB 재시작, Telegram 실패, 외부 API timeout 시나리오 점검
 

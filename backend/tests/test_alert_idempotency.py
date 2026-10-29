@@ -1,6 +1,7 @@
 import asyncio
 
 from app.db import SessionLocal
+from app.config import settings
 from app.models.orm import AlertRow
 from app.services import alerts
 from app.services.store import store
@@ -49,6 +50,8 @@ def test_sent_source_event_is_not_delivered_twice(monkeypatch) -> None:
 def test_failed_source_event_reuses_the_same_alert_record(monkeypatch) -> None:
     _clear()
     monkeypatch.setattr(store, "alerts", [])
+    monkeypatch.setattr(settings, "telegram_bot_token", "fake-test-bot-token")
+    monkeypatch.setattr(settings, "telegram_chat_id", "fake-test-chat")
     outcomes = iter([False, True])
 
     async def eventually_sent(message: str) -> bool:
