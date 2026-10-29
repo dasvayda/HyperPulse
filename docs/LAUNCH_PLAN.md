@@ -85,7 +85,7 @@
 
 #### 관측성
 
-- [ ] collector/inference/ranking/alert별 마지막 성공 시각 기록
+- [x] collector/inference/ranking/alert별 마지막 성공 시각 기록 (2026-10-29: `/api/v2/pipeline/status.stages`에 시작/종료/마지막 성공·실패/소요시간/연속 실패, 프로세스 내 상태. 부분 수집·발송 실패는 degraded이며 성공 시각 보존)
 - [ ] 외부 API 오류율과 latency 기록
 - [ ] 로그 수집 및 보관 정책 결정
 - [ ] 서비스 장애 및 Telegram 발송 실패 알림 채널 마련

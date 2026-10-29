@@ -17,6 +17,7 @@ from app.services.inference import (
 )
 from app.services.ranking import run_ranking_pipeline
 from app.services.store import store
+from app.services.pipeline_observability import collectors_healthy, observe_alerts, observe_stage
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,14 @@ _started = False
 async def _loop(name: str, interval: int, coro_factory) -> None:
     while True:
         try:
-            await coro_factory()
+            if name in {"collector", "trader_refresh"}:
+                healthy = collectors_healthy if name == "collector" else lambda: (
+                    "traders" in store.collectors and store.collectors["traders"].status == "ok"
+                )
+                async with observe_stage(name, healthy=healthy):
+                    await coro_factory()
+            else:
+                await coro_factory()
         except Exception:
             logger.exception("Background task failed: %s", name)
         await asyncio.sleep(interval)
@@ -68,20 +76,23 @@ async def _trader_cycle() -> None:
 
 
 async def _inference_cycle() -> None:
-    results = await run_inference_pipeline()
-    store.whale_alerts = apply_inference_to_alerts(store.whale_alerts)
-    await asyncio.to_thread(enrich_rankings_with_inference)
-    await process_alert_triggers(
-        whale_alerts=store.whale_alerts[:3],
-        zones=[z for z in store.liquidation_zones if z.size_usd >= 100_000_000][:2],
-        inferences=results,
-    )
+    async with observe_stage("inference"):
+        results = await run_inference_pipeline()
+        store.whale_alerts = apply_inference_to_alerts(store.whale_alerts)
+        await asyncio.to_thread(enrich_rankings_with_inference)
+    async with observe_alerts():
+        await process_alert_triggers(
+            whale_alerts=store.whale_alerts[:3],
+            zones=[z for z in store.liquidation_zones if z.size_usd >= 100_000_000][:2],
+            inferences=results,
+        )
     logger.info("Inference cycle complete: %s results", len(results))
 
 
 async def _ranking_cycle() -> None:
     t0 = time.monotonic()
-    rankings = await asyncio.to_thread(run_ranking_pipeline)
+    async with observe_stage("ranking"):
+        rankings = await asyncio.to_thread(run_ranking_pipeline)
     logger.info("Ranking cycle duration: %.2fs", time.monotonic() - t0)
     logger.info("Ranking cycle complete: top=%s", rankings[0].alias if rankings else None)
 
@@ -107,10 +118,11 @@ async def run_bootstrap_pipeline() -> None:
             len(store.traders),
         )
     t1 = time.monotonic()
-    snapshot = await collect_market_snapshot()
-    t2 = time.monotonic()
-    logger.info("Bootstrap: collect_market_snapshot took %.2fs", t2 - t1)
-    await collect_liquidation_events()
+    async with observe_stage("collector", healthy=collectors_healthy):
+        snapshot = await collect_market_snapshot()
+        t2 = time.monotonic()
+        logger.info("Bootstrap: collect_market_snapshot took %.2fs", t2 - t1)
+        await collect_liquidation_events()
     t3 = time.monotonic()
     logger.info("Bootstrap: collect_liquidation_events took %.2fs", t3 - t2)
     await _ranking_cycle()

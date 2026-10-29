@@ -430,6 +430,17 @@ class CollectorStatus(BaseModel):
     expected: int
 
 
+class PipelineStageStatus(BaseModel):
+    status: str = "never_run"
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    last_success_at: datetime | None = None
+    last_error_at: datetime | None = None
+    duration_ms: float | None = None
+    consecutive_failures: int = 0
+    error_type: str | None = None
+
+
 class PipelineStatus(BaseModel):
     collector_enabled: bool
     last_collect_at: datetime | None
@@ -443,6 +454,7 @@ class PipelineStatus(BaseModel):
     alerts_count: int
     data_source: str
     collectors: dict[str, CollectorStatus] = Field(default_factory=dict)
+    stages: dict[str, PipelineStageStatus] = Field(default_factory=dict)
 
 
 class ReadinessComponent(BaseModel):

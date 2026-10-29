@@ -84,6 +84,7 @@ async def collect_top_traders() -> list[TraderProfile]:
     try:
         raw = await hl_stats("leaderboard")
     except Exception as exc:
+        store.record_collection("traders", 0, 1)
         logger.warning("Failed to fetch leaderboard: %s", exc)
         return store.traders
 
@@ -100,6 +101,7 @@ async def collect_top_traders() -> list[TraderProfile]:
         rows = raw
 
     if not isinstance(rows, list):
+        store.record_collection("traders", 0, 1)
         logger.warning("Unexpected leaderboard payload type: %s", type(raw))
         return store.traders
 
@@ -190,12 +192,14 @@ async def collect_top_traders() -> list[TraderProfile]:
         traders.append(trader)
 
     if not traders:
+        store.record_collection("traders", 0, min(limit, len(rows)) or 1)
         return store.traders
 
     with store._lock:
         store.traders = traders
     store.persist_traders(traders)
     store.refresh_dashboard()
+    store.record_collection("traders", len(traders), min(limit, len(rows)) or 1)
     logger.info("Updated traders from leaderboard: %s", len(traders))
     return traders
 

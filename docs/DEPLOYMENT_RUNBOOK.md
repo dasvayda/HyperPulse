@@ -85,6 +85,16 @@ git switch main
 
 ## Incident quick checks
 
+`GET /api/v2/pipeline/status` includes `stages` for collector, trader refresh,
+inference, ranking and alert processing. Each reports `never_run`, `running`,
+`ok`, `degraded`, `error` or `cancelled`, with timestamps, duration in milliseconds,
+and consecutive failure count. Error types are public; exception messages are not.
+The stage's `last_success_at` is preserved on failure. A completed alert cycle
+with no candidates is `ok`; this is **not** a successful Telegram delivery. Use
+`/api/v2/alerts/summary` for delivery outcomes. New queued/failed deliveries,
+including retries, mark the alert cycle degraded. All stage state is process-local
+and resets on restart; it is not a persistent uptime or multi-worker aggregate.
+
 Redis failure switches cache reads/writes to process memory with the same TTL.
 Connection and command timeouts are 2 seconds; reconnect is attempted after
 60 seconds when a cache operation or readiness check runs. On recovery Redis

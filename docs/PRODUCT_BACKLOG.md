@@ -77,7 +77,7 @@
 
 - [x] OPS-01 운영 CORS exact HTTPS origin 강제 및 preflight 회귀 테스트
 - [x] OPS-02 로그의 secret 마스킹 및 예외 traceback 검증
-- [ ] OPS-03 단계별 pipeline 성공/실패/소요시간 관측
+- [x] OPS-03 단계별 pipeline 성공/실패/소요시간 관측
 - [ ] OPS-04 읽기 전용 운영 점검 CLI와 장애 대응 runbook
 - [ ] OPS-05 API 계약·장애 통합 테스트와 CI 자동 검증
 

@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
@@ -53,6 +54,7 @@ from app.services.ranking import (
     select_smart_money_ranks,
 )
 from app.services.store import store
+from app.services.pipeline_observability import collectors_healthy, observe_alerts, observe_stage
 from app.security import require_pipeline_run_token
 from app.services.whale_book import (
     asset_market_tag,
@@ -498,13 +500,17 @@ async def run_pipeline_now(
 ) -> PipelineStatus:
     from app.collectors.hyperliquid import collect_market_snapshot
 
-    await collect_market_snapshot()
-    results = await run_inference_pipeline()
-    run_ranking_pipeline()
-    run_paper_portfolio()
-    await process_alert_triggers(
-        whale_alerts=store.whale_alerts[:3],
-        zones=[z for z in store.liquidation_zones if z.size_usd >= 100_000_000][:2],
-        inferences=results,
-    )
+    async with observe_stage("collector", healthy=collectors_healthy):
+        await collect_market_snapshot()
+    async with observe_stage("inference"):
+        results = await run_inference_pipeline()
+    async with observe_stage("ranking"):
+        await asyncio.to_thread(run_ranking_pipeline)
+    await asyncio.to_thread(run_paper_portfolio)
+    async with observe_alerts():
+        await process_alert_triggers(
+            whale_alerts=store.whale_alerts[:3],
+            zones=[z for z in store.liquidation_zones if z.size_usd >= 100_000_000][:2],
+            inferences=results,
+        )
     return store.pipeline_status()

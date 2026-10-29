@@ -35,6 +35,7 @@ from app.models.schemas import (
     MarketInsight,
     OpenPosition,
     PipelineStatus,
+    PipelineStageStatus,
     PositionSide,
     SmartMoneyRank,
     StrategyInference,
@@ -145,6 +146,8 @@ class StateStore:
         self.market_ticks: dict[str, dict] = {}
         self.last_collect_at: datetime | None = None
         self.collectors: dict[str, CollectorStatus] = {}
+        self.stages = {name: PipelineStageStatus() for name in
+                       ("collector", "trader_refresh", "inference", "ranking", "alerts")}
         self.last_inference_at: datetime | None = None
         self.last_ranking_at: datetime | None = None
         self.last_alert_at: datetime | None = None
@@ -746,6 +749,28 @@ class StateStore:
                 expected=expected,
             )
 
+    def record_stage_start(self, name: str) -> None:
+        with self._lock:
+            previous = self.stages.get(name, PipelineStageStatus())
+            self.stages[name] = previous.model_copy(update={
+                "status": "running", "started_at": _utcnow(),
+                "finished_at": None, "duration_ms": None, "error_type": None,
+            })
+
+    def record_stage_finish(self, name: str, status: str, duration_ms: float,
+                            error_type: str | None = None) -> None:
+        now = _utcnow()
+        with self._lock:
+            previous = self.stages.get(name, PipelineStageStatus())
+            success = status == "ok"
+            self.stages[name] = previous.model_copy(update={
+                "status": status, "finished_at": now, "duration_ms": round(duration_ms, 2),
+                "last_success_at": now if success else previous.last_success_at,
+                "last_error_at": now if status in {"error", "degraded"} else previous.last_error_at,
+                "consecutive_failures": 0 if success else previous.consecutive_failures + int(status != "cancelled"),
+                "error_type": error_type,
+            })
+
     def pipeline_status(self) -> PipelineStatus:
         if settings.use_mock_data and self.last_collect_at is None:
             source = "mock"
@@ -767,6 +792,7 @@ class StateStore:
             alerts_count=len(self.alerts),
             data_source=source,
             collectors=dict(self.collectors),
+            stages=dict(self.stages),
         )
 
     @staticmethod
