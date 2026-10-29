@@ -89,7 +89,7 @@
 - [ ] 외부 API 오류율과 latency 기록
 - [ ] 로그 수집 및 보관 정책 결정
 - [ ] 서비스 장애 및 Telegram 발송 실패 알림 채널 마련
-- [ ] 운영자용 상태 확인 절차 작성
+- [x] 운영자용 상태 확인 절차 작성 (2026-10-29: `python -m app.ops_check`의 4개 GET·JSON·종료 코드와 DB/Redis/collector/Telegram 장애별 대응을 deployment runbook에 기록. 자동 외부 모니터·장애 알림 채널 설치는 별도)
 
 #### 데이터 신뢰 표시
 

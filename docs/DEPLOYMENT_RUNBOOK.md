@@ -85,6 +85,43 @@ git switch main
 
 ## Incident quick checks
 
+Run a read-only operator check from `backend/`:
+
+```bash
+python -m app.ops_check --base-url http://127.0.0.1:8100
+# Production compose uses port 8000:
+python -m app.ops_check --base-url http://127.0.0.1:8000 --timeout 5 --max-stage-age 600
+```
+
+The command makes only four GET requests (liveness, readiness, pipeline status,
+Telegram summary), with finite per-request timeouts and no redirects. It does
+not import application settings/DB, start collectors, send Telegram messages,
+or call the manual pipeline endpoint. Output is JSON without raw provider
+errors or response bodies. Exit codes are **0 healthy, 1 warning, 2 critical**.
+An old backend without `stages` is critical, not silently treated as healthy.
+Use 600s for normal stage freshness; trader refresh allows 1800s because its
+configured default cadence is 900s. Adjust thresholds if scheduler intervals
+change. Never put credentials in the base URL.
+
+Daily/on-incident response:
+
+1. Exit 2: check readiness and component logs first. A live process is not proof
+   the API is listening or that data is fresh. Check the actual configured port.
+2. `collector_degraded` with `liquidations`: expected until a verified source is
+   approved. Keep Paper Portfolio paused; do not bypass the guard to obtain green.
+3. DB failure: preserve data, verify connectivity, use the documented recovery
+   procedure. Do not delete/recreate the DB as an automated repair.
+4. Redis fallback: service can still run on single-process memory; inspect Redis
+   and confirm reconnection. Do not interpret cache recovery as DB recovery.
+5. Telegram warnings refer to recent 24h history, not proof of a current outage.
+   Check recent failed/queued records and bot permissions without sharing tokens.
+6. Stuck/stale stage: collect stage times and sanitized logs before deciding on
+   a restart. Recheck after recovery and retain the incident timestamp/revision.
+
+This check can be used by a host monitor, but no recurring job or notification
+destination is provisioned here. An independent uptime/incident alert channel
+still needs an operator decision and deployment setup.
+
 `GET /api/v2/pipeline/status` includes `stages` for collector, trader refresh,
 inference, ranking and alert processing. Each reports `never_run`, `running`,
 `ok`, `degraded`, `error` or `cancelled`, with timestamps, duration in milliseconds,

@@ -78,7 +78,7 @@
 - [x] OPS-01 운영 CORS exact HTTPS origin 강제 및 preflight 회귀 테스트
 - [x] OPS-02 로그의 secret 마스킹 및 예외 traceback 검증
 - [x] OPS-03 단계별 pipeline 성공/실패/소요시간 관측
-- [ ] OPS-04 읽기 전용 운영 점검 CLI와 장애 대응 runbook
+- [x] OPS-04 읽기 전용 운영 점검 CLI와 장애 대응 runbook
 - [ ] OPS-05 API 계약·장애 통합 테스트와 CI 자동 검증
 
 기능 구현과 공개 승인은 분리한다. 아래 항목의 상세 체크리스트와 종료 기준은 [LAUNCH_PLAN.md](./LAUNCH_PLAN.md)에서 관리한다.
