@@ -9,19 +9,13 @@ from fastapi.responses import JSONResponse
 from app.collectors.scheduler import run_bootstrap_pipeline, start_background_tasks, stop_background_tasks
 from app.config import settings
 from app.db import init_db
+from app.logging_config import configure_logging
 from app.routers import api, v2, v3
 from app.services.store import store
 from app.services.readiness import get_readiness
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s:%(name)s:%(message)s",
-    datefmt="%H:%M:%S",
-)
+configure_logging()
 logger = logging.getLogger(__name__)
-# Reduce noisy HTTP logs (may include tokens in URLs)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 @asynccontextmanager

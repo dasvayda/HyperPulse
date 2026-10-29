@@ -61,7 +61,7 @@
 - [x] CORS credential 허용을 `CORS_ALLOW_CREDENTIALS`로 제어하고 기본값을 비활성화
 - [ ] PostgreSQL/Redis 기본 자격 증명을 환경변수 또는 secret store로 이동
 - [x] 운영 환경에서 API 문서 노출 정책 결정: production은 `API_DOCS_ENABLED=false` 권장
-- [ ] `.env`, Telegram token, AI API key가 로그·오류 화면에 노출되지 않는지 점검
+- [ ] `.env`, Telegram token, AI API key가 로그·오류 화면에 노출되지 않는지 점검 (2026-10-29: 앱/Uvicorn 로그 formatter에 설정 secret·DSN·Telegram URL·Authorization 마스킹 및 traceback 회귀 테스트 완료. 배포 로그 저장소·오류 화면 전체 보안 검수 잔여)
 
 #### 배포
 

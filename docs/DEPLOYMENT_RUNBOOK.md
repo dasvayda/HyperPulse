@@ -101,3 +101,17 @@ workers. DB-backed records remain separate from this disposable cache.
 
 Never include `.env` contents, Authorization headers, Telegram bot tokens, or
 AI API keys in incident logs.
+
+## Logging safeguards (2026-10-29)
+
+Application startup installs a redacting formatter on existing root and Uvicorn
+handlers. It sanitizes the final output, including exception tracebacks:
+configured AI/Telegram/operations keys, DB/Redis passwords, credential-bearing
+DSNs, Telegram bot URLs, Bearer/Basic credentials, and common secret assignments.
+Provider status and non-sensitive timing context remain visible. Custom handlers
+installed later must also use `app.logging_config.SecretRedactingFormatter`.
+
+This is defence in depth, not permission to log request bodies, settings, `.env`,
+or provider responses. A separate audit of host log exporters, retention, and
+public error pages is still required. If a secret is exposed, restrict the log,
+rotate the affected credential, and record the incident without copying it.
