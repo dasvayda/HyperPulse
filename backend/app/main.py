@@ -42,30 +42,6 @@ async def lifespan(_: FastAPI):
     await stop_background_tasks()
 
 
-app = FastAPI(
-    title="HyperPulse API",
-    description="AI-powered intelligence platform for Hyperliquid traders",
-    version="0.2.0",
-    lifespan=lifespan,
-    docs_url="/docs" if settings.api_docs_enabled else None,
-    redoc_url="/redoc" if settings.api_docs_enabled else None,
-    openapi_url="/openapi.json" if settings.api_docs_enabled else None,
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origin_list,
-    allow_credentials=settings.cors_allow_credentials,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-app.include_router(api.router)
-app.include_router(v2.router)
-app.include_router(v3.router)
-
-
-@app.get("/health")
 def health() -> dict[str, str | bool]:
     status = store.pipeline_status()
     return {
@@ -76,7 +52,6 @@ def health() -> dict[str, str | bool]:
     }
 
 
-@app.get("/health/ready")
 def readiness() -> JSONResponse:
     """Readiness for deploys: DB and fresh collector must be healthy.
 
@@ -89,3 +64,33 @@ def readiness() -> JSONResponse:
         status_code=200 if result.status == "ready" else 503,
         content=result.model_dump(mode="json"),
     )
+
+
+def create_app() -> FastAPI:
+    # Validate before serving, not on the first browser request.
+    origins = settings.cors_origin_list
+    application = FastAPI(
+        title="HyperPulse API",
+        description="AI-powered intelligence platform for Hyperliquid traders",
+        version="0.2.0",
+        lifespan=lifespan,
+        docs_url="/docs" if settings.api_docs_enabled else None,
+        redoc_url="/redoc" if settings.api_docs_enabled else None,
+        openapi_url="/openapi.json" if settings.api_docs_enabled else None,
+    )
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=settings.cors_allow_credentials,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "X-Pipeline-Token"],
+    )
+    application.include_router(api.router)
+    application.include_router(v2.router)
+    application.include_router(v3.router)
+    application.add_api_route("/health", health, methods=["GET"])
+    application.add_api_route("/health/ready", readiness, methods=["GET"])
+    return application
+
+
+app = create_app()

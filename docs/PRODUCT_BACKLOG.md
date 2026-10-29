@@ -8,7 +8,7 @@
 | | |
 |--|--|
 | 작성 | 2026-07-22 ~ 07-23 |
-| 갱신 | 2026-10-06 (공개 런칭 준비 항목 정리) |
+| 갱신 | 2026-10-29 (런칭 운영 안전성 보강) |
 | 제품 목표 | [README Product Goals](../README.md#product-goals) |
 | 설계 제약 | [ARCHITECTURE](./ARCHITECTURE.md#product-goals--design-constraints) |
 | 벤치마크 참고 | [HyperTracker Perps](https://app.coinmarketman.com/hypertracker/perps) (시그널·UX만). [Binance AI Brief](./BINANCE_AI_BRIEF_REF.md) (답변 패턴만, 챗/TA 복제 아님) |
@@ -72,6 +72,14 @@
 - [x] **P2** BL-17 Insights starter prompts
 
 ### Launch readiness
+
+2026-10-29 실행 묶음 (도메인·운영 DB 설정 및 실제 발송은 제외):
+
+- [x] OPS-01 운영 CORS exact HTTPS origin 강제 및 preflight 회귀 테스트
+- [ ] OPS-02 로그의 secret 마스킹 및 예외 traceback 검증
+- [ ] OPS-03 단계별 pipeline 성공/실패/소요시간 관측
+- [ ] OPS-04 읽기 전용 운영 점검 CLI와 장애 대응 runbook
+- [ ] OPS-05 API 계약·장애 통합 테스트와 CI 자동 검증
 
 기능 구현과 공개 승인은 분리한다. 아래 항목의 상세 체크리스트와 종료 기준은 [LAUNCH_PLAN.md](./LAUNCH_PLAN.md)에서 관리한다.
 

@@ -1,4 +1,5 @@
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from pydantic_settings import BaseSettings
 
@@ -91,7 +92,26 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [origin.strip() for origin in self.cors_origins.split(",")]
+        origins = list(dict.fromkeys(origin.strip().rstrip("/")
+                                     for origin in self.cors_origins.split(",") if origin.strip()))
+        if self.is_production and not origins:
+            raise ValueError("Production CORS requires explicit HTTPS frontend origins")
+        for origin in origins:
+            if origin == "*" and not self.is_production and not self.cors_allow_credentials:
+                continue
+            try:
+                parsed = urlsplit(origin)
+                valid_port = parsed.port is None or 0 < parsed.port <= 65535
+                valid = (parsed.scheme in {"http", "https"} and bool(parsed.hostname)
+                         and not parsed.username and not parsed.password and not parsed.path
+                         and not parsed.query and not parsed.fragment and "*" not in origin
+                         and not any(char.isspace() for char in origin) and valid_port)
+            except ValueError:
+                valid = False
+            if not valid or (self.is_production and parsed.scheme != "https"):
+                # Do not echo the configured value: a mistyped URL may contain credentials.
+                raise ValueError("CORS origins must be exact HTTP(S) origins; production requires HTTPS")
+        return origins
 
     @property
     def is_production(self) -> bool:
