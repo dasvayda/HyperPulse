@@ -2,7 +2,7 @@
 
 | | |
 |--|--|
-| 갱신 | 2026-10-29 (운영 안전성·검증 보강) |
+| 갱신 | 2026-11-06 (2주 출시 준비 일정·청산 원천 및 provenance 설계) |
 | 현재 판단 | 핵심 제품 MVP 완료 · Closed Beta 조건부 가능 · 공개 런칭 준비 미완료 |
 | 기능 백로그 | [PRODUCT_BACKLOG.md](./PRODUCT_BACKLOG.md) |
 
@@ -306,3 +306,101 @@ AI 문장 자체를 핵심 가치로 판매하지 않는다. 공개 런칭의 �
 3. 운영자가 장애를 감지하고 복구할 수 있는가?
 4. 잘못된 알림과 보안 사고를 막을 수 있는가?
 5. 현재 사용자 수보다 커져도 비용과 성능을 통제할 수 있는가?
+
+## 2주 실행 관리 — 2026-11-06 ~ 2026-11-19 (KST)
+
+추가 요구·설계 결정·검증 결과·잔여 작업은 이 절에서 관리한다. 기능 목록은
+PRODUCT_BACKLOG.md를 유지하되 출시 작업을 두 문서에 중복 기록하지 않는다.
+목표는 Closed Beta 진입 기준 검증이다. 일정 도래만으로 공개를 승인하지 않는다.
+Paper Portfolio의 30일·100개 완료 거래 조건은 이 2주 일정으로 단축하지 않는다.
+
+- [x] S1 설계 검토: 청산 원천의 범위·제약 및 판단 시점 provenance 계약 확정 (11/06).
+- [ ] S1 구현·검증 (11/06~11/09): 아래 청산 상태 계약, legacy audit 도구,
+  immutable evidence 저장/API/화면과 회귀 테스트. 실제 수집 활성화는 수용 기준 통과 후.
+- [ ] S2 운영 DB (11/10~11/12): migration, 격리 환경 백업/복원·rollback 실증.
+- [ ] S3 접근·장애 대응 (11/13~11/15): 초대 접근, HTTPS/secret 설정,
+  collector·Telegram 장애 알림. 실제 운영 도메인·채널은 소유자 설정을 확인한다.
+- [ ] S4 Beta 검증 (11/16~11/19): 모바일 포함 핵심 화면 E2E,
+  의존성 장애 훈련, CI 결과 확인, 초대·문의 동선과 출시 게이트 재판정.
+- [ ] S5 장기 관찰: 검증된 입력과 전략 버전 확정 후 Shadow 재개 여부 판단.
+  2주 내 미충족 시 성과 공개를 보류하고 나머지 Beta 준비와 독립 관리한다.
+
+### S1 — 현재 코드에서 확인한 상태
+
+- `collectors/liquidations.py`는 live 청산 수집을 unavailable로 처리하고
+  메모리 이벤트를 비운다. 기존 DB 원장은 보존한다.
+- `services/paper_portfolio.py`는 collector 오류 시 평가를 건너뛰지만,
+  위험 계산 자체는 `LiquidationRow`를 출처 필터 없이 합산한다.
+  collector 상태만 정상화하면 legacy 오분류가 재사용될 수 있어 재개 전에 차단해야 한다.
+- `services/market_brief.py`는 입력을 집계한 짧은 hash와 근거 종류를 저장하고
+  `MarketBriefRow(id=latest)`를 덮어쓴다. 이 정보만으로 과거 판단의 지갑·rank를
+  재현할 수 없다. 기존 hash를 새로운 immutable evidence ID로 간주하지 않는다.
+- 이번 검토는 코드와 공식 문서 기준이다. 운영 DB audit, 실제 WebSocket payload
+  확보, 공급자 연결 및 배포 상태 검증은 아직 수행하지 않았다.
+
+### S1 — 청산 원천 결정과 수용 계약
+
+공식 명세 확인 (2026-11-06): [WebSocket subscriptions](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/websocket/subscriptions),
+[rate limits](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/rate-limits-and-user-limits).
+`trades`에는 청산 판별 필드가 없고, 사용자 `WsFill`에는 선택적 `liquidation`
+정보가 있다. 사용자 구독은 IP당 고유 주소 10개 한도이므로 전체 tracked 표본을
+커버한다고 가정할 수 없다. 이하 저장·검증 정책은 HyperPulse의 설계 결정이다.
+
+1. Beta의 첫 수집 후보는 고정 명단 최대 10개 주소의 `userFills` WebSocket이다.
+   같은 IP의 다른 사용자 구독을 포함해 예산을 계산하고 명단·적용 기간을 보존한다.
+   tracked 전체 REST fills 순회는 도입하지 않는다. 실제 payload 검증 전에는 비활성이다.
+2. 공식 청산 marker와 청산당한 계정의 연결을 확인한 fill만 승인한다.
+   `liquidatedUser`가 없거나 상대방 체결인지 확정할 수 없으면 격리한다.
+   `startPosition`과 체결 방향으로 청산된 long/short를 검증하며 단순 매수/매도와
+   혼동하지 않는다. 자산·시각·가격·수량·hash·tid·method와 원본을 함께 저장한다.
+   계정 단위 `userEvents.liquidation`만으로 코인별 금액을 만들어내지 않는다.
+3. 이벤트 ID는 network/asset/time/tid/청산당한 주소를 포함한다.
+   재연결 snapshot·중복·양측 수신에도 청산당한 계정의 이벤트를 한 번만 합산한다.
+   체결금액은 fill price × size이며 `markPx`와 별도 보존한다.
+4. 별도 verified 원장과 coverage 구간을 둔다. source, schema version,
+   received_at, event_at, roster, last message/heartbeat, gap을 기록한다.
+   마지막 청산 발생 시각만으로 연결의 건강 상태를 판단하지 않는다.
+   재연결 snapshot은 누락 없는 복구를 보장하지 않으므로 미복구 gap은 유지한다.
+5. 집계에는 `scope=watched_wallets`, 명단 수, 관측 시작/종료, gap 여부,
+   `ok/partial/unavailable`을 제공한다. 관측이 온전한 기간의 이벤트 없음만 0이다.
+   그 외에는 null/unavailable로 API·UI·Brief 입력에 전달한다.
+   표본 합계를 전체 시장 청산이나 기존 시장 위험 임계값의 대체 입력으로 쓰지 않는다.
+6. 기존 `LiquidationRow`는 검증 불가 legacy로 취급한다. 읽기 전용 audit로
+   기간별 건수·금액·원본 식별자·검증 가능 여부를 산출하고 신규 verified 원장과
+   격리한다. 원본이 없으면 재검증 불가로 기록하며 임의 승격·삭제하지 않는다.
+7. Paper `top5_whale_trend_v1`은 계속 중지한다. 표본 feed 도입만으로
+   collector를 정상 처리해 평가를 재개하지 않는다. 기존 위험 규칙에 맞는 coverage를
+   확보하거나 표본 전용 전략을 새 버전·hash로 정의하고 별도 관찰을 시작해야 한다.
+   공급자/노드의 광범위 feed는 커버리지·비용·복구 가능성을 확인한 후 별도 도입 판단한다.
+
+### S1 — provenance 저장·조회 계약
+
+1. 판단 생성 시 하나의 immutable evidence envelope를 저장한다. schema/engine
+   version, UTC 생성 시각, source별 as-of·상태·scope, canonical JSON의 SHA-256
+   전체 digest를 기록한다. hash는 동일 입력 확인용이며 원천 진실성을 보증하지 않는다.
+2. 판단에 사용한 지갑 주소, 당시 size rank와 Smart Money rank/score를 구분해
+   저장하고 선정 규칙·분모·포지션 side/size·표본 coverage를 동결한다.
+   flow는 이전/현재 값과 두 시각을 보존하고 snapshot delta인지 검증 fill인지 명시한다.
+   시장 확인에는 mark/funding/추세 입력값과 시각, 청산 coverage 상태를 포함한다.
+3. Brief·rule insight·alert는 해당 evidence ID를 참조한다. 입력을 복사한 뒤
+   같은 복사본으로 계산하고, evidence와 판단을 함께 commit한다.
+   저장 실패 시 근거 없는 신규 판단을 발행하지 않고 이전 결과를 stale로 제공한다.
+   LLM/template 여부와 규칙 버전을 보존하고 비밀키·인증 header는 저장하지 않는다.
+4. 향후 `GET /api/v2/evidence/{id}`는 저장본만 반환한다. 조회 시 최신 rank로
+   다시 계산하지 않는다. 없는 과거 근거는 unavailable로 응답한다.
+   초대 접근 정책을 적용하고 판단에 참조되는 evidence는 보관 DB로 이동해도 조회한다.
+5. Insights/Alerts에 근거 펼침 영역을 제공한다. 기준 시각·추적 표본·지갑/rank·
+   position delta·시장 확인·출처와 실패 상태를 표시하고 트레이더 링크를 연결한다.
+   최근 값과 판단 당시 값을 섞지 않는다. 과거 `latest` 레코드는 소급 복원하지 않는다.
+
+### S1 — 구현 종료 기준 (아직 미완료)
+
+- [ ] 공식 형식의 일반 체결/청산/상대방 체결/부분 청산/backstop/잘못된 숫자
+  fixture로 승인·격리·방향·금액을 검증하고 실제 원천 샘플과 대조한다.
+- [ ] snapshot 재수신, 중복, 순서 역전, 연결 단절, 명단 변경, 재시작에서
+  중복 합산과 gap 숨김이 없고 null과 0이 API부터 UI·Brief까지 구분된다.
+- [ ] 운영 DB 복사본의 읽기 전용 audit를 검토하고 legacy 원장이 새 집계와
+  Paper 위험 계산에 재유입되지 않는 회귀 테스트를 통과한다.
+- [ ] 판단 후 rank/포지션을 바꿔도 evidence 조회가 동일하며 저장 실패·미존재·
+  재시작·보관 이동 시 동작을 검증한다. 화면에서 판단 당시 근거를 확인한다.
+- [ ] source coverage와 전략 호환성을 검토하기 전까지 Paper 평가는 계속 중지된다.
