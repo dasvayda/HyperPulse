@@ -10,6 +10,45 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class EvidenceRow(Base):
+    __tablename__ = "signal_evidence"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class VerifiedLiquidationRow(Base):
+    __tablename__ = "verified_liquidations"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    wallet: Mapped[str] = mapped_column(String(64), index=True)
+    asset: Mapped[str] = mapped_column(String(32), index=True)
+    side: Mapped[str] = mapped_column(String(16))
+    size_usd: Mapped[float] = mapped_column(Float)
+    price: Mapped[float] = mapped_column(Float)
+    event_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    raw_json: Mapped[str] = mapped_column(Text)
+
+
+class LiquidationQuarantineRow(Base):
+    __tablename__ = "liquidation_quarantine"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    wallet: Mapped[str] = mapped_column(String(64))
+    raw_json: Mapped[str] = mapped_column(Text)
+    reason: Mapped[str] = mapped_column(String(64), default="ambiguous_liquidation")
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class LiquidationCoverageRow(Base):
+    __tablename__ = "liquidation_coverage"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    roster_json: Mapped[str] = mapped_column(Text)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reason: Mapped[str] = mapped_column(String(64), default="connected")
+
+
 class TraderRow(Base):
     __tablename__ = "traders"
 
@@ -93,6 +132,7 @@ class AlertRow(Base):
     __tablename__ = "alerts"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    evidence_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     channel: Mapped[str] = mapped_column(String(32), default="telegram")
     event_type: Mapped[str] = mapped_column(String(64))
     title: Mapped[str] = mapped_column(String(256))
@@ -110,6 +150,7 @@ class MarketBriefRow(Base):
     __tablename__ = "market_briefs"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default="latest")
+    evidence_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     headline: Mapped[str] = mapped_column(String(512), default="")
     market_status: Mapped[str] = mapped_column(Text, default="")
     stance: Mapped[str] = mapped_column(String(32), default="wait")
@@ -203,6 +244,7 @@ class WhaleFlowRow(Base):
     asset: Mapped[str] = mapped_column(String(32), index=True)
     delta_usd: Mapped[float] = mapped_column(Float)
     previous_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    previous_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     current_usd: Mapped[float] = mapped_column(Float, default=0.0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 

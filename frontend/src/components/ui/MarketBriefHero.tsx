@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/Badge";
+import { EvidenceLink } from "@/components/ui/EvidenceLink";
 import { PulseBar, pulseChipLabel } from "@/components/ui/PulseBar";
 import type { MarketBrief } from "@/types";
 import { formatTimeAgo } from "@/lib/api";
@@ -37,6 +38,7 @@ export function MarketBriefHero({ brief }: MarketBriefHeroProps) {
       id="brief"
       className="rounded-xl border border-border bg-bg-surface p-6 mb-8"
     >
+      <EvidenceLink id={brief.evidence_id} />
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium uppercase tracking-wide text-text-dim mb-2">

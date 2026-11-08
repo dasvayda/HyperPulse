@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.db import SessionLocal
 from app.models.orm import (
     LiquidationRow,
@@ -88,6 +89,7 @@ def record_whale_flows(
     current: list[WhalePosition],
     *,
     observed_addresses: set[str] | None = None,
+    previous_observed_at: dict[str, datetime] | None = None,
     at: datetime | None = None,
 ) -> int:
     """Persist signed exposure deltas without extra Hyperliquid requests.
@@ -124,6 +126,7 @@ def record_whale_flows(
                 asset=asset,
                 delta_usd=delta,
                 previous_usd=old,
+                previous_at=(previous_observed_at or {}).get(address),
                 current_usd=new,
                 created_at=at,
             )
@@ -578,7 +581,7 @@ def run_paper_portfolio(at: datetime | None = None) -> bool:
     """
     # Preserve the forward-test ledger during incomplete source cycles. In
     # particular, missing liquidation evidence must not mean zero liq risk.
-    if any(state.status != "ok" for state in store.collectors.values()):
+    if not settings.use_mock_data or any(state.status != "ok" for state in store.collectors.values()):
         return False
     at = (at or _utcnow()).astimezone(timezone.utc)
     bucket = _hour_bucket(at)
@@ -819,7 +822,7 @@ def get_paper_summary() -> PaperPortfolioSummary:
             fully_closed_positions_count=fully_closed,
             observed_hour_buckets=observed_hours,
             minimum_sample_met=observed_hours >= 720 and fully_closed >= 100,
-            evaluation_paused=not store.collectors or any(
+            evaluation_paused=not settings.use_mock_data or not store.collectors or any(
                 state.status != "ok" for state in store.collectors.values()
             ),
             win_rate=round(wins / len(closed) * 100.0, 1) if closed else None,

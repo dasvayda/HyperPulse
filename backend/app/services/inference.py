@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -360,7 +361,13 @@ def _combine_stance_votes(
     return InsightStance.HOLD
 
 
+_frozen_snapshots: ContextVar[dict | None] = ContextVar("insight_snapshots", default=None)
+
+
 def _latest_snapshots_by_asset(assets: list[str]) -> dict[str, MarketSnapshotRow]:
+    frozen = _frozen_snapshots.get()
+    if frozen is not None:
+        return {asset: frozen[asset] for asset in assets if asset in frozen}
     if not assets:
         return {}
     db = SessionLocal()
@@ -571,6 +578,37 @@ def _build_funding_crowdedness_insight(now: datetime) -> list[MarketInsight]:
 
 
 def _build_market_insights() -> None:
+    from app.services.evidence import capture_context, envelope, save
+    with store._lock:
+        if not store.rankings:
+            from app.services.ranking import run_ranking_pipeline
+            run_ranking_pipeline()
+        assets = list(set(store.market_ticks) | {p.asset for p in store.whale_positions} |
+                      set(store.whale_summary.by_asset if store.whale_summary else {}))
+        snapshots = _latest_snapshots_by_asset(assets)
+        token = _frozen_snapshots.set(snapshots)
+        try:
+            context = capture_context()
+            inputs = {a: {"mark_price": r.mark_price, "funding_rate": r.funding_rate,
+                          "timestamp": r.timestamp, "open_interest": r.open_interest,
+                          "day_volume_usd": r.day_volume_usd} for a, r in snapshots.items()}
+            insights = _calculate_market_insights()
+            evidence = envelope("rule_insights", {"market_snapshots": inputs},
+                                [i.model_dump(mode="json") for i in insights], context=context)
+            with SessionLocal() as db:
+                key = save(db, evidence)
+                db.commit()
+            for item in insights:
+                item.evidence_id = key
+            store.insights = insights
+        except Exception:
+            store.insights = [item.model_copy(update={"stale": True}) for item in store.insights]
+            raise
+        finally:
+            _frozen_snapshots.reset(token)
+
+
+def _calculate_market_insights() -> list[MarketInsight]:
     insights: list[MarketInsight] = []
     now = _utcnow()
 
@@ -855,8 +893,7 @@ def _build_market_insights() -> None:
         attach_pulses_to_insights(insights)
     except Exception:
         logger.exception("Pulse attach/resolve failed")
-    with store._lock:
-        store.insights = insights[:8]
+    return insights[:8]
 
 
 def apply_inference_to_alerts(alerts: list[WhaleAlert]) -> list[WhaleAlert]:

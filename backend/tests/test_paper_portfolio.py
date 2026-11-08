@@ -1,5 +1,13 @@
 from datetime import datetime, timedelta, timezone
 
+import pytest
+from app.config import settings
+
+
+@pytest.fixture(autouse=True)
+def simulated_paper_inputs(monkeypatch):
+    monkeypatch.setattr(settings, "use_mock_data", True)
+
 from app.db import SessionLocal
 from app.models.orm import (
     MarketSnapshotRow,

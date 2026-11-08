@@ -34,3 +34,13 @@ def require_pipeline_run_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid pipeline run token",
         )
+
+
+def require_evidence_access(x_evidence_token: Annotated[str | None, Header()] = None) -> None:
+    expected = settings.evidence_access_token
+    if not expected:
+        if settings.is_production:
+            raise HTTPException(status_code=503, detail="Evidence access is not configured")
+        return
+    if not x_evidence_token or not secrets.compare_digest(x_evidence_token, expected):
+        raise HTTPException(status_code=401, detail="Invalid evidence access token")

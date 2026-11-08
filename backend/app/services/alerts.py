@@ -156,6 +156,7 @@ def _record_alert(
     status: str,
     payload: dict | None = None,
     dedupe_key: str | None = None,
+    evidence: tuple[str, str] | None = None,
 ) -> AlertHistoryItem:
     now = _utcnow()
     item = AlertHistoryItem(
@@ -168,11 +169,11 @@ def _record_alert(
         created_at=now,
         sent_at=now if status == "sent" else None,
     )
+    store.persist_alert(item, payload, dedupe_key, evidence=evidence)
     with store._lock:
         store.alerts.insert(0, item)
         store.alerts = store.alerts[:100]
         store.last_alert_at = now
-    store.persist_alert(item, payload, dedupe_key)
     store.refresh_dashboard()
     return item
 
@@ -571,6 +572,14 @@ async def _dispatch(event_type: str, title: str, lines: list[str], payload: dict
     plain = message.replace("<b>", "").replace("</b>", "")
     if not dedupe_key and _is_recent_duplicate(event_type, title, plain):
         return None
+    from app.services.evidence import envelope, save
+    from app.db import SessionLocal
+    evidence = envelope("alert", {"trigger": payload or {}},
+                        {"event_type": event_type, "title": title, "message": plain})
+    with SessionLocal() as db:
+        key = save(db, evidence)
+        db.commit()
+    payload = {**(payload or {}), "evidence_id": key}
     sent = await _send_telegram(message)
     status = "sent" if sent else ("queued" if not settings.telegram_configured else "failed")
     append_telegram_log(
@@ -589,7 +598,7 @@ async def _dispatch(event_type: str, title: str, lines: list[str], payload: dict
                 status=status,
                 payload=payload,
             )
-    return _record_alert(event_type, title, plain, status, payload, dedupe_key)
+    return _record_alert(event_type, title, plain, status, payload, dedupe_key, evidence=evidence)
 
 
 async def send_market_brief_alert() -> AlertHistoryItem | None:
@@ -620,6 +629,7 @@ async def send_market_brief_alert() -> AlertHistoryItem | None:
         lines,
         {
             "snapshot_hash": send_key,
+            "parent_evidence_id": brief.evidence_id,
             "slot_id": slot.slot_id,
             "slot_label": slot.label,
             "stance": brief.stance.value if hasattr(brief.stance, "value") else str(brief.stance),

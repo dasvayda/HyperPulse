@@ -62,6 +62,14 @@ export function getDashboardStats(): Promise<DashboardStats> {
   return fetchApi("/api/v1/dashboard/stats");
 }
 
+export function getVerifiedLiquidations(): Promise<{
+  status: string; scope: string; wallets: string[]; gap: boolean;
+  long_usd: number | null; short_usd: number | null;
+  recent_events: { id: string; wallet: string; asset: string; side: string; size_usd: number; price: number; event_at: string }[];
+}> {
+  return fetchApi("/api/v2/liquidations/verified", { cache: "no-store", next: { revalidate: 0 } });
+}
+
 export function getWhaleAlerts(params?: {
   asset?: string;
   alert_type?: string;

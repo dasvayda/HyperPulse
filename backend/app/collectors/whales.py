@@ -251,6 +251,7 @@ async def collect_whale_events() -> list[WhaleAlert]:
     observed_at = _utcnow()
     execution_lookups_remaining = max(0, settings.alert_execution_lookups_per_cycle)
     previous_positions = list(store.whale_positions)
+    previous_observations = dict(store.whale_observed_at)
     observed_addresses: set[str] = set()
     traders_by_addr = {t.address: t for t in store.traders}
 
@@ -421,11 +422,14 @@ async def collect_whale_events() -> list[WhaleAlert]:
             previous_positions,
             positions_snapshot,
             observed_addresses=observed_addresses,
+            previous_observed_at=previous_observations,
             at=flow_at,
         )
     except Exception:
         logger.exception("Paper Portfolio whale-flow persistence failed")
     store.update_whale_book(positions_snapshot, updated_at=flow_at)
+    with store._lock:
+        store.whale_observed_at.update({address.lower(): flow_at for address in observed_addresses})
 
     if alerts:
         with store._lock:

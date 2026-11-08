@@ -2,7 +2,7 @@
 
 | | |
 |--|--|
-| 갱신 | 2026-11-06 (2주 출시 준비 일정·데이터 신뢰 설계·수익모델 검토안) |
+| 갱신 | 2026-11-08 (S1 구현 및 격리 검증 결과) |
 | 현재 판단 | 핵심 제품 MVP 완료 · Closed Beta 조건부 가능 · 공개 런칭 준비 미완료 |
 | 기능 백로그 | [PRODUCT_BACKLOG.md](./PRODUCT_BACKLOG.md) |
 
@@ -315,8 +315,10 @@ PRODUCT_BACKLOG.md를 유지하되 출시 작업을 두 문서에 중복 기록�
 Paper Portfolio의 30일·100개 완료 거래 조건은 이 2주 일정으로 단축하지 않는다.
 
 - [x] S1 설계 검토: 청산 원천의 범위·제약 및 판단 시점 provenance 계약 확정 (11/06).
-- [ ] S1 구현·검증 (11/06~11/09): 아래 청산 상태 계약, legacy audit 도구,
-  immutable evidence 저장/API/화면과 회귀 테스트. 실제 수집 활성화는 수용 기준 통과 후.
+- [x] S1 코드 구현·격리 검증 (11/08): 청산 표본 collector와 상태 API, legacy audit 도구,
+  판단 근거 저장·조회·화면 및 회귀 테스트.
+- [ ] S1 운영 원천 검증: 관측 지갑·구독 예산 확정, 실제 원천 샘플 대조, 운영 DB 복사본 audit.
+  실제 수집 활성화는 아래 수용 기준 통과 후.
 - [ ] S2 운영 DB (11/10~11/12): migration, 격리 환경 백업/복원·rollback 실증.
 - [ ] S3 접근·장애 대응 (11/13~11/15): 초대 접근, HTTPS/secret 설정,
   collector·Telegram 장애 알림. 실제 운영 도메인·채널은 소유자 설정을 확인한다.
@@ -325,7 +327,7 @@ Paper Portfolio의 30일·100개 완료 거래 조건은 이 2주 일정으로 �
 - [ ] S5 장기 관찰: 검증된 입력과 전략 버전 확정 후 Shadow 재개 여부 판단.
   2주 내 미충족 시 성과 공개를 보류하고 나머지 Beta 준비와 독립 관리한다.
 
-### S1 — 현재 코드에서 확인한 상태
+### S1 — 설계 당시 확인한 상태 (구현 전)
 
 - `collectors/liquidations.py`는 live 청산 수집을 unavailable로 처리하고
   메모리 이벤트를 비운다. 기존 DB 원장은 보존한다.
@@ -393,17 +395,32 @@ Paper Portfolio의 30일·100개 완료 거래 조건은 이 2주 일정으로 �
    position delta·시장 확인·출처와 실패 상태를 표시하고 트레이더 링크를 연결한다.
    최근 값과 판단 당시 값을 섞지 않는다. 과거 `latest` 레코드는 소급 복원하지 않는다.
 
-### S1 — 구현 종료 기준 (아직 미완료)
+### S1 — 구현 검증과 운영 활성화 기준
 
-- [ ] 공식 형식의 일반 체결/청산/상대방 체결/부분 청산/backstop/잘못된 숫자
-  fixture로 승인·격리·방향·금액을 검증하고 실제 원천 샘플과 대조한다.
+- [x] 공식 형식 fixture로 일반 체결 제외, 부분 청산·backstop의 방향과 금액,
+  상대방·불명확한 체결·잘못된 숫자의 격리를 검증했다.
+- [ ] 운영 활성화 전 관측 지갑의 실제 원천 샘플과 대조한다.
 - [ ] snapshot 재수신, 중복, 순서 역전, 연결 단절, 명단 변경, 재시작에서
   중복 합산과 gap 숨김이 없고 null과 0이 API부터 UI·Brief까지 구분된다.
 - [ ] 운영 DB 복사본의 읽기 전용 audit를 검토하고 legacy 원장이 새 집계와
   Paper 위험 계산에 재유입되지 않는 회귀 테스트를 통과한다.
 - [ ] 판단 후 rank/포지션을 바꿔도 evidence 조회가 동일하며 저장 실패·미존재·
   재시작·보관 이동 시 동작을 검증한다. 화면에서 판단 당시 근거를 확인한다.
-- [ ] source coverage와 전략 호환성을 검토하기 전까지 Paper 평가는 계속 중지된다.
+- [x] 지갑 표본 feed와 별도로 live Paper 평가를 중지하도록 강제했다.
+  source coverage와 전략 호환성이 검증되어야 재개할 수 있다.
+
+2026-11-08 검증: backend 207 passed / 1 skipped (opt-in 외부 테스트), frontend 7 passed,
+별도 production build 통과. 로컬 SQLite에 `audit_legacy_liquidations.py`를 읽기 전용으로
+실행했다. 19,446건(거래 hash 있음 13,761건)에 대해 원천 청산 marker와 계정 귀속을
+증명할 자료가 없어 기존 원장 그대로 보존했다. 운영 DB와 실제 WS payload는 아직 미검증이다.
+
+- `VERIFIED_LIQUIDATIONS_ENABLED` 기본값은 `false`다. 활성화 전 고정 명단과
+  `LIQUIDATION_OTHER_WS_USERS`를 확인한다. `/api/v2/liquidations/verified`와
+  Liquidation Radar에 지갑 표본을 별도로 표시하며 시장 청산·Paper 입력에는 연결하지 않는다.
+- Brief·Insights 카드·Telegram 이력은 저장된 근거 ID를 참조한다. 이전 관측 시각을
+  저장하지 않은 과거 delta와 과거 신호의 근거는 소급 생성하지 않는다.
+- 운영 근거 API는 `EVIDENCE_ACCESS_TOKEN` 미설정 시 접근을 차단한다. 웹 조회에는
+  `evidence_access` 쿠키가 필요하며, 정식 초대 세션 연결은 S3에 남긴다.
 
 ## 상용화 수익모델 검토안 — 2026-11-06
 

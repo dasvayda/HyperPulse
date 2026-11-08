@@ -13,6 +13,9 @@ for _name in ("OPENAI_API_KEY", "DEEPSEEK_API_KEY", "TELEGRAM_BOT_TOKEN",
               "TELEGRAM_CHAT_ID", "CMC_API_KEY", "PIPELINE_RUN_TOKEN", "LANGGRAPH_URL"):
     os.environ[_name] = ""
 os.environ["AI_PROVIDER"] = "heuristic"
+os.environ["VERIFIED_LIQUIDATIONS_ENABLED"] = "false"
+os.environ["LIQUIDATION_WATCH_ADDRESSES"] = ""
+os.environ["EVIDENCE_ACCESS_TOKEN"] = ""
 os.environ["ENVIRONMENT"] = "development"
 os.environ["CORS_ORIGINS"] = "http://localhost:3100"
 if _TEST_DB.exists():

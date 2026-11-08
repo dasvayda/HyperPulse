@@ -15,6 +15,7 @@ build/
 __pycache__/
 *.py[cod]
 .venv/
+.venv-launch/
 venv/
 .env
 .env.local

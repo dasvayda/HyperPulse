@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/Badge";
+import { EvidenceLink } from "@/components/ui/EvidenceLink";
 import type { AlertHistoryItem } from "@/types";
 import { formatTimeAgo } from "@/lib/api";
 
@@ -90,6 +91,7 @@ export function AlertFeed({
           {!compact ? <p className="text-xs text-text-dim">
             {alert.channel} · {alert.event_type}
           </p> : null}
+          {!compact ? <EvidenceLink id={alert.evidence_id} /> : null}
           {legacySnapshot ? (
             <p className="text-xs text-text-dim">
               Legacy snapshot alert · fills not verified

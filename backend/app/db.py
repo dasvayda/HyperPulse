@@ -1,6 +1,6 @@
 from collections.abc import Generator
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import settings
@@ -30,6 +30,12 @@ def init_db() -> None:
     from app.models import orm  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    with engine.begin() as conn:
+        for table in ("alerts", "market_briefs"):
+            if "evidence_id" not in {c["name"] for c in inspect(conn).get_columns(table)}:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN evidence_id VARCHAR(64)"))
+        if "previous_at" not in {c["name"] for c in inspect(conn).get_columns("whale_flows")}:
+            conn.execute(text("ALTER TABLE whale_flows ADD COLUMN previous_at TIMESTAMP"))
     _migrate_sqlite()
 
 

@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/Badge";
+import { EvidenceLink } from "@/components/ui/EvidenceLink";
 import { PulseBar } from "@/components/ui/PulseBar";
 import type { InsightStance, MarketInsight } from "@/types";
 import { formatConfidence, formatTimeAgo } from "@/lib/api";
@@ -25,6 +26,7 @@ export function InsightCard({ insight, className = "" }: InsightCardProps) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
+            {insight.stale ? <Badge variant="exit">STALE</Badge> : null}
             <Badge variant={stanceVariant[stance]} className="text-xs font-semibold tracking-wide px-2.5 py-1">
               {stance.toUpperCase()}
             </Badge>
@@ -39,6 +41,7 @@ export function InsightCard({ insight, className = "" }: InsightCardProps) {
       </Badge>
       </div>
       <p className="text-sm text-text-muted leading-relaxed flex-1">{insight.summary}</p>
+      <EvidenceLink id={insight.evidence_id} />
       <div className="flex flex-wrap gap-1.5">
         {insight.signals
           .filter((signal) => !signal.toLowerCase().startsWith("action:"))

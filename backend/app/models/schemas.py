@@ -389,6 +389,8 @@ class PulseSnapshot(BaseModel):
 
 
 class MarketInsight(BaseModel):
+    evidence_id: str | None = None
+    stale: bool = False
     id: str
     title: str
     summary: str
@@ -401,6 +403,7 @@ class MarketInsight(BaseModel):
 
 
 class AlertHistoryItem(BaseModel):
+    evidence_id: str | None = None
     id: str
     channel: str
     event_type: str
@@ -521,6 +524,7 @@ class BriefDigest(BaseModel):
 
 
 class MarketBrief(BaseModel):
+    evidence_id: str | None = None
     """Desk-style market commentary built from a structured HL snapshot."""
 
     headline: str

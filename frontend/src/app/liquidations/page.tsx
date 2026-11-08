@@ -20,6 +20,7 @@ import {
   getPipelineStatus,
   getMarketStatus,
   getLiqProximity,
+  getVerifiedLiquidations,
   formatUsd,
   formatPrice,
   formatTimeAgo,
@@ -29,12 +30,13 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function LiquidationsPage() {
-  const [zones, events, pipeline, market, proximity] = await Promise.all([
+  const [zones, events, pipeline, market, proximity, verified] = await Promise.all([
     getLiquidationZones(),
     getLiquidationEvents(),
     getPipelineStatus(),
     getMarketStatus(),
     getLiqProximity(8),
+    getVerifiedLiquidations().catch(() => null),
   ]);
 
   const strip = [
@@ -73,6 +75,20 @@ export default async function LiquidationsPage() {
           </span>
         }
       />
+
+      <section className="mb-5 rounded-xl border border-border bg-bg-surface p-4 text-sm text-text-muted">
+        <h2 className="text-text-primary">Watched wallet liquidations · 1h</h2>
+        <p>{verified?.wallets.length ?? 0} watched wallets · {verified?.status ?? "unavailable"} · {verified?.gap !== false ? "Coverage incomplete" : "Window observed"}</p>
+        <p>Longs: {verified?.long_usd == null ? "Unavailable" : formatUsd(verified.long_usd)} · Shorts: {verified?.short_usd == null ? "Unavailable" : formatUsd(verified.short_usd)}</p>
+        <p>This wallet sample does not measure market-wide liquidations. Missing coverage is not zero activity.</p>
+        {verified?.recent_events.length ? <details className="mt-3">
+          <summary className="cursor-pointer text-text-primary">Verified fills observed in this window</summary>
+          <div className="mt-3 space-y-2">{verified.recent_events.slice(0, 5).map(event => <p key={event.id}>
+            <Link className="text-accent break-all" href={`/traders/${event.wallet}`}>{event.wallet}</Link><br />
+            {event.asset} · {event.side} liquidated · {formatUsd(event.size_usd)} at {formatPrice(event.price, event.asset)} · {event.event_at}
+          </p>)}</div>
+        </details> : null}
+      </section>
 
       <details className="mb-5 rounded-xl border border-border bg-bg-surface p-4 text-sm text-text-muted">
         <summary className="cursor-pointer text-text-primary">Where these risk levels come from</summary>

@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
@@ -55,7 +55,7 @@ from app.services.ranking import (
 )
 from app.services.store import store
 from app.services.pipeline_observability import collectors_healthy, observe_alerts, observe_stage
-from app.security import require_pipeline_run_token
+from app.security import require_evidence_access, require_pipeline_run_token
 from app.services.whale_book import (
     asset_market_tag,
     list_biggest_positions,
@@ -64,6 +64,23 @@ from app.services.whale_book import (
 )
 
 router = APIRouter(prefix="/api/v2", tags=["v2"])
+
+
+@router.get("/evidence/{evidence_id}", dependencies=[Depends(require_evidence_access)])
+def get_evidence(evidence_id: str):
+    from app.services.evidence import retrieve
+    if len(evidence_id) != 64 or any(c not in "0123456789abcdef" for c in evidence_id):
+        raise HTTPException(status_code=404, detail="Evidence unavailable")
+    result = retrieve(evidence_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Evidence unavailable")
+    return result
+
+
+@router.get("/liquidations/verified")
+def verified_liquidations(hours: int = Query(default=1, ge=1, le=24)):
+    from app.services.verified_liquidations import summary
+    return summary(hours)
 
 
 @router.get("/rankings", response_model=list[SmartMoneyRank])

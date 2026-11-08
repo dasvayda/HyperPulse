@@ -5,7 +5,7 @@ import math
 import re
 import uuid
 from datetime import datetime, timezone
-from threading import Lock
+from threading import RLock
 
 from sqlalchemy.orm import Session
 
@@ -115,7 +115,7 @@ class StateStore:
     """In-memory state with optional SQLAlchemy persistence."""
 
     def __init__(self) -> None:
-        self._lock = Lock()
+        self._lock = RLock()
 
         if settings.use_mock_data:
             self.whale_alerts: list[WhaleAlert] = list(WHALE_ALERTS)
@@ -140,6 +140,7 @@ class StateStore:
         self.insights: list[MarketInsight] = []
         self.alerts: list[AlertHistoryItem] = []
         self.whale_positions: list[WhalePosition] = []
+        self.whale_observed_at: dict[str, datetime] = {}
         self.whale_positions_by_trader: dict[str, list[WhalePosition]] = {}
         self.whale_summary: WhaleBookSummary | None = None
         # Latest per-asset Hyperliquid ctx (volume/funding/mark) for live Coin Pulse.
@@ -195,6 +196,7 @@ class StateStore:
             self.alerts = [
                 AlertHistoryItem(
                     id=row.id,
+                    evidence_id=row.evidence_id,
                     channel=row.channel,
                     event_type=row.event_type,
                     title=row.title,
@@ -307,12 +309,17 @@ class StateStore:
         item: AlertHistoryItem,
         payload: dict | None = None,
         dedupe_key: str | None = None,
+        evidence: tuple[str, str] | None = None,
     ) -> None:
         db = SessionLocal()
         try:
+            if evidence is not None:
+                from app.services.evidence import save
+                item.evidence_id = save(db, evidence)
             db.add(
                 AlertRow(
                     id=item.id,
+                    evidence_id=item.evidence_id,
                     channel=item.channel,
                     event_type=item.event_type,
                     title=item.title,
@@ -353,6 +360,7 @@ class StateStore:
                 return None
             return AlertHistoryItem(
                 id=row.id,
+                evidence_id=row.evidence_id,
                 channel=row.channel,
                 event_type=row.event_type,
                 title=row.title,
@@ -384,6 +392,9 @@ class StateStore:
         try:
             row = db.get(AlertRow, item.id)
             if row is not None:
+                if payload and payload.get("evidence_id"):
+                    row.evidence_id = payload["evidence_id"]
+                    updated.evidence_id = row.evidence_id
                 row.title = updated.title
                 row.message = message
                 row.payload = json.dumps(payload or {})

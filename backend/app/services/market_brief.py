@@ -83,6 +83,9 @@ def _top_assets_by_volume(n: int = 3) -> list[str]:
 
 
 def _liq_window_usd(hours: float, asset: str | None = None) -> dict[str, float | int]:
+    if not settings.use_mock_data:
+        return {"status": "unavailable", "scope": "market", "long_usd": None,
+                "short_usd": None, "total_usd": None, "events": None}
     now = _utcnow()
     cutoff = now - timedelta(hours=hours)
     long_usd = 0.0
@@ -589,6 +592,8 @@ def build_template_brief(snapshot: dict[str, Any]) -> MarketBrief:
 
     digest = build_brief_digest(snapshot, None, stance)
     status_bits = [digest.read]
+    if liq.get("status") == "unavailable":
+        status_bits.append("Verified market liquidation data is unavailable.")
     if funding:
         f0 = funding[0]
         status_bits.append(
@@ -731,7 +736,7 @@ prefer_long | prefer_short | wait
 - coin_stances: rule votes (whale book + funding + liq). Already prefer_long/prefer_short/wait. Do not contradict a clear 2+ coin majority unless Top3 conflicts — then stance=wait.
 - top3_funding: funding % for Top3 always. Flat/near-zero = no funding edge. Only treat as crowded when is_extreme=true (or listed in extreme_funding).
 - extreme_funding: Top20 volume ∩ |funding| extreme. Empty list means no extreme funding — do NOT invent crowdedness.
-- liq_1h / liq_24h: sampled recentTrades, not full-market liquidations. Use direction (long-flush / quiet), not exchange-wide totals.
+- liq_1h / liq_24h: use only explicitly available verified coverage. Live market coverage is currently unavailable. Never derive liquidations from ordinary recentTrades or call missing data quiet.
 - biggest_positions: illustrative large tracked positions — color, not a market forecast.
 - coverage: positioned/tracked sample size with Low/Medium/High band. Low positioned → lean wait / mention thin sample in risks.
 
@@ -761,6 +766,7 @@ Coverage bands: Low <40%, Medium 40-69%, High >=70% of tracked whales with open 
 - risks: 1–3 snapshot-specific. No generic "volatility may increase".
 - evidence_refs: ONLY keys from: top3_consensus, book_wide, coin_stances, top3_funding, extreme_funding, liq_1h, liq_24h, biggest_positions, coverage, tape.
 - Do NOT invent tickers, prices, or dollar amounts absent from the snapshot.
+- Liquidation status unavailable means missing coverage, never quiet or zero. Do not infer liquidation pressure from unavailable inputs.
 """
 
 BRIEF_FEW_SHOT_USER = {
@@ -944,14 +950,18 @@ def _should_refresh(snapshot: dict[str, Any]) -> bool:
         return True
 
 
-def persist_market_brief(brief: MarketBrief) -> None:
+def persist_market_brief(brief: MarketBrief, evidence: tuple[str, str] | None = None) -> None:
     db = SessionLocal()
     try:
+        if evidence is not None:
+            from app.services.evidence import save
+            brief.evidence_id = save(db, evidence)
         row = db.get(MarketBriefRow, "latest")
         if row is None:
             row = MarketBriefRow(id="latest")
             db.add(row)
         row.headline = brief.headline
+        row.evidence_id = brief.evidence_id
         row.market_status = brief.market_status
         row.stance = brief.stance.value
         row.suggestions = json.dumps(brief.suggestions)
@@ -971,6 +981,7 @@ def persist_market_brief(brief: MarketBrief) -> None:
     except Exception:
         db.rollback()
         logger.exception("persist market brief failed")
+        raise
     finally:
         db.close()
 
@@ -1010,6 +1021,7 @@ def load_market_brief_from_db() -> MarketBrief | None:
             provider=row.provider,
             source=row.source,
             snapshot_hash=row.snapshot_hash or "",
+            evidence_id=row.evidence_id,
         )
     except Exception:
         logger.exception("load market brief failed")
@@ -1020,12 +1032,28 @@ def load_market_brief_from_db() -> MarketBrief | None:
 
 async def generate_market_brief(*, force: bool = False, asset: str | None = None) -> MarketBrief:
     """Build snapshot, optionally call LLM, always return a displayable brief."""
-    snapshot = build_market_brief_snapshot()
+    from app.services.evidence import capture_context, envelope, save
+    from app.services.inference import _frozen_snapshots, _latest_snapshots_by_asset
+    with store._lock:
+        assets = list(set(store.market_ticks) | set(store.whale_summary.by_asset if store.whale_summary else {}))
+        rows = _latest_snapshots_by_asset(assets)
+        token = _frozen_snapshots.set(rows)
+        try:
+            snapshot = build_market_brief_snapshot()
+            snapshot["rule_market_snapshots"] = {a: {"mark_price": r.mark_price, "funding_rate": r.funding_rate,
+                                                    "timestamp": r.timestamp.isoformat()} for a, r in rows.items()}
+            context = capture_context()
+        finally:
+            _frozen_snapshots.reset(token)
     want = (asset or "").strip().upper() or None
     if want:
         sliced = slice_snapshot(snapshot, want)
         brief = build_template_brief(sliced)
-        return apply_tldr_to_brief(brief, sliced, want)
+        brief = apply_tldr_to_brief(brief, sliced, want)
+        with SessionLocal() as db:
+            brief.evidence_id = save(db, envelope("brief", sliced, brief.model_dump(mode="json"), context=context))
+            db.commit()
+        return brief
 
     if not force and not _should_refresh(snapshot) and store.market_brief is not None:
         return store.market_brief
@@ -1035,7 +1063,12 @@ async def generate_market_brief(*, force: bool = False, asset: str | None = None
         brief = build_template_brief(snapshot)
     brief = apply_tldr_to_brief(brief, snapshot, None)
 
+    try:
+        persist_market_brief(brief, envelope("brief", snapshot, brief.model_dump(mode="json"), context=context))
+    except Exception:
+        if store.market_brief is not None:
+            return store.market_brief.model_copy(update={"stale": True})
+        raise
     with store._lock:
         store.market_brief = brief
-    persist_market_brief(brief)
     return brief

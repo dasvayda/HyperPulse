@@ -148,6 +148,11 @@ def start_background_tasks() -> None:
     _started = True
 
     if settings.collector_enabled:
+        if settings.verified_liquidations_enabled and not settings.use_mock_data:
+            from app.collectors.liquidation_stream import run_liquidation_stream
+            from app.services.verified_liquidations import watch_addresses
+            watch_addresses()
+            _tasks.append(asyncio.create_task(run_liquidation_stream()))
         _tasks.append(
             asyncio.create_task(
                 _loop("collector", settings.collector_interval_seconds, _collect_cycle)

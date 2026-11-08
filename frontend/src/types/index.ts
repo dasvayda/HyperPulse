@@ -337,6 +337,8 @@ export interface PulseSnapshot {
 }
 
 export interface MarketInsight {
+  evidence_id?: string | null;
+    stale?: boolean;
   id: string;
   title: string;
   summary: string;
@@ -349,6 +351,7 @@ export interface MarketInsight {
 }
 
 export interface AlertHistoryItem {
+  evidence_id?: string | null;
   id: string;
   channel: string;
   event_type: string;
@@ -430,6 +433,7 @@ export interface MarketBriefDigest {
 }
 
 export interface MarketBrief {
+  evidence_id?: string | null;
   headline: string;
   market_status: string;
   stance: "prefer_long" | "prefer_short" | "wait";

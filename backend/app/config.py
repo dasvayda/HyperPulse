@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # Hyperliquid
     hyperliquid_api_url: str = "https://api.hyperliquid.xyz"
     hyperliquid_ws_url: str = "wss://api.hyperliquid.xyz/ws"
+    verified_liquidations_enabled: bool = False
+    liquidation_watch_addresses: str = ""
+    liquidation_other_ws_users: int = 0
+    evidence_access_token: str = ""
     hyperliquid_stats_url: str = "https://stats-data.hyperliquid.xyz/Mainnet"
     # Telegram explorer links. Keep the two execution domains explicit: HyperCore
     # transactions use Hyperliquid's explorer, while HyperEVM transactions use

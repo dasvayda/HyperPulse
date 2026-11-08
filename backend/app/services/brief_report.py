@@ -151,6 +151,8 @@ def price_vs_book_tension(
 
 def liq_direction(liq: dict[str, Any] | None, *, quiet_usd: float = LIQ_QUIET_USD) -> str:
     liq = liq or {}
+    if liq.get("status") == "unavailable":
+        return "unavailable"
     total = float(liq.get("total_usd") or 0)
     long_usd = float(liq.get("long_usd") or 0)
     short_usd = float(liq.get("short_usd") or 0)
@@ -398,7 +400,9 @@ def build_tldr_slots(snapshot: dict[str, Any], asset: str | None = None) -> Brie
     liq_1h = _liq_for(snapshot, 1, asset)
     liq_dir = liq_direction(liq_1h)
     liq_txt = f"sampled 1h liq {liq_dir}"
-    if liq_dir != "quiet":
+    if liq_1h.get("status") == "unavailable":
+        liq_txt = "1h liquidation data unavailable"
+    if liq_dir not in {"quiet", "unavailable"}:
         liq_txt += f" (~{format_usd_short(float(liq_1h.get('total_usd') or 0))})"
     if lp is not None and sp is not None:
         short_read = (
@@ -580,7 +584,9 @@ def build_positioning_lines(snapshot: dict[str, Any], asset: str | None = None) 
             lines.append("By asset: " + " · ".join(bits))
     liq_1h = _liq_for(snapshot, 1, asset)
     liq_dir = liq_direction(liq_1h)
-    if liq_dir == "quiet":
+    if liq_1h.get("status") == "unavailable":
+        lines.append("Liquidations (1h): unavailable")
+    elif liq_dir == "quiet":
         lines.append("Liquidations (1h): quiet")
     else:
         total = format_usd_short(float(liq_1h.get("total_usd") or 0))
