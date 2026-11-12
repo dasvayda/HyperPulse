@@ -2,7 +2,7 @@
 
 | | |
 |--|--|
-| 갱신 | 2026-11-08 (S1 구현 및 격리 검증 결과) |
+| 갱신 | 2026-11-12 (Vercel 기본 배포 경로 및 무Redis Beta 계획) |
 | 현재 판단 | 핵심 제품 MVP 완료 · Closed Beta 조건부 가능 · 공개 런칭 준비 미완료 |
 | 기능 백로그 | [PRODUCT_BACKLOG.md](./PRODUCT_BACKLOG.md) |
 
@@ -27,7 +27,7 @@
 - 백엔드 단위·API 계약 통합 테스트: 2026-10-29 기준 `177 passed, 1 skipped` (외부 live 조회 opt-in)
 - 인증/사용자 계정: 없음
 - 사용자별 Telegram 구독: 없음
-- production Docker 설정: 개발/production compose 분리와 컨테이너 healthcheck 완료, 실제 배포·rollback 검증 필요
+- 기본 출시 경로: Vercel Next.js + 상시 실행 FastAPI 1개 + 영속 PostgreSQL. Docker Compose는 선택 경로이며 Redis는 Beta 필수가 아니다.
 - 모니터링/알림/백업: 운영 수준 보완 필요
 
 제품의 핵심 가치는 검증 가능한 상태다. 상위 고래 포지션, 최근 흐름, 시장 trend, funding과 실제 `liquidationPx`를 짧은 판단과 Telegram 알림으로 묶는 구성은 Hyperliquid 재량 트레이더에게 명확한 사용 이유가 있다.
@@ -59,11 +59,24 @@
 - [x] production CORS 정책 강제: exact HTTPS origin만 허용, wildcard/null/인증정보/경로 차단, 잘못된 설정은 시작 전 실패 (2026-10-29). 실제 운영 도메인 값 설정은 배포 시 잔여. CORS는 사용자 인증을 대신하지 않는다.
 - [x] API 문서 노출을 `API_DOCS_ENABLED`로 제어
 - [x] CORS credential 허용을 `CORS_ALLOW_CREDENTIALS`로 제어하고 기본값을 비활성화
-- [ ] PostgreSQL/Redis 기본 자격 증명을 환경변수 또는 secret store로 이동
+- [ ] PostgreSQL 자격 증명을 환경변수 또는 secret store로 관리 (Redis를 도입할 경우 동일 적용)
 - [x] 운영 환경에서 API 문서 노출 정책 결정: production은 `API_DOCS_ENABLED=false` 권장
 - [ ] `.env`, Telegram token, AI API key가 로그·오류 화면에 노출되지 않는지 점검 (2026-10-29: 앱/Uvicorn 로그 formatter에 설정 secret·DSN·Telegram URL·Authorization 마스킹 및 traceback 회귀 테스트 완료. 배포 로그 저장소·오류 화면 전체 보안 검수 잔여)
 
 #### 배포
+
+**배포 결정 (2026-11-12):** Vercel에는 `frontend/`만 배포한다. 현재 FastAPI는
+프로세스 시작 시 수집·랭킹·알림 루프를 띄우고, 검증된 청산 수집은 장시간
+WebSocket을 사용한다. 요청 단위 실행에 시간 제한이 있는
+[Vercel Functions](https://vercel.com/docs/functions/configuring-functions/duration)에
+이 프로세스를 그대로 올리지 않는다. 별도 소형 상시 실행 호스트에서 API와
+수집기를 단일 프로세스로 운영한다. 호스트와 PostgreSQL 공급자는 아직 미선정이다.
+
+- [ ] Vercel `frontend/` 프로젝트와 상시 실행 백엔드의 Preview/Beta 연결·롤백 실증
+- [ ] 무Redis 모드를 명시적으로 설정할 수 있게 하고, 정상 메모리 캐시와 Redis 장애 fallback을 readiness·운영 CLI에서 구분
+- 단일 worker의 메모리 TTL 캐시로 시작한다. 캐시는 재시작 시 소실되어도 되지만 DB의 알림 이력·판단 근거·원장은 보존한다. 재시작 후 부하와 외부 API 호출을 측정하고, 공유 캐시가 실제로 필요해질 때만 Redis를 검토한다. 다중 worker 전환은 수집/발송 중복 방지 검증이 별도로 필요하다.
+- Docker는 로컬 재현과 선택 배포용으로 유지한다. 초기 서버는 Python 가상환경과 호스트 서비스 관리자로 운영할 수 있다.
+- 상업 목적 출시는 Vercel Hobby를 전제로 잡지 않는다. [Vercel 플랜 약관](https://vercel.com/legal/terms)을 기준으로 적합한 플랜과 예산을 확인한다.
 
 - [x] production backend에서 `--reload` 제거
 - [x] production frontend를 `next build` + standalone server로 실행
@@ -71,7 +84,7 @@
 - [ ] HTTPS 및 도메인 연결
 - [x] backend/frontend/DB/Redis 컨테이너 healthcheck 추가
 - [x] 애플리케이션 readiness에서 DB/Redis/collector 상태 구분 (`GET /health/ready`; Redis memory fallback 별도 표시)
-- [x] 배포 및 rollback 절차를 문서화 ([DEPLOYMENT_RUNBOOK.md](./DEPLOYMENT_RUNBOOK.md), 2026-10-08; 실제 rollback·복구 검증은 잔여)
+- [x] Vercel 기본 경로와 선택 Docker 경로의 배포·rollback 절차 문서화 ([DEPLOYMENT_RUNBOOK.md](./DEPLOYMENT_RUNBOOK.md); 실제 rollback·복구 검증은 잔여)
 
 #### 데이터와 운영
 
@@ -322,6 +335,7 @@ Paper Portfolio의 30일·100개 완료 거래 조건은 이 2주 일정으로 �
 - [ ] S2 운영 DB (11/10~11/12): migration, 격리 환경 백업/복원·rollback 실증.
 - [ ] S3 접근·장애 대응 (11/13~11/15): 초대 접근, HTTPS/secret 설정,
   collector·Telegram 장애 알림. 실제 운영 도메인·채널은 소유자 설정을 확인한다.
+  Vercel Preview와 상시 실행 API 연결, 단일 worker·무Redis 운영 검증을 포함한다.
 - [ ] S4 Beta 검증 (11/16~11/19): 모바일 포함 핵심 화면 E2E,
   의존성 장애 훈련, CI 결과 확인, 초대·문의 동선과 출시 게이트 재판정.
 - [ ] S5 장기 관찰: 검증된 입력과 전략 버전 확정 후 Shadow 재개 여부 판단.

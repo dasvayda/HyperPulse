@@ -1,9 +1,54 @@
 # HyperPulse Deployment Runbook
 
-This runbook is for the Docker production-like stack in
-`docker-compose.prod.yml`. It is deliberately source-ref based: the current
-compose file builds containers from the checked-out Git revision, not from
-versioned registry images.
+The default Beta route is **Vercel Next.js + one always-on FastAPI process +
+persistent PostgreSQL**. Docker Compose remains an optional alternative.
+
+## Default route — Vercel and a native Python service
+
+1. Choose a backend host that does not sleep and can maintain outbound HTTPS
+   and WebSocket connections. Deploy the tested Git revision in a Python
+   virtualenv with `pip install -r requirements.txt` from `backend/`. Run
+   `uvicorn app.main:app --host 127.0.0.1 --port 8100 --workers 1` behind an
+   HTTPS reverse proxy on that host, supervised by its service manager. Do not
+   use `--reload`. Provide an equivalent bind/port configuration if the host
+   manages TLS and supervision. Stop the old collector before starting a
+   replacement; do not run two collectors against the same live channel.
+2. Set the backend's `DATABASE_URL` to persistent PostgreSQL and keep credentials
+   on the host. Verify schema compatibility, backup/restore and rollback in an
+   isolated environment before connecting production data. Configure
+   `ENVIRONMENT=production`, `API_DOCS_ENABLED=false`, a private
+   `PIPELINE_RUN_TOKEN`, and exact HTTPS origins in `CORS_ORIGINS`.
+   CORS is not access control: verify the Beta access gate on both frontend and
+   directly reachable API before granting invites.
+3. Import the Git repository in Vercel with [Root Directory](https://vercel.com/docs/monorepos)
+   set to `frontend` and the Next.js preset. Use the normal Next.js build,
+   not static export or a Docker image. In Vercel's
+   [environment settings](https://vercel.com/docs/environment-variables), set
+   server-side `API_URL` to the HTTPS backend for the relevant environment.
+   Use isolated API/data and no live alert sends in Preview. If using the
+   evidence page, set the matching `EVIDENCE_ACCESS_TOKEN` on both servers,
+   never in a `NEXT_PUBLIC_*` variable. Set backend `PUBLIC_APP_URL` to the
+   stable frontend URL for Telegram deep links. Do not put DB, Telegram bot,
+   or AI credentials on the frontend.
+4. No Redis service is needed for the first single-worker Beta. Current code
+   uses memory fallback when Redis is unreachable and still probes Redis
+   periodically; the CLI reports a warning. Do not assume deleting `REDIS_URL`
+   disables probes (the code has a localhost default). Explicit memory mode and
+   its separate status are a pre-Beta implementation/verification task.
+5. Check `/health`, `/health/ready`, and `python -m app.ops_check --base-url <API_ORIGIN>`.
+   Verify Home, Insights, evidence and Alerts on Preview, plus fresh collector
+   timestamps, restart recovery and the Telegram links. Keep unverified
+   liquidation inputs and Paper Portfolio safeguards in place. Do not force a
+   pipeline run as a smoke test. Record frontend deployment ID and backend SHA.
+6. Roll back the [Vercel deployment](https://vercel.com/docs/deployments/rollback-production-deployment)
+   and backend revision independently, checking API/schema compatibility.
+   Verify readiness and data freshness after restart. A frontend rollback
+   does not restore PostgreSQL data or revert backend code.
+
+## Optional route — Docker Compose
+
+The following Compose-specific commands apply only when choosing
+`docker-compose.prod.yml`. It builds from the checked-out revision.
 
 ## Before deploying
 

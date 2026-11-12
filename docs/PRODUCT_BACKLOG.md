@@ -73,6 +73,10 @@
 
 ### Launch readiness
 
+기본 배포는 Vercel 프론트 + 상시 실행 단일 FastAPI + 영속 PostgreSQL이다.
+Redis·Docker는 출시 필수가 아니다. 무Redis 운영 검증과 배포 순서는
+[런칭 플랜](./LAUNCH_PLAN.md#phase-1--운영-기반-정비)에서 관리한다.
+
 2026-10-29 실행 묶음 (도메인·운영 DB 설정 및 실제 발송은 제외):
 
 - [x] OPS-01 운영 CORS exact HTTPS origin 강제 및 preflight 회귀 테스트
