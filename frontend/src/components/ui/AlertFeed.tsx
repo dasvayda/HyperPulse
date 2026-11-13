@@ -85,9 +85,12 @@ export function AlertFeed({
               </span>
             </div>
           </div>
-          <p className="text-xs text-text-muted leading-relaxed line-clamp-3">
+          {compact ? <p className="text-xs text-text-muted leading-relaxed line-clamp-3">
             {alertBody(alert.title, alert.message)}
-          </p>
+          </p> : legacySnapshot ? <p className="break-words text-xs text-text-muted">{alertBody(alert.title, alert.message)}</p> : <ul className="space-y-1 break-words text-xs text-text-muted leading-relaxed">
+            {alert.message.split("\n").map(line => line.trim()).filter(line =>
+              line && line !== alert.title && !line.startsWith("<a ")).map((line, index) => <li key={index}>{line}</li>)}
+          </ul>}
           {!compact ? <p className="text-xs text-text-dim">
             {alert.channel} · {alert.event_type}
           </p> : null}

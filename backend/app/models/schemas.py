@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -40,6 +41,9 @@ class WhaleAlert(BaseModel):
     alert_type: AlertType
     size_usd: float
     size_delta_usd: float | None = None
+    position_change: Literal["entry", "increase", "reduce", "close", "flip"] | None = None
+    previous_side: PositionSide | None = None
+    trigger_floor_usd: float | None = None
     entry_price: float | None = None
     exit_price: float | None = None
     mark_price: float | None = None

@@ -36,10 +36,11 @@ def classify_size_change(
         return AlertType.EXIT, -round(abs(prev_usd or usd_size), 2)
     if prev * size < 0:
         return AlertType.ENTRY, round(usd_size, 2)
-    if prev * size > 0 and abs(size) > abs(prev):
-        delta = usd_size - abs(prev_usd)
-        if delta >= min_add_usd:
-            return AlertType.ENTRY, round(delta, 2)
+    if prev * size > 0 and abs(size) != abs(prev):
+        # Compare quantities at the same observation price, not two changing marks.
+        delta = (abs(size) - abs(prev)) * usd_size / abs(size)
+        if abs(delta) >= min_add_usd:
+            return (AlertType.ENTRY if delta > 0 else AlertType.EXIT), round(delta, 2)
     return None, None
 
 

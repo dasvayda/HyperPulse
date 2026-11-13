@@ -446,7 +446,7 @@ class StateStore:
                         exit_price=alert.exit_price,
                         leverage=alert.leverage,
                         size_usd=alert.size_usd,
-                        status="closed" if alert.alert_type.value == "exit" else "open",
+                        status="closed" if alert.alert_type.value == "exit" and alert.position_change != "reduce" else "open",
                         timestamp=alert.timestamp,
                     )
                 )

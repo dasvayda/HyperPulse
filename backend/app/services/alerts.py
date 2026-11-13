@@ -404,16 +404,18 @@ def classify_position_alert(alert: WhaleAlert) -> str | None:
 
     Returns: 'big_whale_move' | 'big_trade' | None (skip).
     """
-    if alert.size_usd < settings.alert_min_size_usd:
+    size = max(alert.size_usd, abs(alert.size_delta_usd or 0),
+               alert.size_usd - (alert.size_delta_usd or 0) if alert.position_change == "reduce" else 0)
+    if size < settings.alert_min_size_usd:
         return None
     if _alert_is_stale(alert, max_age_minutes=90):
         return None
     if _is_known_big_whale(alert):
         return "big_whale_move"
-    if alert.size_usd >= BIG_TRADE_MIN_USD:
+    if size >= BIG_TRADE_MIN_USD:
         return "big_trade"
     # Mid-size tracked move without big-whale identity → still a trade pulse.
-    if alert.size_usd >= settings.alert_min_size_usd * 2:
+    if size >= settings.alert_min_size_usd * 2:
         return "big_trade"
     return None
 
@@ -584,6 +586,9 @@ async def _dispatch(event_type: str, title: str, lines: list[str], payload: dict
         key = save(db, evidence)
         db.commit()
     payload = {**(payload or {}), "evidence_id": key}
+    if event_type.startswith(("whale_move_", "big_trade_")) and settings.public_app_url.startswith(("https://", "http://")):
+        evidence_url = f"{settings.public_app_url.rstrip('/')}/evidence/{key}?from=telegram"
+        message += f'\n<a href="{escape(evidence_url, quote=True)}">View alert evidence</a>'
     sent = await _send_telegram(message)
     status = "sent" if sent else ("queued" if not settings.telegram_configured else "failed")
     append_telegram_log(
@@ -742,7 +747,8 @@ def _execution_lines(alert: WhaleAlert) -> list[str]:
 
     evidence = alert.execution
     if evidence and evidence.verified:
-        action = "opened" if alert.alert_type.value == "entry" else "closed"
+        action = {"increase": "added to", "reduce": "trimmed", "flip": "opened"}.get(
+            alert.position_change, "opened" if alert.alert_type.value == "entry" else "closed")
         price = _format_price(evidence.price_low)
         if evidence.price_high and evidence.price_high != evidence.price_low:
             price = f"{price}–{_format_price(evidence.price_high)}"
@@ -758,7 +764,8 @@ def _execution_lines(alert: WhaleAlert) -> list[str]:
         direction = "up" if alert.size_delta_usd > 0 else "down"
         return [
             f"This move: {alert.side.value.upper()} position {direction} "
-            f"{_format_usd_short(abs(alert.size_delta_usd))} in the snapshot",
+            f"{_format_usd_short(abs(alert.size_delta_usd))} in the snapshot"
+            + (" · based on quantity change" if alert.position_change in {"increase", "reduce"} else ""),
             "No confirmed fill price — check the wallet before acting.",
         ]
     return ["This move: position snapshot changed — fills not verified."]
@@ -767,6 +774,8 @@ def _execution_lines(alert: WhaleAlert) -> list[str]:
 def _position_summary_lines(alert: WhaleAlert) -> list[str]:
     """Separate the current total position from the trigger that caused the alert."""
 
+    if alert.position_change == "close":
+        return ["Total position: closed in the snapshot"]
     lines = [
         f"Total position: {alert.side.value.upper()} "
         f"{_format_usd_short(alert.size_usd)} · {alert.leverage:.0f}x"
@@ -777,9 +786,27 @@ def _position_summary_lines(alert: WhaleAlert) -> list[str]:
     return lines
 
 
+def _position_action(alert: WhaleAlert) -> str:
+    return {"entry": "OPENED", "increase": "POSITION UP", "reduce": "TRIMMED",
+            "close": "CLOSED", "flip": "FLIPPED TO"}.get(
+        alert.position_change, "POSITION UP" if alert.alert_type.value == "entry" else "POSITION DOWN")
+
+
+def _trigger_lines(alert: WhaleAlert) -> list[str]:
+    if not alert.position_change:
+        return []
+    reason = {
+        "entry": "new tracked position", "increase": "position quantity increased",
+        "reduce": "position quantity decreased", "close": "position disappeared from a successful wallet snapshot",
+        "flip": f"position flipped from {alert.previous_side.value.upper() if alert.previous_side else 'the prior side'}",
+    }[alert.position_change]
+    floor = _format_usd_short(alert.trigger_floor_usd) if alert.trigger_floor_usd else None
+    return [f"Why now: {reason}" + (f" · {floor} threshold" if floor else "")]
+
+
 def format_whale_move_lines(alert: WhaleAlert) -> tuple[str, list[str]]:
     """Title + HTML body lines for a whale-move Telegram."""
-    action = "POSITION UP" if alert.alert_type.value == "entry" else "POSITION DOWN"
+    action = _position_action(alert)
     side = alert.side.value.upper()
     title = f"WHALE MOVE · {side} {action} {alert.asset}"
 
@@ -792,7 +819,7 @@ def format_whale_move_lines(alert: WhaleAlert) -> tuple[str, list[str]]:
         sign = "+" if alert.unrealized_pnl_usd >= 0 else "-"
         bits.append(f"this pos uPnL {sign}{_format_usd_short(abs(alert.unrealized_pnl_usd))}")
 
-    lines = [f"<b>{title}</b>", alert.trader_alias]
+    lines = [f"<b>{title}</b>", escape(alert.trader_alias), *_trigger_lines(alert)]
     lines.extend(_execution_lines(alert))
     lines.extend(_position_summary_lines(alert))
     lines.extend(_whale_size_context_lines(alert))
@@ -820,11 +847,12 @@ async def send_big_trade(alert: WhaleAlert) -> AlertHistoryItem | None:
     """Large position change, with execution evidence when available."""
     alert = _enrich_alert_for_send(alert)
     side = alert.side.value.upper()
-    action = "POSITION UP" if alert.alert_type.value == "entry" else "POSITION DOWN"
+    action = _position_action(alert)
     title = f"BIG TRADE · {side} {action} {alert.asset}"
 
     lines = [
         f"<b>{title}</b>",
+        *_trigger_lines(alert),
         *_execution_lines(alert),
         *_position_summary_lines(alert),
         f"Wallet {_short_addr(alert.trader_address)}",

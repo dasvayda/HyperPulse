@@ -288,7 +288,7 @@ async def collect_whale_events() -> list[WhaleAlert]:
                 )
             )
 
-            if usd_size < settings.alert_min_size_usd:
+            if max(usd_size, _LAST_USD.get(key, 0.0)) < settings.alert_min_size_usd:
                 _LAST_SIZES[key] = size
                 _LAST_USD[key] = usd_size
                 _LAST_OBSERVED_AT[key] = observed_at
@@ -374,6 +374,10 @@ async def collect_whale_events() -> list[WhaleAlert]:
                 alert_type=alert_type,
                 size_usd=usd_size,
                 size_delta_usd=size_delta_usd,
+                position_change=("entry" if abs(prev) < 1e-6 else "flip" if prev * size < 0
+                                 else "increase" if alert_type == AlertType.ENTRY else "reduce"),
+                previous_side=(PositionSide.LONG if prev > 0 else PositionSide.SHORT) if abs(prev) >= 1e-6 else None,
+                trigger_floor_usd=min_add if prev * size > 0 else settings.alert_min_size_usd,
                 entry_price=pos["entry_price"],
                 exit_price=exit_price,
                 mark_price=mark_price,
@@ -384,7 +388,7 @@ async def collect_whale_events() -> list[WhaleAlert]:
                 win_rate=win_rate,
                 inferred_strategy=inferred_strategy,
                 confidence_score=confidence,
-                timestamp=store.last_collect_at or store.last_inference_at or _utcnow(),
+                timestamp=observed_at,
             )
             if previous_observed_at and execution_lookups_remaining > 0:
                 # Fetch only for a qualifying position change, after the cheap
@@ -407,6 +411,29 @@ async def collect_whale_events() -> list[WhaleAlert]:
             _LAST_SIZES[key] = size
             _LAST_USD[key] = usd_size
             _LAST_OBSERVED_AT[key] = observed_at
+
+    # A position absent from a successful wallet response is closed, not reduced.
+    active_keys = {(p.trader_address.lower(), p.asset) for p in positions_snapshot}
+    for position in previous_positions:
+        address = position.trader_address.lower()
+        key = (address, position.asset)
+        if address not in observed_addresses or key in active_keys:
+            continue
+        previous_usd = _LAST_USD.pop(key, position.size_usd)
+        _LAST_SIZES[key] = 0.0
+        _LAST_OBSERVED_AT[key] = observed_at
+        if previous_usd < settings.alert_min_size_usd:
+            continue
+        trader = traders_by_addr.get(address)
+        alerts.append(WhaleAlert(
+            id=store.new_id("wa"), trader_address=address,
+            trader_alias=trader.alias if trader else address,
+            asset=position.asset, side=position.side, alert_type=AlertType.EXIT,
+            size_usd=0.0, size_delta_usd=-previous_usd, position_change="close",
+            previous_side=position.side, trigger_floor_usd=settings.alert_min_size_usd,
+            leverage=position.leverage, win_rate=trader.win_rate if trader else 0.0,
+            inferred_strategy="Mixed", confidence_score=75.0, timestamp=observed_at,
+        ))
 
     # A failed request is unknown, not an exit. Preserve its last positions so
     # the next successful cycle cannot create a false Paper Portfolio flow.

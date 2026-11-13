@@ -186,3 +186,12 @@ def test_whale_move_copy_uses_verified_fill_price_not_position_average(monkeypat
     assert "Position avg entry: $86,222 (not this fill price)" in text
     assert "in the snapshot" not in text
     assert text.index("This move:") < text.index("Total position:")
+
+
+def test_explicit_position_actions_explain_reason_without_inventing_fills():
+    for change, title_word in (("entry", "OPENED"), ("reduce", "TRIMMED"),
+                               ("close", "CLOSED"), ("flip", "FLIPPED TO")):
+        title, lines = format_whale_move_lines(_alert(position_change=change, trigger_floor_usd=250_000))
+        assert title_word in title
+        assert any(line.startswith("Why now:") and "$250K" in line for line in lines)
+        assert any("No confirmed fill price" in line for line in lines)

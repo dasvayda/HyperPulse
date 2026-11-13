@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { timingSafeEqual } from "node:crypto";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { PageHeader } from "@/components/ui/DataTable";
+import { matchesBetaLogin } from "@/lib/beta-access";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,13 @@ export default async function EvidencePage({ params }: { params: Promise<{ id: s
       const presented = (await cookies()).get("evidence_access")?.value ?? "";
       const authorized = token && Buffer.byteLength(token) === Buffer.byteLength(presented) &&
         timingSafeEqual(Buffer.from(token), Buffer.from(presented));
-      if (token && !authorized) throw new Error("Evidence access required");
+      const beta = process.env.BETA_ACCESS_ENABLED === "true";
+      const betaAuthorized = beta && process.env.BETA_API_TOKEN && await matchesBetaLogin(
+        (await headers()).get("authorization"), process.env.BETA_ACCESS_PASSWORD ?? "",
+      );
+      if ((beta && (!betaAuthorized || !token)) || (!beta && token && !authorized)) {
+        throw new Error("Evidence access required");
+      }
       const response = await fetch(`${base}/api/v2/evidence/${id}`, {
         cache: "no-store", signal: AbortSignal.timeout(10_000),
         headers: {

@@ -33,13 +33,18 @@ def test_fresh_entry_within_24h():
 def test_classify_same_side_add():
     kind, delta = classify_size_change(1.0, 2.0, 500_000, 1_200_000, 250_000)
     assert kind == AlertType.ENTRY
-    assert delta == 700_000
+    assert delta == 600_000
 
 
 def test_classify_small_add_ignored():
     kind, delta = classify_size_change(1.0, 1.1, 500_000, 550_000, 250_000)
     assert kind is None
     assert delta is None
+
+
+def test_price_only_change_does_not_trigger_and_reduction_uses_quantity():
+    assert classify_size_change(2, 2, 500_000, 2_000_000, 250_000) == (None, None)
+    assert classify_size_change(2, 1, 500_000, 1_000_000, 250_000) == (AlertType.EXIT, -1_000_000)
 
 
 def test_classify_flip_and_exit():
