@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { SessionBriefCard } from "@/components/ui/SessionBriefCard";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { PageHeader } from "@/components/ui/DataTable";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
@@ -89,6 +91,9 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
         ) : null}
       </div>
 
+      {!asset ? <Suspense fallback={<p className="mb-4 text-sm text-text-muted" role="status">Loading session brief…</p>}>
+        <SessionBriefCard />
+      </Suspense> : null}
       <MarketBriefHero brief={brief} />
 
       <div id="evidence" className="flex items-center justify-between mb-4 gap-3">

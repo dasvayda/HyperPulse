@@ -432,6 +432,19 @@ export interface MarketBriefDigest {
   coverage_band: string;
 }
 
+export interface SessionBrief {
+  status: "no_baseline" | "unavailable" | "partial" | "changed" | "unchanged";
+  changes: { asset: string; metric: "mark" | "funding" | "whale_long_share"; delta: number }[];
+  slot_label: string;
+  baseline_label: string | null;
+  as_of: string;
+  published_at: string;
+  baseline_published_at: string | null;
+  evidence_id: string;
+  stance: MarketBrief["stance"];
+  read: string | null;
+}
+
 export interface MarketBrief {
   evidence_id?: string | null;
   headline: string;

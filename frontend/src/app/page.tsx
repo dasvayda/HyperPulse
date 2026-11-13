@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { SessionBriefCard } from "@/components/ui/SessionBriefCard";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import {
   DataTable,
@@ -334,6 +335,9 @@ export default async function HomePage() {
           </div>
           <Suspense fallback={<p role="status" className="mb-4 text-sm text-text-muted">Loading Market Brief…</p>}>
             <BriefTeaser />
+          </Suspense>
+          <Suspense fallback={<p className="mb-4 text-sm text-text-muted" role="status">Loading session brief…</p>}>
+            <SessionBriefCard compact />
           </Suspense>
           <div className="grid grid-cols-1 gap-4">
             <WhaleBiasPanel summary={whaleSummary} />

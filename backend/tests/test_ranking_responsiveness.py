@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from sqlalchemy import text
 
 from app.collectors import scheduler
-from app.db import engine, init_db
+from app.db import init_db
 from app.models.schemas import PositionSide
 from app.services import store as store_module
 from app.services.store import store
@@ -62,12 +62,22 @@ def test_ranking_does_not_block_event_loop(monkeypatch):
     asyncio.run(probe())
 
 
-def test_existing_sqlite_receives_latest_price_index():
-    with engine.begin() as conn:
-        conn.execute(text("DROP INDEX IF EXISTS ix_market_snapshots_asset_timestamp"))
-    init_db()
-    with engine.connect() as conn:
-        plan = conn.execute(text("EXPLAIN QUERY PLAN SELECT mark_price FROM market_snapshots WHERE asset='BTC' ORDER BY timestamp DESC LIMIT 1")).fetchall()
-    details = " ".join(str(row) for row in plan)
-    assert "ix_market_snapshots_asset_timestamp" in details
-    assert "TEMP B-TREE" not in details
+def test_existing_sqlite_receives_latest_price_index(tmp_path, monkeypatch):
+    from sqlalchemy import create_engine
+    from app import db
+
+    isolated = create_engine(f"sqlite:///{tmp_path / 'legacy.db'}")
+    monkeypatch.setattr(db, "engine", isolated)
+    monkeypatch.setattr(db.settings, "database_url", str(isolated.url))
+    try:
+        init_db()
+        with isolated.begin() as conn:
+            conn.execute(text("DROP INDEX IF EXISTS ix_market_snapshots_asset_timestamp"))
+        init_db()
+        with isolated.connect() as conn:
+            plan = conn.execute(text("EXPLAIN QUERY PLAN SELECT mark_price FROM market_snapshots WHERE asset='BTC' ORDER BY timestamp DESC LIMIT 1")).fetchall()
+        details = " ".join(str(row) for row in plan)
+        assert "ix_market_snapshots_asset_timestamp" in details
+        assert "TEMP B-TREE" not in details
+    finally:
+        isolated.dispose()

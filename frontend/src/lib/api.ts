@@ -10,6 +10,7 @@ import type {
   LiquidationEvent,
   LiquidationZone,
   MarketBrief,
+  SessionBrief,
   MarketInsight,
   MarketPulse,
   MarketStatus,
@@ -122,6 +123,10 @@ export function getAIInsights(): Promise<MarketInsight[]> {
 export function getMarketBrief(asset?: string): Promise<MarketBrief> {
   const qs = asset ? `?asset=${encodeURIComponent(asset)}` : "";
   return fetchApi(`/api/v2/insights/brief${qs}`);
+}
+
+export function getSessionBrief(): Promise<SessionBrief | null> {
+  return fetchApi("/api/v2/insights/brief/session");
 }
 
 export function getInferences(): Promise<StrategyInference[]> {
