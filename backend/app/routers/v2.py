@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
@@ -132,9 +132,12 @@ def list_insights(limit: int = Query(default=20, le=50)) -> list[MarketInsight]:
 async def get_market_brief(
     force: bool = Query(default=False),
     asset: str | None = Query(default=None),
+    x_pipeline_token: str | None = Header(default=None),
 ) -> MarketBrief:
     """Desk-style Market Brief (LLM or template fallback). Optional per-coin slice."""
     want = (asset or "").strip().upper() or None
+    if force:
+        require_pipeline_run_token(x_pipeline_token)
     brief = await generate_market_brief(force=force, asset=want)
 
     try:
@@ -205,10 +208,15 @@ def pipeline_status() -> PipelineStatus:
 
 
 @router.get("/fear-greed", response_model=FearGreedIndex | None)
-async def fear_greed(force: bool = Query(default=False)) -> FearGreedIndex | None:
+async def fear_greed(
+    force: bool = Query(default=False),
+    x_pipeline_token: str | None = Header(default=None),
+) -> FearGreedIndex | None:
     """CMC Crypto Fear and Greed — external sentiment for contrast with Top3 whale bias."""
     from app.services.fear_greed import fetch_fear_greed
 
+    if force:
+        require_pipeline_run_token(x_pipeline_token)
     return await fetch_fear_greed(force=force)
 
 
