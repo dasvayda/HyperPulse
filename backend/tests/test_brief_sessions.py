@@ -7,7 +7,7 @@ from app.main import create_app
 from app.models.orm import BriefSessionRow
 from app.models.schemas import MarketBrief
 from app.services.brief_schedule import BriefSlot
-from app.services.brief_sessions import freeze_session, mark_session_published
+from app.services.brief_sessions import freeze_session, mark_session_published, session_change_line
 from app.services.evidence import envelope, save
 
 
@@ -31,6 +31,9 @@ def test_session_retry_reuses_original_and_publication_stops_retry():
     mark_session_published(slot.slot_id)
     mark_session_published(slot.slot_id)
     assert freeze_session(slot, brief) is None
+    with SessionLocal() as db:
+        db.delete(db.get(BriefSessionRow, slot.slot_id))
+        db.commit()
 
 
 def test_no_session_for_stale_coin_or_missing_evidence():
@@ -44,7 +47,7 @@ def test_session_api_compares_only_published_editions():
     now = datetime.now(timezone.utc)
     slots = [BriefSlot(f"2099-01-0{i}:asia", "asia", f"Session {i}") for i in (1, 2, 3)]
     try:
-        for slot, mark in zip(slots, (100, 103, 200)):
+        for index, (slot, mark) in enumerate(zip(slots, (100, 103, 200))):
             inputs = {"top3_consensus": {"assets": ["BTC"]}, "tape": {
                 "BTC": {"mark_price": mark, "funding_pct": 0, "updated_at": now.isoformat()},
             }}
@@ -52,16 +55,19 @@ def test_session_api_compares_only_published_editions():
                 key = save(db, envelope("brief", inputs, {}, context={}))
                 db.commit()
             assert freeze_session(slot, make_brief().model_copy(update={"evidence_id": key}))
-        with SessionLocal() as db:
-            for index, slot in enumerate(slots[:2]):
-                db.get(BriefSessionRow, slot.slot_id).published_at = now + timedelta(seconds=index)
-            db.commit()
+            if index < 2:
+                with SessionLocal() as db:
+                    db.get(BriefSessionRow, slot.slot_id).published_at = now + timedelta(seconds=index)
+                    db.commit()
         response = TestClient(create_app()).get("/api/v2/insights/brief/session")
         assert response.status_code == 200
         result = response.json()
         assert result["slot_label"] == "Session 2"
         assert result["baseline_label"] == "Session 1"
         assert result["changes"] == [{"asset": "BTC", "metric": "mark", "delta": 3.0}]
+        assert session_change_line(slots[1].slot_id) == "Since last session: BTC mark +3%"
+        historical = TestClient(create_app()).get("/api/v2/insights/brief/session", params={"slot": slots[0].slot_id})
+        assert historical.json()["status"] == "no_baseline"
     finally:
         with SessionLocal() as db:
             for slot in slots:

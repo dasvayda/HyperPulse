@@ -67,10 +67,10 @@ router = APIRouter(prefix="/api/v2", tags=["v2"])
 
 
 @router.get("/insights/brief/session")
-def get_session_brief() -> dict | None:
+def get_session_brief(slot: str | None = Query(None, max_length=24)) -> dict | None:
     from app.services.brief_sessions import latest_session_comparison
 
-    return latest_session_comparison()
+    return latest_session_comparison(slot)
 
 
 @router.get("/evidence/{evidence_id}", dependencies=[Depends(require_evidence_access)])

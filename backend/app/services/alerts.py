@@ -17,7 +17,7 @@ from app.models.schemas import (
     WhaleAlert,
 )
 from app.services.brief_schedule import due_market_brief_slot
-from app.services.brief_sessions import freeze_session, mark_session_published
+from app.services.brief_sessions import freeze_session, mark_session_published, session_change_line
 from app.services.brief_telegram import brief_send_key, format_market_brief_telegram
 from app.services.store import store
 from app.services.telegram_log import append_telegram_log
@@ -51,6 +51,8 @@ def _alert_detail_link(event_type: str, payload: dict | None) -> str | None:
         if address:
             return f"{base}/traders/{address}"
         return f"{base}/whale-alerts"
+    if event_type == "market_brief" and (payload or {}).get("slot_id"):
+        return f"{base}/insights?session={quote(payload['slot_id'], safe='')}&from=telegram#session-brief"
     if event_type in {"liq_proximity", "squeeze_risk"}:
         return f"{base}/liquidations"
     return f"{base}/insights"
@@ -634,6 +636,7 @@ async def _send_session_brief() -> AlertHistoryItem | None:
     title, lines = format_market_brief_telegram(brief)
     if lines:
         lines.insert(1, f"Desk · {slot.label}")
+        lines.insert(2, await asyncio.to_thread(session_change_line, slot.slot_id))
     item = await _dispatch(
         "market_brief",
         title,

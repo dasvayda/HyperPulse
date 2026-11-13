@@ -31,6 +31,8 @@ def init_db() -> None:
 
     Base.metadata.create_all(bind=engine)
     with engine.begin() as conn:
+        if "comparison_json" not in {c["name"] for c in inspect(conn).get_columns("brief_sessions")}:
+            conn.execute(text("ALTER TABLE brief_sessions ADD COLUMN comparison_json TEXT"))
         for table in ("alerts", "market_briefs"):
             if "evidence_id" not in {c["name"] for c in inspect(conn).get_columns(table)}:
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN evidence_id VARCHAR(64)"))

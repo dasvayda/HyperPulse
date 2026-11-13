@@ -24,6 +24,7 @@ class BriefSessionRow(Base):
     label: Mapped[str] = mapped_column(String(32))
     evidence_id: Mapped[str] = mapped_column(String(64))
     brief_json: Mapped[str] = mapped_column(Text)
+    comparison_json: Mapped[str | None] = mapped_column(Text)
     frozen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
 

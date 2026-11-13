@@ -3,15 +3,15 @@ import { getSessionBrief } from "@/lib/api";
 import { describeSessionChange, sessionComparisonNote } from "@/lib/session-brief-copy";
 import { EvidenceLink } from "./EvidenceLink";
 
-export async function SessionBriefCard({ compact = false }: { compact?: boolean }) {
-  const session = await getSessionBrief().catch(() => undefined);
+export async function SessionBriefCard({ compact = false, slot }: { compact?: boolean; slot?: string }) {
+  const session = await getSessionBrief(slot).catch(() => undefined);
   const note = session && sessionComparisonNote(session.status, session.changes.length > 0);
   return (
     <section id="session-brief" className="mb-4 min-w-0 break-words rounded-xl border border-border bg-bg-surface p-4">
       <h3 className="text-sm font-semibold text-text-primary">Session Brief</h3>
       {!session ? (
         <p className="mt-2 text-sm text-text-muted">{session === null
-          ? "No session brief published yet. The live brief is shown separately."
+          ? (slot ? "This session edition is unavailable." : "No session brief published yet. The live brief is shown separately.")
           : "Session brief unavailable. Check the live brief separately."}</p>
       ) : (
         <>

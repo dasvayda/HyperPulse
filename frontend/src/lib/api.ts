@@ -125,8 +125,8 @@ export function getMarketBrief(asset?: string): Promise<MarketBrief> {
   return fetchApi(`/api/v2/insights/brief${qs}`);
 }
 
-export function getSessionBrief(): Promise<SessionBrief | null> {
-  return fetchApi("/api/v2/insights/brief/session");
+export function getSessionBrief(slot?: string): Promise<SessionBrief | null> {
+  return fetchApi(`/api/v2/insights/brief/session${slot ? `?slot=${encodeURIComponent(slot)}` : ""}`);
 }
 
 export function getInferences(): Promise<StrategyInference[]> {
