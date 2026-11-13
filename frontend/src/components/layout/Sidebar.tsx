@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useRef } from "react";
 import clsx from "clsx";
 import {
   Home,
@@ -14,6 +15,7 @@ import {
   Trophy,
   Send,
   ChartNoAxesCombined,
+  Menu,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -34,9 +36,25 @@ const SECONDARY_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const mobileMenu = useRef<HTMLDetailsElement>(null);
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[220px] bg-bg-surface border-r border-border flex flex-col z-40">
+    <>
+    <details ref={mobileMenu} className="border-b border-border bg-bg-surface lg:hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold focus-visible:outline focus-visible:outline-accent">
+        <Menu aria-hidden="true" className="size-5" /> HyperPulse menu
+      </summary>
+      <nav aria-label="Mobile navigation" className="grid grid-cols-2 gap-1 px-3 pb-3">
+        {NAV_ITEMS.map(({ href, label }) => (
+          <Link key={href} href={href} aria-current={pathname === href ? "page" : undefined}
+            onClick={() => mobileMenu.current?.removeAttribute("open")}
+            className="rounded-lg px-3 py-2.5 text-sm text-text-muted aria-[current=page]:text-accent hover:bg-bg-elevated">
+            {label}
+          </Link>
+        ))}
+      </nav>
+    </details>
+    <aside className="fixed left-0 top-0 z-40 hidden h-dvh w-[220px] flex-col border-r border-border bg-bg-surface lg:flex">
       <div className="px-5 py-5 border-b border-border">
         <Link href="/" className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
@@ -48,7 +66,7 @@ export function Sidebar() {
         </Link>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav aria-label="Desktop navigation" className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           // Exact list routes must not steal focus from nested pages:
           // /traders/[address] is trader detail, not the Ranking menu.
@@ -62,6 +80,7 @@ export function Sidebar() {
             <Link
               key={href}
               href={href}
+              aria-current={active ? "page" : undefined}
               className={clsx(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors relative",
                 active
@@ -106,5 +125,6 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   );
 }
