@@ -17,6 +17,17 @@ class EvidenceRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class BriefSessionRow(Base):
+    __tablename__ = "brief_sessions"
+
+    slot_id: Mapped[str] = mapped_column(String(24), primary_key=True)
+    label: Mapped[str] = mapped_column(String(32))
+    evidence_id: Mapped[str] = mapped_column(String(64))
+    brief_json: Mapped[str] = mapped_column(Text)
+    frozen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+
+
 class VerifiedLiquidationRow(Base):
     __tablename__ = "verified_liquidations"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)

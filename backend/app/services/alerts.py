@@ -17,11 +17,13 @@ from app.models.schemas import (
     WhaleAlert,
 )
 from app.services.brief_schedule import due_market_brief_slot
+from app.services.brief_sessions import freeze_session, mark_session_published
 from app.services.brief_telegram import brief_send_key, format_market_brief_telegram
 from app.services.store import store
 from app.services.telegram_log import append_telegram_log
 
 logger = logging.getLogger(__name__)
+_brief_publish_lock = asyncio.Lock()
 
 # One-shot "big trade" floor (above normal whale-alert min).
 BIG_TRADE_MIN_USD = 2_000_000.0
@@ -602,24 +604,33 @@ async def _dispatch(event_type: str, title: str, lines: list[str], payload: dict
 
 
 async def send_market_brief_alert() -> AlertHistoryItem | None:
+    async with _brief_publish_lock:
+        return await _send_session_brief()
+
+
+async def _send_session_brief() -> AlertHistoryItem | None:
     """Desk Market Brief → Telegram, twice a day (Asia 09:00 + US 09:00).
 
     Insights on the website stay live. Telegram only fires inside a 90-minute
     window after each slot, once per slot. Reuses the Brief already built in
     the inference cycle (no extra LLM call here).
     """
-    brief = getattr(store, "market_brief", None)
-    if brief is None or (brief.digest is None and brief.tldr is None):
+    if not settings.alerts_enabled:
         return None
-
     slot = due_market_brief_slot(
         last_slot_id=getattr(store, "last_brief_telegram_slot", None),
-        brief=brief,
     )
     if slot is None:
         return None
+    brief = await asyncio.to_thread(freeze_session, slot, store.market_brief)
+    if brief is None:
+        return None
 
     send_key = brief_send_key(brief)
+    dedupe_key = _delivery_dedupe_key("market_brief", {"snapshot_hash": send_key, "slot_id": slot.slot_id})
+    if dedupe_key and await asyncio.to_thread(store.sent_alert_exists, dedupe_key):
+        await asyncio.to_thread(mark_session_published, slot.slot_id)
+        return None
     title, lines = format_market_brief_telegram(brief)
     if lines:
         lines.insert(1, f"Desk · {slot.label}")
@@ -639,6 +650,7 @@ async def send_market_brief_alert() -> AlertHistoryItem | None:
         },
     )
     if item and item.status in {"sent", "queued"}:
+        await asyncio.to_thread(mark_session_published, slot.slot_id)
         store.last_brief_telegram_slot = slot.slot_id
         if send_key:
             store.last_brief_telegram_hash = send_key
