@@ -334,9 +334,13 @@ Paper Portfolio의 30일·100개 완료 거래 조건은 이 2주 일정으로 �
 - [ ] S1 운영 원천 검증: 관측 지갑·구독 예산 확정, 실제 원천 샘플 대조, 운영 DB 복사본 audit.
   실제 수집 활성화는 아래 수용 기준 통과 후.
 - [ ] S2 운영 DB (11/10~11/12): migration, 격리 환경 백업/복원·rollback 실증.
+  2026-11-13: [격리 PostgreSQL CI](https://github.com/dasvayda/HyperPulse/actions/runs/43385879372)에서
+  초기화·기존 컬럼 보강·반복 적용·백업 복원 통과. 버전 마이그레이션과 운영 데이터 복구·롤백은 잔여.
 - [ ] S3 접근·장애 대응 (11/13~11/15): 초대 접근, HTTPS/secret 설정,
   collector·Telegram 장애 알림. 실제 운영 도메인·채널은 소유자 설정을 확인한다.
   Vercel Preview와 상시 실행 API 연결, 단일 worker·무Redis 운영 검증을 포함한다.
+  2026-11-13: 무Redis·초대 코드와 [Vercel 연결 체크리스트](./DEPLOYMENT_RUNBOOK.md#vercel-handoff-checklist-before-importing) 준비.
+  계정 연결과 실제 Preview/HTTPS 검증은 잔여.
 - [ ] S4 Beta 검증 (11/16~11/19): 모바일 포함 핵심 화면 E2E,
   의존성 장애 훈련, CI 결과 확인, 초대·문의 동선과 출시 게이트 재판정.
 - [ ] S5 장기 관찰: 검증된 입력과 전략 버전 확정 후 Shadow 재개 여부 판단.

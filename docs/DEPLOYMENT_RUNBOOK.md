@@ -44,6 +44,27 @@ persistent PostgreSQL**. Docker Compose remains an optional alternative.
    Verify readiness and data freshness after restart. A frontend rollback
    does not restore PostgreSQL data or revert backend code.
 
+### Vercel handoff checklist (before importing)
+
+- [ ] Have a tested backend HTTPS origin ready. Vercel cannot reach the local
+  `127.0.0.1:8100` fallback; do not point Preview at the production database or
+  the live Telegram bot.
+- [ ] In the Vercel project select `frontend`, Next.js, and Node 24 (matching CI).
+  Confirm environment scopes before the first deployment.
+- [ ] Preview and Production: set `API_URL`, `BETA_ACCESS_ENABLED=true`,
+  `BETA_ACCESS_PASSWORD` and the corresponding server-only `BETA_API_TOKEN`.
+  Add `EVIDENCE_ACCESS_TOKEN` only where evidence is provisioned; evidence
+  still requires its separate access policy. Only set the public Telegram
+  URL when it is intended to be disclosed to everyone who can load the app.
+- [ ] On the API host set `CACHE_BACKEND=memory`, one worker, the exact allowed
+  HTTPS origins, the matching Beta service token and a separate operator token.
+  Keep `VERIFIED_LIQUIDATIONS_ENABLED=false` until source validation passes.
+- [ ] After deployment: anonymous Home and `/api/pipeline/status` return 401;
+  the direct API also rejects requests without its service token. With access,
+  check Home → Insights → Alerts, 390px menu and table scrolling, freshness
+  status, and one permitted evidence link. Verify `cache.status=memory`,
+  restart recovery, and rollback without running the manual pipeline.
+
 ### Beta access
 
 Before granting Beta access on the default route, enable `BETA_ACCESS_ENABLED=true`
