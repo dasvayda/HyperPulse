@@ -73,7 +73,7 @@ WebSocket을 사용한다. 요청 단위 실행에 시간 제한이 있는
 수집기를 단일 프로세스로 운영한다. 호스트와 PostgreSQL 공급자는 아직 미선정이다.
 
 - [ ] Vercel `frontend/` 프로젝트와 상시 실행 백엔드의 Preview/Beta 연결·롤백 실증
-- [ ] 무Redis 모드를 명시적으로 설정할 수 있게 하고, 정상 메모리 캐시와 Redis 장애 fallback을 readiness·운영 CLI에서 구분
+- [x] `CACHE_BACKEND=memory`로 Redis 연결 차단, 정상 메모리 캐시와 Redis 장애 fallback을 readiness·운영 CLI에서 구분 (2026-11-13; 실제 Beta 호스트 검증은 잔여)
 - 단일 worker의 메모리 TTL 캐시로 시작한다. 캐시는 재시작 시 소실되어도 되지만 DB의 알림 이력·판단 근거·원장은 보존한다. 재시작 후 부하와 외부 API 호출을 측정하고, 공유 캐시가 실제로 필요해질 때만 Redis를 검토한다. 다중 worker 전환은 수집/발송 중복 방지 검증이 별도로 필요하다.
 - Docker는 로컬 재현과 선택 배포용으로 유지한다. 초기 서버는 Python 가상환경과 호스트 서비스 관리자로 운영할 수 있다.
 - 상업 목적 출시는 Vercel Hobby를 전제로 잡지 않는다. [Vercel 플랜 약관](https://vercel.com/legal/terms)을 기준으로 적합한 플랜과 예산을 확인한다.

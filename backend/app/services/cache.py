@@ -28,6 +28,8 @@ def _disconnect() -> None:
 
 def _get_redis():
     global _redis
+    if settings.cache_backend == "memory":
+        return None
     if _redis is not None:
         return _redis
     if time.monotonic() < _retry_at:
@@ -98,6 +100,8 @@ def cache_get(key: str) -> Any | None:
 def cache_backend_status() -> tuple[str, str]:
     """Return the active cache mode without treating Redis fallback as an outage."""
 
+    if settings.cache_backend == "memory":
+        return "memory", "In-memory cache configured"
     client = _get_redis()
     if client is not None:
         try:

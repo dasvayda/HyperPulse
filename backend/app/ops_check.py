@@ -75,7 +75,7 @@ def check_service(client: httpx.Client, base_url: str, *, max_stage_age: float =
             if not isinstance(readiness.get(name), dict) or readiness[name].get("status") != "ok":
                 issue(2, f"{name}_not_ready")
         cache = readiness.get("cache", {})
-        if not isinstance(cache, dict) or cache.get("status") not in {"ok", "fallback"}:
+        if not isinstance(cache, dict) or cache.get("status") not in {"ok", "memory", "fallback"}:
             issue(2, "cache_unavailable")
         elif cache["status"] == "fallback":
             issue(1, "cache_memory_fallback")

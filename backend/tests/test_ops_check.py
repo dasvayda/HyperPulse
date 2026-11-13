@@ -40,6 +40,12 @@ def test_healthy_check_only_makes_four_read_only_calls():
     assert calls == [("GET", path) for path in ENDPOINTS.values()]
 
 
+def test_configured_memory_cache_is_healthy():
+    body = payloads()
+    body["/health/ready"]["cache"]["status"] = "memory"
+    assert run_check(body)[0]["exit_code"] == 0
+
+
 def test_cache_fallback_and_delivery_failures_are_warnings():
     body = payloads()
     body["/health/ready"]["cache"]["status"] = "fallback"

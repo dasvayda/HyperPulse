@@ -30,11 +30,10 @@ persistent PostgreSQL**. Docker Compose remains an optional alternative.
    never in a `NEXT_PUBLIC_*` variable. Set backend `PUBLIC_APP_URL` to the
    stable frontend URL for Telegram deep links. Do not put DB, Telegram bot,
    or AI credentials on the frontend.
-4. No Redis service is needed for the first single-worker Beta. Current code
-   uses memory fallback when Redis is unreachable and still probes Redis
-   periodically; the CLI reports a warning. Do not assume deleting `REDIS_URL`
-   disables probes (the code has a localhost default). Explicit memory mode and
-   its separate status are a pre-Beta implementation/verification task.
+4. Set `CACHE_BACKEND=memory` on the single-worker Beta host. This disables
+   Redis connections and reports `cache.status=memory` without a CLI warning.
+   The default `CACHE_BACKEND=redis` retains reconnect and fallback behavior;
+   removing `REDIS_URL` alone does not disable Redis.
 5. Check `/health`, `/health/ready`, and `python -m app.ops_check --base-url <API_ORIGIN>`.
    Verify Home, Insights, evidence and Alerts on Preview, plus fresh collector
    timestamps, restart recovery and the Telegram links. Keep unverified

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlsplit
 
 from pydantic_settings import BaseSettings
@@ -11,6 +12,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     database_url: str = "sqlite:///./hyperpulse.db"
     redis_url: str = "redis://localhost:6379/0"
+    cache_backend: Literal["redis", "memory"] = "redis"
     cors_origins: str = "http://localhost:3100"
     api_host: str = "0.0.0.0"
     api_port: int = 8100

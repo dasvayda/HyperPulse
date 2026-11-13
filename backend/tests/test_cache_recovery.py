@@ -4,10 +4,12 @@ import pytest
 import redis
 
 from app.services import cache
+from app.config import settings
 
 
 @pytest.fixture
 def clock(monkeypatch):
+    monkeypatch.setattr(settings, "cache_backend", "redis")
     now = [0.0]
     monkeypatch.setattr(cache.time, "monotonic", lambda: now[0])
     monkeypatch.setattr(cache, "_redis", None)
@@ -64,3 +66,14 @@ def test_readiness_detects_connected_redis_failure(clock, monkeypatch):
     assert cache.cache_backend_status()[0] == "fallback"
     assert cache._redis is None
     assert cache._retry_at == 60
+
+
+def test_explicit_memory_never_contacts_redis(clock, monkeypatch):
+    monkeypatch.setattr(settings, "cache_backend", "memory")
+    monkeypatch.setattr(redis, "from_url", lambda *a, **kw: pytest.fail("Redis must not be contacted"))
+    cache.cache_set("key", {"value": 1}, ttl_seconds=5)
+    assert cache.cache_get("key") == {"value": 1}
+    assert cache.cache_backend_status() == ("memory", "In-memory cache configured")
+    clock[0] = 5
+    assert cache.cache_get("key") is None
+    assert cache._retry_at == 0
