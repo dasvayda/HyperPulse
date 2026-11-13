@@ -73,6 +73,18 @@ def get_session_brief(slot: str | None = Query(None, max_length=24)) -> dict | N
     return latest_session_comparison(slot)
 
 
+@router.get("/insights/pulse-scorecard")
+def get_pulse_scorecard(
+    asset: str | None = Query(None, max_length=32),
+    days: int = Query(7, ge=1, le=30),
+    offset: int = Query(0, ge=0, le=100_000),
+    limit: int = Query(25, ge=1, le=100),
+) -> dict:
+    from app.services.pulse_scorecard import scorecard
+
+    return scorecard(asset.strip().upper() if asset else None, days, offset, limit)
+
+
 @router.get("/evidence/{evidence_id}", dependencies=[Depends(require_evidence_access)])
 def get_evidence(evidence_id: str):
     from app.services.evidence import retrieve

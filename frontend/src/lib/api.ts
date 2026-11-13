@@ -129,6 +129,16 @@ export function getSessionBrief(slot?: string): Promise<SessionBrief | null> {
   return fetchApi(`/api/v2/insights/brief/session${slot ? `?slot=${encodeURIComponent(slot)}` : ""}`);
 }
 
+export function getPulseScorecard(asset: string, days: number, offset: number) {
+  type Status = "hit" | "miss" | "wait" | "pending" | "unavailable";
+  return fetchApi<{
+    engine: string; total: number; directional_evaluated: number; counts: Record<Status, number>;
+    items: { id: string; asset: string; direction: string; status: Status; as_of: string;
+      due_at: string; observed_at: string | null; baseline_mark: number; result_mark: number | null;
+      evidence_id: string }[];
+  }>(`/api/v2/insights/pulse-scorecard?${new URLSearchParams({asset, days: String(days), offset: String(offset)})}`);
+}
+
 export function getInferences(): Promise<StrategyInference[]> {
   return fetchApi("/api/v2/inferences");
 }

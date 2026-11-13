@@ -362,6 +362,7 @@ def _combine_stance_votes(
 
 
 _frozen_snapshots: ContextVar[dict | None] = ContextVar("insight_snapshots", default=None)
+_pending_pulses: ContextVar[list | None] = ContextVar("pending_pulses", default=None)
 
 
 def _latest_snapshots_by_asset(assets: list[str]) -> dict[str, MarketSnapshotRow]:
@@ -466,7 +467,11 @@ def _build_coin_stance_insights(now: datetime) -> list[MarketInsight]:
         try:
             from app.services.pulse import emit_pulse_for_asset
 
-            if mark > 0:
+            pending = _pending_pulses.get()
+            if mark > 0 and pending is not None:
+                pending.append(dict(asset=asset, votes=votes, card_stance=stance,
+                                    mark_price=mark, mark_at=snapshot.timestamp, now=now))
+            elif mark > 0:
                 emit_pulse_for_asset(
                     asset=asset,
                     votes=votes,
@@ -587,6 +592,8 @@ def _build_market_insights() -> None:
                       set(store.whale_summary.by_asset if store.whale_summary else {}))
         snapshots = _latest_snapshots_by_asset(assets)
         token = _frozen_snapshots.set(snapshots)
+        pending = []
+        pulse_token = _pending_pulses.set(pending)
         try:
             context = capture_context()
             inputs = {a: {"mark_price": r.mark_price, "funding_rate": r.funding_rate,
@@ -597,6 +604,10 @@ def _build_market_insights() -> None:
                                 [i.model_dump(mode="json") for i in insights], context=context)
             with SessionLocal() as db:
                 key = save(db, evidence)
+                from app.services.pulse import save_scorecard_signal
+                if not settings.use_mock_data:
+                    for pulse in pending:
+                        save_scorecard_signal(db, evidence_id=key, **pulse)
                 db.commit()
             for item in insights:
                 item.evidence_id = key
@@ -605,6 +616,7 @@ def _build_market_insights() -> None:
             store.insights = [item.model_copy(update={"stale": True}) for item in store.insights]
             raise
         finally:
+            _pending_pulses.reset(pulse_token)
             _frozen_snapshots.reset(token)
 
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+from math import isfinite
 from datetime import datetime, timedelta, timezone
 
 from app.db import SessionLocal
@@ -31,6 +32,22 @@ KEEP_PER_ASSET = 48
 TICK_LIMIT = 12
 MIN_HIT_SAMPLES = 3
 ENGINE = "rules_v1"
+SCORECARD_ENGINE = "rules_v1_eval_v1"
+OBSERVATION_GRACE_SEC = 120
+BASELINE_MAX_AGE_SEC = 180
+
+
+def save_scorecard_signal(db, *, asset, votes, card_stance, mark_price, mark_at, now, evidence_id):
+    age = (_ensure_aware(now) - _ensure_aware(mark_at)).total_seconds()
+    if not isfinite(mark_price) or mark_price <= 0 or not 0 <= age <= BASELINE_MAX_AGE_SEC:
+        return
+    direction, up, down, wait = probabilities_from_votes(votes, card_stance)
+    db.add(PulseSignalRow(
+        id=store.new_id("pulse"), asset=asset.upper(), horizon_sec=HORIZON_SEC,
+        direction=direction.value, p_up=up, p_down=down, p_wait=wait,
+        mark_at_emit=mark_price, vote_json=json.dumps([vote.value for vote in votes]),
+        engine=SCORECARD_ENGINE, created_at=now, evidence_id=evidence_id,
+    ))
 
 
 def _utcnow() -> datetime:
@@ -171,7 +188,7 @@ def emit_pulse_for_asset(
 def _prune_asset(db, asset: str) -> None:
     rows = (
         db.query(PulseSignalRow)
-        .filter(PulseSignalRow.asset == asset)
+        .filter(PulseSignalRow.asset == asset, PulseSignalRow.engine == ENGINE)
         .order_by(PulseSignalRow.created_at.desc())
         .all()
     )
@@ -205,13 +222,18 @@ def resolve_due_pulses(now: datetime | None = None) -> int:
             if now < due:
                 continue
             expire_at = created + timedelta(seconds=EXPIRE_GRACE_SEC)
+            cutoff = now
+            if sig.engine == SCORECARD_ENGINE:
+                expire_at = due + timedelta(seconds=OBSERVATION_GRACE_SEC)
+                cutoff = min(now, expire_at)
             snap = (
                 db.query(MarketSnapshotRow)
                 .filter(
                     MarketSnapshotRow.asset == sig.asset,
                     MarketSnapshotRow.timestamp >= due,
+                    MarketSnapshotRow.timestamp <= cutoff,
                 )
-                .order_by(MarketSnapshotRow.timestamp.asc())
+                .order_by(MarketSnapshotRow.timestamp.asc(), MarketSnapshotRow.id.asc())
                 .first()
             )
             if snap is None:
@@ -231,7 +253,8 @@ def resolve_due_pulses(now: datetime | None = None) -> int:
 
             mark = float(snap.mark_price)
             emit_mark = float(sig.mark_at_emit)
-            if emit_mark <= 0:
+            valid = isfinite(emit_mark) and isfinite(mark) and emit_mark > 0 and mark > 0
+            if not valid:
                 outcome = "expired"
                 return_bps = None
                 hit = None
@@ -255,11 +278,12 @@ def resolve_due_pulses(now: datetime | None = None) -> int:
             db.add(
                 PulseResultRow(
                     signal_id=sig.id,
-                    mark_at_resolve=mark if emit_mark > 0 else None,
+                    mark_at_resolve=mark if valid else None,
                     outcome=outcome,
                     return_bps=round(return_bps, 2) if return_bps is not None else None,
                     hit=hit,
                     resolved_at=now,
+                    observed_at=snap.timestamp if valid else None,
                 )
             )
             resolved += 1

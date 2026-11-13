@@ -196,6 +196,7 @@ class PulseSignalRow(Base):
     mark_at_emit: Mapped[float] = mapped_column(Float)
     vote_json: Mapped[str] = mapped_column(Text, default="[]")
     engine: Mapped[str] = mapped_column(String(32), default="rules_v1")
+    evidence_id: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
@@ -210,6 +211,7 @@ class PulseResultRow(Base):
     return_bps: Mapped[float | None] = mapped_column(Float, nullable=True)
     hit: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1/0/null
     resolved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class PaperStrategyRow(Base):
