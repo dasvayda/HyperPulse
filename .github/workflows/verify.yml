@@ -30,6 +30,45 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - run: python -m pytest -q
 
+  postgres-rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: rehearsal
+          POSTGRES_PASSWORD: ci-fixture-only
+          POSTGRES_DB: hyperpulse_rehearsal
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rehearsal -d hyperpulse_rehearsal"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: postgresql://rehearsal:ci-fixture-only@127.0.0.1:5432/hyperpulse_rehearsal
+      PGPASSWORD: ci-fixture-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements.txt
+      - name: Rehearse schema upgrade and backup restore
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          python -c 'from app.db import init_db; init_db()'
+          docker exec "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U rehearsal -d hyperpulse_rehearsal -c "ALTER TABLE alerts DROP COLUMN evidence_id; ALTER TABLE market_briefs DROP COLUMN evidence_id; ALTER TABLE whale_flows DROP COLUMN previous_at; INSERT INTO signal_evidence (id, body, created_at) VALUES ('ci-evidence', '{}', now());"
+          python -c 'from app.db import init_db; init_db(); init_db()'
+          docker exec "$PG_CONTAINER" pg_dump -Fc -U rehearsal -d hyperpulse_rehearsal > "$RUNNER_TEMP/hyperpulse-rehearsal.dump"
+          docker exec "$PG_CONTAINER" createdb -U rehearsal hyperpulse_restored
+          docker exec -i "$PG_CONTAINER" pg_restore --exit-on-error --single-transaction -U rehearsal -d hyperpulse_restored < "$RUNNER_TEMP/hyperpulse-rehearsal.dump"
+          DATABASE_URL="${DATABASE_URL%/*}/hyperpulse_restored" python -c 'from sqlalchemy import inspect, text; from app.db import engine, init_db; init_db(); assert "evidence_id" in {c["name"] for c in inspect(engine).get_columns("alerts")}; assert "evidence_id" in {c["name"] for c in inspect(engine).get_columns("market_briefs")}; assert "previous_at" in {c["name"] for c in inspect(engine).get_columns("whale_flows")}; conn = engine.connect(); assert conn.execute(text("SELECT body FROM signal_evidence WHERE id = :id"), {"id": "ci-evidence"}).scalar_one() == "{}"; conn.close()'
+
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 15

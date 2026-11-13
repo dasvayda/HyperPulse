@@ -87,6 +87,13 @@ they do not prove production startup, migration, restore, or external API access
 Check the GitHub Actions result at the exact deployed commit; a workflow file or
 successful local run alone is not a successful hosted CI run.
 
+The `postgres-rehearsal` CI job uses a disposable PostgreSQL 16 instance. It
+checks fresh initialization, repair of three missing legacy columns, repeat
+initialization, and restore into a separate database with a retained evidence
+row. Docker here is a CI test dependency only. This does not replace versioned
+migrations, an operational backup/restore rehearsal, or application rollback
+against a representative copy of the production schema.
+
 1. Pick the exact Git commit to deploy. Do not deploy an uncommitted working
    tree.
 2. Create `.env` from `.env.example` on the host. Set a strong
