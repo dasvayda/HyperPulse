@@ -73,6 +73,9 @@
 
 ### Launch readiness
 
+**v0.7 서비스 개선:** [실행 계획과 세부 백로그](V0.7_PRODUCT_PLAN_2026-11-14.md).
+세션 브리프 → 검증 가능한 고래 변동 알림 → 15m 시그널 성적표 → Closed Beta 검증 순서로 진행한다.
+
 기본 배포는 Vercel 프론트 + 상시 실행 단일 FastAPI + 영속 PostgreSQL이다.
 Redis·Docker는 출시 필수가 아니다. 무Redis 운영 검증과 배포 순서는
 [런칭 플랜](./LAUNCH_PLAN.md#phase-1--운영-기반-정비)에서 관리한다.
