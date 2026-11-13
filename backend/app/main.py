@@ -2,7 +2,7 @@ import logging
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -10,6 +10,7 @@ from app.collectors.scheduler import run_bootstrap_pipeline, start_background_ta
 from app.config import settings
 from app.db import init_db
 from app.logging_config import configure_logging
+from app.security import require_beta_access
 from app.routers import api, v2, v3
 from app.services.store import store
 from app.services.readiness import get_readiness
@@ -63,14 +64,16 @@ def readiness() -> JSONResponse:
 def create_app() -> FastAPI:
     # Validate before serving, not on the first browser request.
     origins = settings.cors_origin_list
+    docs_enabled = settings.api_docs_enabled and not settings.beta_access_enabled
     application = FastAPI(
         title="HyperPulse API",
         description="AI-powered intelligence platform for Hyperliquid traders",
         version="0.2.0",
         lifespan=lifespan,
-        docs_url="/docs" if settings.api_docs_enabled else None,
-        redoc_url="/redoc" if settings.api_docs_enabled else None,
-        openapi_url="/openapi.json" if settings.api_docs_enabled else None,
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
+        dependencies=[Depends(require_beta_access)],
     )
     application.add_middleware(
         CORSMiddleware,

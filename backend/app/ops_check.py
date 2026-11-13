@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
@@ -139,7 +140,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout", type=positive_seconds, default=5.0)
     parser.add_argument("--max-stage-age", type=positive_seconds, default=600.0)
     args = parser.parse_args(argv)
-    with httpx.Client(timeout=args.timeout, follow_redirects=False, trust_env=False) as client:
+    token = os.environ.get("BETA_API_TOKEN")
+    with httpx.Client(timeout=args.timeout, follow_redirects=False, trust_env=False,
+                      headers={"X-Beta-Api-Token": token} if token else {}) as client:
         result = check_service(client, args.base_url, max_stage_age=args.max_stage_age)
     print(json.dumps(result, indent=2))
     return result["exit_code"]

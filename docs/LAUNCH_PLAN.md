@@ -54,6 +54,7 @@
 #### 보안과 접근 제어
 
 - [ ] 최소한의 사용자 인증 또는 초대 기반 접근 제어 추가
+  - 2026-11-13: Vercel 공유 초대 로그인과 FastAPI 서버 간 토큰 검증 구현. 실제 HTTPS 환경·요청 제한·양쪽 URL 접근 검증 후 Beta 개방.
 - [ ] 모든 공개 API와 특히 pipeline 실행 API 보호
 - [x] `POST /api/v2/pipeline/run` 운영 토큰 보호 (production/staging에서 토큰 미설정 시 fail closed)
 - [x] production CORS 정책 강제: exact HTTPS origin만 허용, wildcard/null/인증정보/경로 차단, 잘못된 설정은 시작 전 실패 (2026-10-29). 실제 운영 도메인 값 설정은 배포 시 잔여. CORS는 사용자 인증을 대신하지 않는다.

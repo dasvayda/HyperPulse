@@ -10,6 +10,16 @@ from fastapi import Header, HTTPException, status
 from app.config import settings
 
 
+def require_beta_access(x_beta_api_token: Annotated[str | None, Header()] = None) -> None:
+    if not settings.beta_access_enabled:
+        return
+    expected = settings.beta_api_token
+    if not expected:
+        raise HTTPException(status_code=503, detail="Beta access is not configured")
+    if not secrets.compare_digest((x_beta_api_token or "").encode(), expected.encode()):
+        raise HTTPException(status_code=401, detail="Beta access required")
+
+
 def require_pipeline_run_token(
     x_pipeline_token: Annotated[str | None, Header()] = None,
 ) -> None:

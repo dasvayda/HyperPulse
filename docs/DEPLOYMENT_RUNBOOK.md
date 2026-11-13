@@ -44,6 +44,20 @@ persistent PostgreSQL**. Docker Compose remains an optional alternative.
    Verify readiness and data freshness after restart. A frontend rollback
    does not restore PostgreSQL data or revert backend code.
 
+### Beta access
+
+Before granting Beta access on the default route, enable `BETA_ACCESS_ENABLED=true`
+on both services. Set a matching, high-entropy `BETA_API_TOKEN` on both servers,
+and a separate high-entropy `BETA_ACCESS_PASSWORD` on Vercel only. Invitees use
+HTTP Basic username `beta` over HTTPS; share the password privately, never in a
+URL. This is shared access for a small group, not individual accounts. Rotate
+the password to revoke access for the entire group. Keep Preview and Production
+secrets separate. Health and status probes also require the API token; export
+it securely in the operator environment before running `app.ops_check`.
+Pipeline and evidence still require their own credentials; an invite does not
+grant those permissions. Verify anonymous rejection on both public URLs before
+sharing either. Apply rate limits at the hosting/proxy layer before opening Beta.
+
 ## Optional route — Docker Compose
 
 The following Compose-specific commands apply only when choosing

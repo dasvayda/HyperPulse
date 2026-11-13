@@ -33,7 +33,10 @@ export default async function EvidencePage({ params }: { params: Promise<{ id: s
       if (token && !authorized) throw new Error("Evidence access required");
       const response = await fetch(`${base}/api/v2/evidence/${id}`, {
         cache: "no-store", signal: AbortSignal.timeout(10_000),
-        headers: token ? { "X-Evidence-Token": token } : {},
+        headers: {
+          ...(token ? { "X-Evidence-Token": token } : {}),
+          ...(process.env.BETA_API_TOKEN ? { "X-Beta-Api-Token": process.env.BETA_API_TOKEN } : {}),
+        },
       });
       if (response.ok) evidence = await response.json();
     } catch { /* The page keeps unavailable evidence explicit. */ }

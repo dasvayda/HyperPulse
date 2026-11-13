@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./hyperpulse.db"
     redis_url: str = "redis://localhost:6379/0"
     cache_backend: Literal["redis", "memory"] = "redis"
+    beta_access_enabled: bool = False
+    beta_api_token: str = ""
     cors_origins: str = "http://localhost:3100"
     api_host: str = "0.0.0.0"
     api_port: int = 8100

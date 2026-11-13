@@ -23,7 +23,7 @@ _API_KEY = re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_-]{12,}")
 
 
 def redact_secrets(text: str) -> str:
-    secrets = [settings.telegram_bot_token, settings.openai_api_key,
+    secrets = [settings.telegram_bot_token, settings.openai_api_key, settings.beta_api_token,
                settings.deepseek_api_key, settings.cmc_api_key, settings.pipeline_run_token,
                settings.evidence_access_token]
     for url in (settings.database_url, settings.redis_url):

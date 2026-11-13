@@ -47,9 +47,13 @@ async function fetchApi<T>(
   path: string,
   init?: RequestInit & { next?: { revalidate?: number | false } },
 ): Promise<T> {
+  const headers = new Headers(init?.headers);
+  const betaToken = process.env.BETA_API_TOKEN;
+  if (betaToken) headers.set("X-Beta-Api-Token", betaToken);
   const res = await fetch(`${API_URL}${path}`, {
     next: { revalidate: 30 },
     ...init,
+    headers,
     signal: init?.signal ?? AbortSignal.timeout(10_000),
   });
   if (!res.ok) {
