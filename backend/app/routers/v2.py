@@ -66,6 +66,13 @@ from app.services.whale_book import (
 router = APIRouter(prefix="/api/v2", tags=["v2"])
 
 
+@router.get("/insights/brief/session")
+def get_session_brief() -> dict | None:
+    from app.services.brief_sessions import latest_session_comparison
+
+    return latest_session_comparison()
+
+
 @router.get("/evidence/{evidence_id}", dependencies=[Depends(require_evidence_access)])
 def get_evidence(evidence_id: str):
     from app.services.evidence import retrieve
