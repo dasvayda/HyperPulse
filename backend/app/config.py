@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     cache_backend: Literal["redis", "memory"] = "redis"
     beta_access_enabled: bool = False
+    beta_metrics_enabled: bool = False
     beta_api_token: str = ""
     cors_origins: str = "http://localhost:3100"
     api_host: str = "0.0.0.0"

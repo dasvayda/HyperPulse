@@ -329,8 +329,8 @@ export default async function HomePage() {
             <h2 className="text-base font-semibold text-text-primary">
               AI Market Insights
             </h2>
-            <Link href="/insights" className="text-xs text-accent hover:underline">
-              Full brief
+            <Link href="/insights#session-brief" className="text-xs text-accent hover:underline">
+              Latest session brief
             </Link>
           </div>
           <Suspense fallback={<p role="status" className="mb-4 text-sm text-text-muted">Loading Market Brief…</p>}>

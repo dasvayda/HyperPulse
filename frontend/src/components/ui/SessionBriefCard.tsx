@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getSessionBrief } from "@/lib/api";
 import { describeSessionChange, sessionComparisonNote } from "@/lib/session-brief-copy";
 import { EvidenceLink } from "./EvidenceLink";
+import { BetaVisit } from "./BetaVisit";
 
 export async function SessionBriefCard({ compact = false, slot }: { compact?: boolean; slot?: string }) {
   const session = await getSessionBrief(slot).catch(() => undefined);
@@ -26,7 +27,10 @@ export async function SessionBriefCard({ compact = false, slot }: { compact?: bo
           <div className="mt-3 flex flex-wrap gap-3 text-xs">
             {compact ? <Link href="/insights#session-brief" className="text-accent hover:underline">Session details →</Link> : null}
             <EvidenceLink id={session.evidence_id} />
+            {!compact ? <Link href="/alerts" className="text-accent hover:underline">Get Telegram alerts →</Link> : null}
+            {!compact ? <Link href="/scorecard" className="text-accent hover:underline">Check signal results →</Link> : null}
           </div>
+          {!compact && process.env.BETA_METRICS_ENABLED === "true" ? <BetaVisit event="session_view" subject={session.slot_id} /> : null}
         </>
       )}
     </section>

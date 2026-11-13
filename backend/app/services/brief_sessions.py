@@ -84,7 +84,7 @@ def latest_session_comparison(slot_id: str | None = None) -> dict | None:
         comparison = (json.loads(current.comparison_json) if current.comparison_json
                       else _compare(retrieve(current.evidence_id), prior, current.published_at))
         return {
-            **comparison, "slot_label": current.label,
+            **comparison, "slot_id": current.slot_id, "slot_label": current.label,
             "as_of": _utc(brief.as_of), "published_at": _utc(current.published_at),
             "evidence_id": current.evidence_id, "stance": brief.stance,
             "read": brief.digest.read if brief.digest and brief.digest.read else

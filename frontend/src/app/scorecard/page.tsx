@@ -2,6 +2,7 @@ import Link from "next/link";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { PageHeader } from "@/components/ui/DataTable";
 import { EvidenceLink } from "@/components/ui/EvidenceLink";
+import { BetaVisit } from "@/components/ui/BetaVisit";
 import { getPulseScorecard } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -43,5 +44,6 @@ export default async function ScorecardPage({ searchParams }: {
       </div>
     </>}
     <p className="mt-5 text-xs text-text-muted">Uses the first observed mark from +15m to +17m. Moves under 5 bps count as flat; Wait is separate from directional results. No fees or fills are modeled.</p>
+    {data && process.env.BETA_METRICS_ENABLED === "true" ? <BetaVisit event="scorecard_view" /> : null}
   </DashboardLayout>;
 }

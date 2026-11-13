@@ -433,6 +433,7 @@ export interface MarketBriefDigest {
 }
 
 export interface SessionBrief {
+  slot_id: string;
   status: "no_baseline" | "unavailable" | "partial" | "changed" | "unchanged";
   changes: { asset: string; metric: "mark" | "funding" | "whale_long_share"; delta: number }[];
   slot_label: string;

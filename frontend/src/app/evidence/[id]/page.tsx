@@ -4,6 +4,7 @@ import { timingSafeEqual } from "node:crypto";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { PageHeader } from "@/components/ui/DataTable";
 import { matchesBetaLogin } from "@/lib/beta-access";
+import { BetaVisit } from "@/components/ui/BetaVisit";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,9 @@ type Evidence = {
   };
 };
 
-export default async function EvidencePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EvidencePage({ params, searchParams }: {
+  params: Promise<{ id: string }>; searchParams: Promise<{ from?: string }>;
+}) {
   const { id } = await params;
   let evidence: Evidence | null = null;
   if (/^[0-9a-f]{64}$/.test(id)) {
@@ -49,10 +52,12 @@ export default async function EvidencePage({ params }: { params: Promise<{ id: s
     } catch { /* The page keeps unavailable evidence explicit. */ }
   }
   const context = evidence?.context;
+  const fromTelegram = (await searchParams).from === "telegram";
   return <DashboardLayout>
     <PageHeader title="Signal evidence" description="Saved inputs at the time of this read. Current rankings may differ." />
     {!evidence || !context ? <p className="text-text-muted">Evidence unavailable or access is restricted. No current data has been substituted.</p> :
       <section className="space-y-5 rounded-xl border border-border bg-bg-surface p-5 text-sm text-text-muted break-words">
+        {fromTelegram && process.env.BETA_METRICS_ENABLED === "true" ? <BetaVisit event="telegram_evidence" subject={id} /> : null}
         <p>Saved {evidence.created_at} · {evidence.kind} · Tracked wallet sample</p>
         <p>Liquidations: {context.liquidation_coverage.status} · {context.liquidation_coverage.scope} · {context.liquidation_coverage.gap ? "Coverage has gaps" : "Observed window complete"}. Market-wide coverage unavailable.</p>
         <p>Size rank compares tracked account sizes. Smart Money rank compares scores within the size-selected cohort. Neither is a rating of this trade.</p>

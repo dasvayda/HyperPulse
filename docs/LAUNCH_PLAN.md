@@ -444,7 +444,8 @@ Paper Portfolio의 30일·100개 완료 거래 조건은 이 2주 일정으로 �
 - Brief·Insights 카드·Telegram 이력은 저장된 근거 ID를 참조한다. 이전 관측 시각을
   저장하지 않은 과거 delta와 과거 신호의 근거는 소급 생성하지 않는다.
 - 운영 근거 API는 `EVIDENCE_ACCESS_TOKEN` 미설정 시 접근을 차단한다. 웹 조회에는
-  `evidence_access` 쿠키가 필요하며, 정식 초대 세션 연결은 S3에 남긴다.
+  비Beta 경로는 `evidence_access` 쿠키를 사용한다. Beta에서는 초대 로그인을 다시 검증한 뒤
+  웹 서버가 별도 evidence 토큰을 전달한다. 실제 Preview에서 양쪽 접근을 확인한다.
 
 ## 상용화 수익모델 검토안 — 2026-11-06
 

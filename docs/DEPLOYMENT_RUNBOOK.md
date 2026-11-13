@@ -65,6 +65,34 @@ persistent PostgreSQL**. Docker Compose remains an optional alternative.
   status, and one permitted evidence link. Verify `cache.status=memory`,
   restart recovery, and rollback without running the manual pipeline.
 
+### v0.7 Beta smoke
+
+Use isolated Preview data and a test bot or a stub. Do not run the production
+pipeline or send test messages into the live channel.
+
+1. Verify an anonymous web request and direct API request are denied; after
+   Beta login, open a valid evidence link. Direct API evidence still requires
+   both service and evidence tokens. A missing evidence ID must not show live
+   data as a substitute.
+2. At 390px open Home → Latest session brief → evidence → Scorecard and
+   Alerts. Check wrapping, menu collapse, and table scrolling. Compare a
+   fixture Telegram session link with that exact edition after another session
+   is published; check its first change and source times.
+3. Inspect whale open/add/trim/close/flip examples. Compare verified fill
+   price against the explorer and make sure an unverified snapshot has no
+   fill price. Check event delay, stable dedupe, and restart recovery.
+4. Compare scorecard fixture results to recorded marks; confirm a late mark
+   shows no observation. Record a real, fixed sample before public claims.
+5. Optional: enable `BETA_METRICS_ENABLED=true` on both services only after
+   agreeing notice, retention and who can access the records. Opt in from a
+   test browser, visit two published sessions in order, open a Telegram-tagged
+   evidence link and revisit the scorecard on another UTC day. Read
+   `GET /api/v2/beta/visits/summary?days=7` with the service and pipeline tokens.
+   No token belongs in a URL or a shared transcript. Confirm opt-out stops
+   new measurements. Aggregate browser counts are not people or subscriptions.
+6. Record Preview deployment ID, backend SHA, database revision, time,
+   pass/fail and evidence for each check. Unverified checks remain open.
+
 ### Beta access
 
 Before granting Beta access on the default route, enable `BETA_ACCESS_ENABLED=true`

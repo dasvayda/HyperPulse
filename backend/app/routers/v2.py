@@ -56,6 +56,8 @@ from app.services.ranking import (
 from app.services.store import store
 from app.services.pipeline_observability import collectors_healthy, observe_alerts, observe_stage
 from app.security import require_evidence_access, require_pipeline_run_token
+from app.config import settings
+from app.services.beta_metrics import BetaVisit, record_visit, visit_summary
 from app.services.whale_book import (
     asset_market_tag,
     list_biggest_positions,
@@ -64,6 +66,20 @@ from app.services.whale_book import (
 )
 
 router = APIRouter(prefix="/api/v2", tags=["v2"])
+
+
+@router.post("/beta/visits", status_code=204)
+def post_beta_visit(visit: BetaVisit) -> None:
+    if not (settings.beta_access_enabled and settings.beta_metrics_enabled):
+        raise HTTPException(status_code=404, detail="Not available")
+    record_visit(visit)
+
+
+@router.get("/beta/visits/summary", dependencies=[Depends(require_pipeline_run_token)])
+def get_beta_visit_summary(days: int = Query(7, ge=1, le=30)) -> dict:
+    if not (settings.beta_access_enabled and settings.beta_metrics_enabled):
+        raise HTTPException(status_code=404, detail="Not available")
+    return visit_summary(days)
 
 
 @router.get("/insights/brief/session")

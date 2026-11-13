@@ -214,6 +214,17 @@ class PulseResultRow(Base):
     observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class BetaVisitRow(Base):
+    __tablename__ = "beta_visits"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    visitor: Mapped[str] = mapped_column(String(36))
+    event: Mapped[str] = mapped_column(String(24))
+    subject: Mapped[str] = mapped_column(String(64))
+    day: Mapped[str] = mapped_column(String(10), index=True)
+    visited_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class PaperStrategyRow(Base):
     """Mutable account state for one immutable paper-strategy version."""
 
