@@ -82,7 +82,7 @@ async def _inference_cycle() -> None:
         await asyncio.to_thread(enrich_rankings_with_inference)
     async with observe_alerts():
         await process_alert_triggers(
-            whale_alerts=store.whale_alerts[:3],
+            whale_alerts=store.whale_alerts[:200],
             zones=[z for z in store.liquidation_zones if z.size_usd >= 100_000_000][:2],
             inferences=results,
         )

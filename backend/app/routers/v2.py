@@ -569,7 +569,7 @@ async def run_pipeline_now(
     await asyncio.to_thread(run_paper_portfolio)
     async with observe_alerts():
         await process_alert_triggers(
-            whale_alerts=store.whale_alerts[:3],
+            whale_alerts=store.whale_alerts[:200],
             zones=[z for z in store.liquidation_zones if z.size_usd >= 100_000_000][:2],
             inferences=results,
         )

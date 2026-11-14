@@ -378,6 +378,8 @@ async def collect_whale_events() -> list[WhaleAlert]:
                                  else "increase" if alert_type == AlertType.ENTRY else "reduce"),
                 previous_side=(PositionSide.LONG if prev > 0 else PositionSide.SHORT) if abs(prev) >= 1e-6 else None,
                 trigger_floor_usd=min_add if prev * size > 0 else settings.alert_min_size_usd,
+                previous_quantity=abs(prev),
+                current_quantity=abs(size),
                 entry_price=pos["entry_price"],
                 exit_price=exit_price,
                 mark_price=mark_price,

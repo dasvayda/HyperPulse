@@ -20,6 +20,7 @@ from app.services.brief_schedule import due_market_brief_slot
 from app.services.brief_sessions import freeze_session, mark_session_published, session_change_line
 from app.services.brief_telegram import brief_send_key, format_market_brief_telegram
 from app.services.store import store
+from app.services.whale_alert_selection import select_position_pushes
 from app.services.telegram_log import append_telegram_log
 
 logger = logging.getLogger(__name__)
@@ -187,6 +188,8 @@ def _delivery_dedupe_key(event_type: str, payload: dict | None) -> str | None:
 
     body = payload or {}
     source_id = str(body.get("id") or "").strip()
+    if source_id.startswith("batch-") and body.get("grouped_event_ids") and event_type.startswith(("whale_move_", "big_trade_")):
+        return f"position_batch:{source_id}"
     if event_type.startswith(("whale_move_", "big_trade_", "liq_proximity", "squeeze_risk")) and source_id:
         return f"{event_type}:{source_id}"
     if event_type == "market_brief":
@@ -750,15 +753,19 @@ def _execution_lines(alert: WhaleAlert) -> list[str]:
         action = {"increase": "added to", "reduce": "trimmed", "flip": "opened"}.get(
             alert.position_change, "opened" if alert.alert_type.value == "entry" else "closed")
         price = _format_price(evidence.price_low)
-        if evidence.price_high and evidence.price_high != evidence.price_low:
-            price = f"{price}–{_format_price(evidence.price_high)}"
+        high = _format_price(evidence.price_high)
+        if price and high and high != price:
+            price = f"{price}–{high}"
         line = (
             f"This move: verified {action} {alert.side.value.upper()} "
             f"{_format_usd_short(evidence.notional_usd)}"
         )
         if price:
             line = f"{line} @ {price}"
-        return [line, f"{evidence.fill_count} fills · {len(evidence.tx_hashes)} tx linked"]
+        lines = [line, f"{evidence.fill_count} fills · {len(evidence.tx_hashes)} tx linked"]
+        if alert.grouped_event_ids:
+            lines.append(f"Net quantity change, valued at latest snapshot: {_format_usd_short(abs(alert.size_delta_usd or 0))}")
+        return lines
 
     if alert.size_delta_usd:
         direction = "up" if alert.size_delta_usd > 0 else "down"
@@ -780,6 +787,10 @@ def _position_summary_lines(alert: WhaleAlert) -> list[str]:
         f"Total position: {alert.side.value.upper()} "
         f"{_format_usd_short(alert.size_usd)} · {alert.leverage:.0f}x"
     ]
+    if alert.grouped_event_ids:
+        observed = alert.timestamp
+        observed = observed.replace(tzinfo=timezone.utc) if observed.tzinfo is None else observed.astimezone(timezone.utc)
+        lines[0] += f" · as of {observed:%H:%M} UTC"
     position_average = _format_price(alert.entry_price)
     if position_average:
         lines.append(f"Position avg entry: {position_average} (not this fill price)")
@@ -797,10 +808,13 @@ def _trigger_lines(alert: WhaleAlert) -> list[str]:
         return []
     reason = {
         "entry": "new tracked position", "increase": "position quantity increased",
-        "reduce": "position quantity decreased", "close": "position disappeared from a successful wallet snapshot",
+        "reduce": "position quantity decreased", "close": "position closed in the latest wallet snapshot",
         "flip": f"position flipped from {alert.previous_side.value.upper() if alert.previous_side else 'the prior side'}",
     }[alert.position_change]
     floor = _format_usd_short(alert.trigger_floor_usd) if alert.trigger_floor_usd else None
+    if alert.grouped_event_ids and alert.previous_quantity and alert.current_quantity is not None:
+        percent = abs(alert.current_quantity / alert.previous_quantity - 1) * 100
+        reason += f" {percent:.1f}% · {len(alert.grouped_event_ids)} snapshots in a 5m window"
     return [f"Why now: {reason}" + (f" · {floor} threshold" if floor else "")]
 
 
@@ -819,7 +833,7 @@ def format_whale_move_lines(alert: WhaleAlert) -> tuple[str, list[str]]:
         sign = "+" if alert.unrealized_pnl_usd >= 0 else "-"
         bits.append(f"this pos uPnL {sign}{_format_usd_short(abs(alert.unrealized_pnl_usd))}")
 
-    lines = [f"<b>{title}</b>", escape(alert.trader_alias), *_trigger_lines(alert)]
+    lines = [f"<b>{title}</b>", *_trigger_lines(alert), escape(alert.trader_alias)]
     lines.extend(_execution_lines(alert))
     lines.extend(_position_summary_lines(alert))
     lines.extend(_whale_size_context_lines(alert))
@@ -1007,7 +1021,10 @@ async def process_alert_triggers(
     if liq_item:
         created.append(liq_item)
 
-    candidates = list(whale_alerts or store.whale_alerts[:30])
+    candidates = select_position_pushes(
+        whale_alerts if whale_alerts is not None else store.whale_alerts[:200],
+        now=_utcnow(), min_size=settings.alert_min_size_usd,
+    )
     moves: list[WhaleAlert] = []
     trades: list[WhaleAlert] = []
     for alert in candidates:
@@ -1016,9 +1033,6 @@ async def process_alert_triggers(
             moves.append(alert)
         elif kind == "big_trade":
             trades.append(alert)
-
-    moves.sort(key=lambda a: a.size_usd, reverse=True)
-    trades.sort(key=lambda a: a.size_usd, reverse=True)
 
     move_budget = max(0, settings.alert_whale_move_per_cycle)
     for alert in moves:

@@ -44,6 +44,8 @@ class WhaleAlert(BaseModel):
     position_change: Literal["entry", "increase", "reduce", "close", "flip"] | None = None
     previous_side: PositionSide | None = None
     trigger_floor_usd: float | None = None
+    previous_quantity: float | None = None
+    current_quantity: float | None = None
     entry_price: float | None = None
     exit_price: float | None = None
     mark_price: float | None = None
@@ -56,6 +58,7 @@ class WhaleAlert(BaseModel):
     confidence_score: float = Field(ge=0, le=100)
     timestamp: datetime
     execution: AlertExecutionEvidence | None = None
+    grouped_event_ids: list[str] = Field(default_factory=list)
 
 
 class TraderProfile(BaseModel):
