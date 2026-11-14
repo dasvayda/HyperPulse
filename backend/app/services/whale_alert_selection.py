@@ -42,9 +42,16 @@ def _execution(rows: list[WhaleAlert]) -> AlertExecutionEvidence | None:
     )
 
 
-def select_position_pushes(alerts: list[WhaleAlert], *, now: datetime, min_size: float) -> list[WhaleAlert]:
+def select_position_pushes(alerts: list[WhaleAlert], *, now: datetime, min_size: float,
+                           audit: dict[str, str] | None = None) -> list[WhaleAlert]:
     """Prioritize structural events; batch completed same-side quantity changes."""
     unique = {a.id: a for a in alerts if now - timedelta(minutes=15) <= _instant(a) <= now}
+    if audit is not None:
+        audit.update((a.id, "superseded_or_unsupported" if a.id in unique else "outside_window") for a in alerts)
+
+    def note(rows, reason):
+        if audit is not None:
+            audit.update((row.id, reason) for row in rows)
     groups: dict[tuple, list[WhaleAlert]] = {}
     instant = []
     for alert in sorted(unique.values(), key=lambda a: (_instant(a), a.id)):
@@ -53,6 +60,9 @@ def select_position_pushes(alerts: list[WhaleAlert], *, now: datetime, min_size:
         rows.append(alert)
         if alert.position_change in STRUCTURAL and abs(alert.size_delta_usd or 0) >= min_size:
             instant.append(alert)
+            note([alert], "selected_structural")
+        elif alert.position_change in STRUCTURAL:
+            note([alert], "below_size_floor")
     selected = list(instant)
     for key, rows in groups.items():
         # At most one recent routine edition for a wallet/asset. A newer
@@ -64,6 +74,7 @@ def select_position_pushes(alerts: list[WhaleAlert], *, now: datetime, min_size:
                 break
             bucket = int(_instant(latest).timestamp()) // WINDOW_SECONDS
             if bucket == int(now.timestamp()) // WINDOW_SECONDS:
+                note([latest], "waiting_for_bucket")
                 continue
             tail = rows[index + 1:]
             if any(a.side != latest.side or a.position_change != action for a in tail):
@@ -80,15 +91,22 @@ def select_position_pushes(alerts: list[WhaleAlert], *, now: datetime, min_size:
                 or not isclose(left.current_quantity, right.previous_quantity, rel_tol=1e-9)
                 for left, right in zip(batch, batch[1:])
             ):
+                note(batch, "quantity_discontinuity")
                 break
             execution = _execution(batch)
-            if before is None or after is None or before <= 0 or after <= 0 or not execution or not execution.verified:
+            if before is None or after is None or before <= 0 or after <= 0:
+                note(batch, "missing_quantity")
+                break
+            if not execution or not execution.verified:
+                note(batch, "unverified_or_overlapping_execution")
                 break
             change = after - before
             if (change > 0) != (action == "increase") or not change:
+                note(batch, "inconsistent_direction")
                 break
             delta = change * latest.size_usd / after
             if abs(delta) < min_size or (abs(change) / before < MIN_RELATIVE_CHANGE and abs(delta) < ABSOLUTE_OVERRIDE_USD):
+                note(batch, "below_change_threshold")
                 break
             batch_id = sha256(repr((key, latest.side.value, bucket)).encode()).hexdigest()[:32]
             selected.append(latest.model_copy(update={
@@ -96,6 +114,7 @@ def select_position_pushes(alerts: list[WhaleAlert], *, now: datetime, min_size:
                 "size_delta_usd": delta, "previous_quantity": before,
                 "grouped_event_ids": [row.id for row in batch], "trigger_floor_usd": min_size,
             }))
+            note(batch, "selected_batch")
             break
     selected.sort(key=lambda a: ({"flip": 0, "entry": 1, "close": 1}.get(a.position_change, 2),
                                  -abs(a.size_delta_usd or 0), a.id))

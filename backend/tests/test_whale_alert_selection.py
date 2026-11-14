@@ -50,3 +50,13 @@ def test_flip_bypasses_batch_delay_and_supersedes_old_routine_push():
     flip = move("flip", 0, 36, 15, "0xf", position_change="flip",
                 size_delta_usd=1_500_000, execution=None)
     assert select(a, flip) == [flip]
+
+
+def test_audit_reports_wait_then_rejection_without_changing_selection():
+    alert = move("a", 2, 30, 36, "0xa", execution=None)
+    audit = {}
+    later = select_position_pushes([alert], now=NOW, min_size=500_000, audit=audit)
+    assert later == []
+    assert audit == {"a": "unverified_or_overlapping_execution"}
+    select_position_pushes([alert], now=NOW - timedelta(minutes=1), min_size=500_000, audit=audit)
+    assert audit == {"a": "waiting_for_bucket"}
