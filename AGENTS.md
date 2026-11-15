@@ -83,6 +83,8 @@ Collectors -> Store/DB/Redis -> Feature/Ranking -> AI Inference -> Alerts -> API
 
 ## Development Commands
 
+When the user asks to start or restart the local server, use the [hyperpulse-local-server skill](.agents/skills/hyperpulse-local-server/SKILL.md). Use `Monitor` for backend-only alert observation and `Full` for the website and API.
+
 ```bash
 # Optional infrastructure
 docker compose up -d postgres redis
