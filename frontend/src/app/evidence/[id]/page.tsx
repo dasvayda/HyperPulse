@@ -71,7 +71,7 @@ export default async function EvidencePage({ params, searchParams }: {
           {whale.total !== null ? <p>Position at last observation: {usd(whale.total)}</p> : null}
           {whale.priorTrim !== null ? <p>Earlier verified trim: {usd(whale.priorTrim)} · not part of this move</p> : null}
         </div> : null}
-        {fromTelegram && process.env.BETA_METRICS_ENABLED === "true" ? <BetaVisit event="telegram_evidence" subject={id} /> : null}
+        {process.env.BETA_METRICS_ENABLED === "true" ? <BetaVisit event={fromTelegram && whale ? "telegram_evidence" : "evidence_view"} subject={id} /> : null}
         <p>Saved {evidence.created_at} · {evidence.kind} · Tracked wallet sample</p>
         <p>Liquidations: {context.liquidation_coverage.status} · {context.liquidation_coverage.scope} · {context.liquidation_coverage.gap ? "Coverage has gaps" : "Observed window complete"}. Market-wide coverage unavailable.</p>
         <p>Size rank compares tracked account sizes. Smart Money rank compares scores within the size-selected cohort. Neither is a rating of this trade.</p>

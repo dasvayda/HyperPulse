@@ -4,7 +4,7 @@ import { describeSessionChange, sessionComparisonNote } from "@/lib/session-brie
 import { EvidenceLink } from "./EvidenceLink";
 import { BetaVisit } from "./BetaVisit";
 
-export async function SessionBriefCard({ compact = false, slot }: { compact?: boolean; slot?: string }) {
+export async function SessionBriefCard({ compact = false, slot, fromTelegram = false }: { compact?: boolean; slot?: string; fromTelegram?: boolean }) {
   const [session, recent] = await Promise.all([
     getSessionBrief(slot).catch(() => undefined),
     compact ? Promise.resolve(null) : getRecentSessionBriefs().catch(() => undefined),
@@ -33,7 +33,7 @@ export async function SessionBriefCard({ compact = false, slot }: { compact?: bo
             {!compact ? <Link href="/alerts" className="text-accent hover:underline">Get Telegram alerts →</Link> : null}
             {!compact ? <Link href={`/scorecard?${new URLSearchParams({day: new Date(session.as_of).toISOString().slice(0, 10), ...(session.changes[0] ? {asset: session.changes[0].asset} : {})})}`} className="text-accent hover:underline">Browse Pulse for this date →</Link> : null}
           </div>
-          {!compact && process.env.BETA_METRICS_ENABLED === "true" ? <BetaVisit event="session_view" subject={session.slot_id} /> : null}
+          {!compact && process.env.BETA_METRICS_ENABLED === "true" ? <BetaVisit event={fromTelegram && slot ? "telegram_session" : "session_view"} subject={session.slot_id} /> : null}
         </>
       )}
       {!compact ? <details className="mt-4 text-sm text-text-muted">

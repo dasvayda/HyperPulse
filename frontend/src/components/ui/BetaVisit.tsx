@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 const KEY = "hyperpulse-beta-visit";
-type Event = "session_view" | "telegram_evidence" | "scorecard_view";
+type Event = "session_view" | "telegram_session" | "telegram_evidence" | "evidence_view" | "scorecard_view";
 
 export function BetaVisit({ event, subject = "" }: { event: Event; subject?: string }) {
   const [visitor, setVisitor] = useState<string | null>(null);

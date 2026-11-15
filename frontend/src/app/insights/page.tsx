@@ -19,7 +19,7 @@ import {
 } from "@/lib/api";
 
 type InsightsPageProps = {
-  searchParams: Promise<{ asset?: string; session?: string }>;
+  searchParams: Promise<{ asset?: string; session?: string; from?: string }>;
 };
 
 export default async function InsightsPage({ searchParams }: InsightsPageProps) {
@@ -92,7 +92,7 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
       </div>
 
       {!asset ? <Suspense fallback={<p className="mb-4 text-sm text-text-muted" role="status">Loading session brief…</p>}>
-        <SessionBriefCard slot={typeof params.session === "string" ? params.session : undefined} />
+        <SessionBriefCard slot={typeof params.session === "string" ? params.session : undefined} fromTelegram={params.from === "telegram"} />
       </Suspense> : null}
       <MarketBriefHero brief={brief} />
 

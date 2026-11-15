@@ -14,7 +14,7 @@ from app.models.orm import BetaVisitRow, BriefSessionRow
 
 class BetaVisit(BaseModel):
     visitor: UUID
-    event: Literal["session_view", "telegram_evidence", "scorecard_view"]
+    event: Literal["session_view", "telegram_session", "telegram_evidence", "evidence_view", "scorecard_view"]
     subject: str = Field(max_length=64, pattern=r"^[a-z0-9:-]*$")
 
 
@@ -24,7 +24,7 @@ def record_visit(visit: BetaVisit, *, now=None) -> None:
     visitor = str(visit.visitor)
     key = sha256(f"{visitor}|{visit.event}|{visit.subject}|{day}".encode()).hexdigest()
     with SessionLocal() as db:
-        if visit.event == "session_view":
+        if visit.event in {"session_view", "telegram_session"}:
             session = db.get(BriefSessionRow, visit.subject)
             if not session or not session.published_at:
                 return
@@ -47,15 +47,25 @@ def visit_summary(days: int, *, now=None) -> dict:
                  .filter(BriefSessionRow.published_at.is_not(None),
                          BriefSessionRow.published_at >= now - timedelta(days=days))
                  .order_by(BriefSessionRow.published_at, BriefSessionRow.slot_id)]
-    viewers, scorecard, telegram = defaultdict(dict), defaultdict(set), set()
+    viewers, scorecard = defaultdict(dict), defaultdict(set)
+    arrivals, followups = defaultdict(list), defaultdict(list)
+    arrival_browsers = defaultdict(set)
     for row in visits:
-        if row.event == "session_view":
+        if row.event in {"session_view", "telegram_session"}:
             times = viewers[row.subject]
             times[row.visitor] = min(times.get(row.visitor, row.visited_at), row.visited_at)
         elif row.event == "scorecard_view":
             scorecard[row.visitor].add(row.day)
-        else:
-            telegram.add(row.visitor)
+        if row.event in {"telegram_session", "telegram_evidence"}:
+            arrivals[row.visitor].append(row.visited_at)
+            arrival_browsers[row.event].add(row.visitor)
+        if row.event in {"evidence_view", "scorecard_view"}:
+            followups[row.visitor].append((row.event, row.visited_at))
+    followed = defaultdict(set)
+    for visitor, timestamps in arrivals.items():
+        for event, visited_at in followups[visitor]:
+            if any(timedelta(0) < visited_at - start <= timedelta(minutes=30) for start in timestamps):
+                followed[event].add(visitor)
     pairs = list(zip(slots, slots[1:]))
     return {
         "since_utc": since, "session_pairs": len(pairs),
@@ -64,7 +74,11 @@ def visit_summary(days: int, *, now=None) -> dict:
             visitor in viewers[b] and when < viewers[b][visitor]
             for a, b in pairs for visitor, when in viewers[a].items()
         ),
-        "telegram_evidence_browsers": len(telegram),
+        "telegram_evidence_browsers": len(arrival_browsers["telegram_evidence"]),
+        "telegram_session_browsers": len(arrival_browsers["telegram_session"]),
+        "telegram_arrival_browsers": len(arrivals),
+        "telegram_followup_evidence_browsers": len(followed["evidence_view"]),
+        "telegram_followup_scorecard_browsers": len(followed["scorecard_view"]),
         "scorecard_browsers": len(scorecard),
         "scorecard_return_browsers": sum(len(dates) > 1 for dates in scorecard.values()),
     }

@@ -44,6 +44,19 @@ def test_visit_counts_dedupe_and_require_forward_session_order():
         report = visit_summary(2, now=now + timedelta(hours=1))
         assert report["eligible_session_browser_pairs"] == 2
         assert report["next_session_browser_pairs"] == 1
+        record_visit(BetaVisit(visitor=visitors[0], event="telegram_session", subject=slots[1]),
+                     now=now + timedelta(minutes=10))
+        record_visit(BetaVisit(visitor=visitors[1], event="telegram_evidence", subject="a" * 64),
+                     now=now + timedelta(minutes=10))
+        record_visit(BetaVisit(visitor=visitors[0], event="evidence_view", subject="b" * 64),
+                     now=now + timedelta(minutes=20))
+        record_visit(BetaVisit(visitor=visitors[1], event="scorecard_view", subject=""),
+                     now=now + timedelta(minutes=41))
+        report = visit_summary(2, now=now + timedelta(hours=1))
+        assert report["telegram_session_browsers"] == report["telegram_evidence_browsers"] == 1
+        assert report["telegram_arrival_browsers"] == 2
+        assert report["telegram_followup_evidence_browsers"] == 1
+        assert report["telegram_followup_scorecard_browsers"] == 0
     finally:
         with SessionLocal() as db:
             db.query(BetaVisitRow).filter(BetaVisitRow.visitor.in_([str(v) for v in visitors])).delete(synchronize_session=False)
