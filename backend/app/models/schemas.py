@@ -32,6 +32,14 @@ class AlertExecutionEvidence(BaseModel):
     tx_hashes: list[str] = Field(default_factory=list)
 
 
+class PriorWhaleReduction(BaseModel):
+    event_id: str
+    observed_at: datetime
+    previous_quantity: float
+    current_quantity: float
+    execution: AlertExecutionEvidence
+
+
 class WhaleAlert(BaseModel):
     id: str
     trader_address: str
@@ -59,6 +67,7 @@ class WhaleAlert(BaseModel):
     timestamp: datetime
     execution: AlertExecutionEvidence | None = None
     grouped_event_ids: list[str] = Field(default_factory=list)
+    prior_reduction: PriorWhaleReduction | None = None
 
 
 class TraderProfile(BaseModel):

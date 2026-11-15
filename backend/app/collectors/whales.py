@@ -422,6 +422,7 @@ async def collect_whale_events() -> list[WhaleAlert]:
         if address not in observed_addresses or key in active_keys:
             continue
         previous_usd = _LAST_USD.pop(key, position.size_usd)
+        previous_quantity = abs(_LAST_SIZES.get(key, 0.0)) or None
         _LAST_SIZES[key] = 0.0
         _LAST_OBSERVED_AT[key] = observed_at
         if previous_usd < settings.alert_min_size_usd:
@@ -432,6 +433,7 @@ async def collect_whale_events() -> list[WhaleAlert]:
             trader_alias=trader.alias if trader else address,
             asset=position.asset, side=position.side, alert_type=AlertType.EXIT,
             size_usd=0.0, size_delta_usd=-previous_usd, position_change="close",
+            previous_quantity=previous_quantity, current_quantity=0.0,
             previous_side=position.side, trigger_floor_usd=settings.alert_min_size_usd,
             leverage=position.leverage, win_rate=trader.win_rate if trader else 0.0,
             inferred_strategy="Mixed", confidence_score=75.0, timestamp=observed_at,

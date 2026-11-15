@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from math import isclose
 
-from app.models.schemas import AlertExecutionEvidence, WhaleAlert
+from app.models.schemas import AlertExecutionEvidence, PriorWhaleReduction, WhaleAlert
 
 WINDOW_SECONDS = 300
 MIN_RELATIVE_CHANGE = 0.10
@@ -57,12 +57,27 @@ def select_position_pushes(alerts: list[WhaleAlert], *, now: datetime, min_size:
     for alert in sorted(unique.values(), key=lambda a: (_instant(a), a.id)):
         key = (alert.trader_address.lower(), alert.asset.upper())
         rows = groups.setdefault(key, [])
-        rows.append(alert)
         if alert.position_change in STRUCTURAL and abs(alert.size_delta_usd or 0) >= min_size:
+            prior = rows[-1] if rows else None
+            # Carry the closest verified trim only when the observed quantity
+            # connects to the close. It is context, not evidence of the close.
+            if (alert.position_change == "close" and prior and prior.position_change == "reduce"
+                    and prior.side == alert.side and prior.execution and prior.execution.verified
+                    and prior.previous_quantity and prior.current_quantity and alert.previous_quantity
+                    and prior.previous_quantity > prior.current_quantity > 0
+                    and isclose(prior.current_quantity, alert.previous_quantity, rel_tol=1e-9)
+                    and timedelta(0) < _instant(alert) - _instant(prior) <= timedelta(seconds=WINDOW_SECONDS)):
+                alert = alert.model_copy(update={"prior_reduction": PriorWhaleReduction(
+                    event_id=prior.id, observed_at=_instant(prior),
+                    previous_quantity=prior.previous_quantity, current_quantity=prior.current_quantity,
+                    execution=prior.execution,
+                )})
+                note([prior], "context_in_close")
             instant.append(alert)
             note([alert], "selected_structural")
         elif alert.position_change in STRUCTURAL:
             note([alert], "below_size_floor")
+        rows.append(alert)
     selected = list(instant)
     for key, rows in groups.items():
         # At most one recent routine edition for a wallet/asset. A newer

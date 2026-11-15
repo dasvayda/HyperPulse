@@ -59,6 +59,7 @@ async def observe(args, log):
                 if alert.id not in selected:
                     selected.add(alert.id)
                     write("selection", id=alert.id, members=alert.grouped_event_ids or [alert.id],
+                          context_event_id=alert.prior_reduction.event_id if alert.prior_reduction else None,
                           delay_seconds=(now - alert.timestamp).total_seconds())
             coverage = store.collectors.get("whales")
             write("cycle", coverage=coverage.model_dump(mode="json") if coverage else None, decisions=audit)

@@ -60,3 +60,20 @@ def test_audit_reports_wait_then_rejection_without_changing_selection():
     assert audit == {"a": "unverified_or_overlapping_execution"}
     select_position_pushes([alert], now=NOW - timedelta(minutes=1), min_size=500_000, audit=audit)
     assert audit == {"a": "waiting_for_bucket"}
+
+
+def test_zec_close_keeps_verified_prior_trim_without_verifying_the_close():
+    trim = move("trim", 2, 7000, 3500, "0xa", asset="ZEC", position_change="reduce",
+                size_delta_usd=-3096030)
+    close = move("close", 0, 3500, 0, "0xb", asset="ZEC", position_change="close",
+                 size_delta_usd=-3096030, execution=None, size_usd=0)
+    audit = {}
+    result, = select_position_pushes([trim, close], now=NOW, min_size=500_000, audit=audit)
+    assert result.id == close.id and result.execution is None
+    assert result.prior_reduction.event_id == trim.id
+    assert audit[trim.id] == "context_in_close"
+    _, lines = format_whale_move_lines(result)
+    assert any("No confirmed fill price" in line for line in lines)
+    assert any("Earlier trim" in line and "7000 → 3500 ZEC" in line for line in lines)
+    assert select(trim, close.model_copy(update={"previous_quantity": 3499}))[0].prior_reduction is None
+    assert select(trim.model_copy(update={"execution": None}), close)[0].prior_reduction is None

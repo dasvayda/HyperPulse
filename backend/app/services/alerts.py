@@ -797,6 +797,22 @@ def _position_summary_lines(alert: WhaleAlert) -> list[str]:
     return lines
 
 
+def _prior_reduction_lines(alert: WhaleAlert) -> list[str]:
+    prior = alert.prior_reduction
+    if not prior:
+        return []
+    execution = prior.execution
+    low, high = _format_price(execution.price_low), _format_price(execution.price_high)
+    price = f" @ {low}" if low else ""
+    if low and high and high != low:
+        price += f"–{high}"
+    return [
+        f"Earlier trim · {prior.observed_at:%H:%M} UTC: verified fills "
+        f"{_format_usd_short(execution.notional_usd)}{price} · "
+        f"{prior.previous_quantity:g} → {prior.current_quantity:g} {alert.asset}",
+    ]
+
+
 def _position_action(alert: WhaleAlert) -> str:
     return {"entry": "OPENED", "increase": "POSITION UP", "reduce": "TRIMMED",
             "close": "CLOSED", "flip": "FLIPPED TO"}.get(
@@ -836,6 +852,7 @@ def format_whale_move_lines(alert: WhaleAlert) -> tuple[str, list[str]]:
     lines = [f"<b>{title}</b>", *_trigger_lines(alert), escape(alert.trader_alias)]
     lines.extend(_execution_lines(alert))
     lines.extend(_position_summary_lines(alert))
+    lines.extend(_prior_reduction_lines(alert))
     lines.extend(_whale_size_context_lines(alert))
     if bits:
         lines.append(" · ".join(bits))
@@ -869,6 +886,7 @@ async def send_big_trade(alert: WhaleAlert) -> AlertHistoryItem | None:
         *_trigger_lines(alert),
         *_execution_lines(alert),
         *_position_summary_lines(alert),
+        *_prior_reduction_lines(alert),
         f"Wallet {_short_addr(alert.trader_address)}",
     ]
     if alert.whale_long_pct is not None:
