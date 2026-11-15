@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from app.models.schemas import AlertExecutionEvidence
 from app.services.alerts import _delivery_dedupe_key, format_whale_move_lines
 from app.services.whale_alert_selection import select_position_pushes
+from app.services.whale_alert_selection import PositionPushPolicy
 from tests.test_whale_move_telegram import _alert
 
 NOW = datetime(2026, 11, 14, 10, 5, tzinfo=timezone.utc)
@@ -60,6 +61,40 @@ def test_audit_reports_wait_then_rejection_without_changing_selection():
     assert audit == {"a": "unverified_or_overlapping_execution"}
     select_position_pushes([alert], now=NOW - timedelta(minutes=1), min_size=500_000, audit=audit)
     assert audit == {"a": "waiting_for_bucket"}
+
+
+def test_closed_rejection_does_not_revive_when_a_member_disappears():
+    policy = PositionPushPolicy()
+    a = move("a", 4, 30, 36, "0xa", execution=None)
+    b = move("b", 2, 36, 42, "0xb")
+    assert policy.select([a, b], now=NOW, min_size=500_000) == []
+    audit = {}
+    assert policy.select([b], now=NOW + timedelta(minutes=2), min_size=500_000, audit=audit) == []
+    assert audit["b"] == "unverified_execution"
+    assert policy.select([b], now=NOW + timedelta(minutes=8), min_size=500_000) == []
+
+
+def test_large_verified_trim_rescued_without_adding_unverified_execution():
+    policy = PositionPushPolicy()
+    trim = move("trim", 4, 100, 70, "0xa", position_change="reduce",
+                size_delta_usd=-3_000_000)
+    other = move("other", 2, 70, 65, "0xb", position_change="reduce", execution=None)
+    result, = policy.select([trim, other], now=NOW, min_size=500_000)
+    assert result.priority_reduction and result.id == trim.id
+    assert result.execution == trim.execution
+    assert result.size_usd == other.size_usd and result.position_observed_at == other.timestamp
+
+
+def test_adjacent_routine_window_stays_suppressed_but_close_bypasses():
+    policy = PositionPushPolicy()
+    a = move("a", 2, 30, 36, "0xa")
+    assert policy.select([a], now=NOW + timedelta(minutes=3), min_size=500_000)
+    b = move("b", -3, 36, 42, "0xb")
+    audit = {}
+    assert policy.select([a, b], now=NOW + timedelta(minutes=5), min_size=500_000, audit=audit) == []
+    assert audit["b"] == "routine_cooldown"
+    close = b.model_copy(update={"id": "close", "position_change": "close"})
+    assert policy.select([a, b, close], now=NOW + timedelta(minutes=6), min_size=500_000)[0].id == "close"
 
 
 def test_zec_close_keeps_verified_prior_trim_without_verifying_the_close():

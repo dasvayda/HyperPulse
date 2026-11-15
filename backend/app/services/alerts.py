@@ -20,11 +20,12 @@ from app.services.brief_schedule import due_market_brief_slot
 from app.services.brief_sessions import freeze_session, mark_session_published, session_change_line
 from app.services.brief_telegram import brief_send_key, format_market_brief_telegram
 from app.services.store import store
-from app.services.whale_alert_selection import select_position_pushes
+from app.services.whale_alert_selection import PositionPushPolicy
 from app.services.telegram_log import append_telegram_log
 
 logger = logging.getLogger(__name__)
 _brief_publish_lock = asyncio.Lock()
+_position_policy = PositionPushPolicy()
 
 # One-shot "big trade" floor (above normal whale-alert min).
 BIG_TRADE_MIN_USD = 2_000_000.0
@@ -787,8 +788,8 @@ def _position_summary_lines(alert: WhaleAlert) -> list[str]:
         f"Total position: {alert.side.value.upper()} "
         f"{_format_usd_short(alert.size_usd)} · {alert.leverage:.0f}x"
     ]
-    if alert.grouped_event_ids:
-        observed = alert.timestamp
+    if alert.grouped_event_ids or alert.position_observed_at:
+        observed = alert.position_observed_at or alert.timestamp
         observed = observed.replace(tzinfo=timezone.utc) if observed.tzinfo is None else observed.astimezone(timezone.utc)
         lines[0] += f" · as of {observed:%H:%M} UTC"
     position_average = _format_price(alert.entry_price)
@@ -1039,7 +1040,7 @@ async def process_alert_triggers(
     if liq_item:
         created.append(liq_item)
 
-    candidates = select_position_pushes(
+    candidates = _position_policy.select(
         whale_alerts if whale_alerts is not None else store.whale_alerts[:200],
         now=_utcnow(), min_size=settings.alert_min_size_usd,
     )

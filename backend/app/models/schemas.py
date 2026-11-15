@@ -68,6 +68,8 @@ class WhaleAlert(BaseModel):
     execution: AlertExecutionEvidence | None = None
     grouped_event_ids: list[str] = Field(default_factory=list)
     prior_reduction: PriorWhaleReduction | None = None
+    position_observed_at: datetime | None = None
+    priority_reduction: bool = False
 
 
 class TraderProfile(BaseModel):

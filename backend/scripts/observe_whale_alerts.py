@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+from contextlib import asynccontextmanager, suppress
 from time import monotonic
 
 
@@ -16,7 +17,7 @@ async def observe(args, log):
     from app.models.schemas import TraderProfile
     from app.services.alerts import classify_position_alert
     from app.services.store import store
-    from app.services.whale_alert_selection import select_position_pushes
+    from app.services.whale_alert_selection import PositionPushPolicy
 
     with sqlite3.connect(args.roster.resolve().as_uri() + "?mode=ro", uri=True) as db:
         roster = db.execute(
@@ -43,6 +44,7 @@ async def observe(args, log):
     deadline = monotonic() + args.hours * 3600
     seen = set()
     selected = set()
+    policy = PositionPushPolicy()
     while monotonic() < deadline:
         started = monotonic()
         try:
@@ -55,7 +57,7 @@ async def observe(args, log):
                     write("candidate", reference_class=classify_position_alert(alert),
                           alert=alert.model_dump(mode="json"))
             audit = {}
-            for alert in select_position_pushes(current, now=now, min_size=settings.alert_min_size_usd, audit=audit):
+            for alert in policy.select(current, now=now, min_size=settings.alert_min_size_usd, audit=audit):
                 if alert.id not in selected:
                     selected.add(alert.id)
                     write("selection", id=alert.id, members=alert.grouped_event_ids or [alert.id],
@@ -76,6 +78,7 @@ def main():
     parser.add_argument("--hours", type=int, choices=range(1, 25), default=24)
     parser.add_argument("--interval", type=int, choices=(60, 120, 180), default=120)
     parser.add_argument("--wallets", type=int, choices=range(1, 101), default=100)
+    parser.add_argument("--port", type=int, help="Serve the isolated observation API on loopback")
     args = parser.parse_args()
     output = args.output.resolve()
     scratch = output.with_suffix(".db")
@@ -91,7 +94,35 @@ def main():
         HYPERLIQUID_API_URL="https://api.hyperliquid.xyz",
     )
     with output.open("x", encoding="utf-8") as log:
-        asyncio.run(observe(args, log))
+        if args.port is None:
+            asyncio.run(observe(args, log))
+        else:
+            import uvicorn
+            from fastapi import FastAPI
+            from app.services.store import store
+
+            @asynccontextmanager
+            async def lifespan(_):
+                task = asyncio.create_task(observe(args, log))
+                try:
+                    yield
+                finally:
+                    task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await task
+
+            app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+
+            @app.get("/health")
+            async def health():
+                return {"mode": "non_sending_observation", "telegram": False,
+                        "collecting": "whales" in store.collectors}
+
+            @app.get("/api/v2/pipeline/status")
+            def status():
+                return store.pipeline_status()
+
+            uvicorn.run(app, host="127.0.0.1", port=args.port, workers=1)
 
 
 if __name__ == "__main__":
