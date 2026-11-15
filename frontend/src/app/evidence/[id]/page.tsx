@@ -5,6 +5,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { PageHeader } from "@/components/ui/DataTable";
 import { matchesBetaLogin } from "@/lib/beta-access";
 import { BetaVisit } from "@/components/ui/BetaVisit";
+import { whaleEvidenceSummary } from "@/lib/whale-evidence";
 
 export const dynamic = "force-dynamic";
 
@@ -52,16 +53,29 @@ export default async function EvidencePage({ params, searchParams }: {
     } catch { /* The page keeps unavailable evidence explicit. */ }
   }
   const context = evidence?.context;
+  const whale = evidence?.kind === "alert" ? whaleEvidenceSummary(evidence.inputs) : null;
+  const usd = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 4 }).format(n);
   const fromTelegram = (await searchParams).from === "telegram";
   return <DashboardLayout>
     <PageHeader title="Signal evidence" description="Saved inputs at the time of this read. Current rankings may differ." />
     {!evidence || !context ? <p className="text-text-muted">Evidence unavailable or access is restricted. No current data has been substituted.</p> :
       <section className="space-y-5 rounded-xl border border-border bg-bg-surface p-5 text-sm text-text-muted break-words">
+        {whale ? <div className="space-y-2 border-b border-border pb-4">
+          <h2 className="font-semibold text-text-primary">{whale.asset} · {whale.side} · {whale.action}</h2>
+          <p><Link href={`/traders/${whale.address}`} className="text-accent hover:underline">{whale.address}</Link></p>
+          <p>Position observed: {whale.observed || "Time unavailable"}</p>
+          {whale.fill !== null ? <p>Verified fills for this move: {usd(whale.fill)}
+            {whale.low !== null ? ` @ ${usd(whale.low)}${whale.high !== null && usd(whale.high) !== usd(whale.low) ? `–${usd(whale.high)}` : ""}` : ""}</p>
+            : <p>This move: snapshot observation · fill price not verified</p>}
+          {whale.delta !== null ? <p>Snapshot change: {usd(whale.delta)}</p> : null}
+          {whale.total !== null ? <p>Position at last observation: {usd(whale.total)}</p> : null}
+          {whale.priorTrim !== null ? <p>Earlier verified trim: {usd(whale.priorTrim)} · not part of this move</p> : null}
+        </div> : null}
         {fromTelegram && process.env.BETA_METRICS_ENABLED === "true" ? <BetaVisit event="telegram_evidence" subject={id} /> : null}
         <p>Saved {evidence.created_at} · {evidence.kind} · Tracked wallet sample</p>
         <p>Liquidations: {context.liquidation_coverage.status} · {context.liquidation_coverage.scope} · {context.liquidation_coverage.gap ? "Coverage has gaps" : "Observed window complete"}. Market-wide coverage unavailable.</p>
         <p>Size rank compares tracked account sizes. Smart Money rank compares scores within the size-selected cohort. Neither is a rating of this trade.</p>
-        <details open><summary className="cursor-pointer text-text-primary">Wallets and positions at signal time</summary>
+        <details open={!whale}><summary className="cursor-pointer text-text-primary">Wallets and positions at signal time</summary>
           <div className="mt-3 space-y-3">{context.positions.map((position, index) => {
             const ranking = context.rankings.find(r => r.address.toLowerCase() === position.trader_address.toLowerCase());
             const size = context.size_ranks.find(r => r.address.toLowerCase() === position.trader_address.toLowerCase());
