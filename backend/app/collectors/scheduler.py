@@ -10,6 +10,7 @@ from app.collectors.traders import collect_top_traders
 from app.collectors.liquidations import collect_liquidation_events
 from app.collectors.whales import collect_whale_events
 from app.services.alerts import process_alert_triggers
+from app.services.brief_sessions import publish_due_session
 from app.services.inference import (
     apply_inference_to_alerts,
     enrich_rankings_with_inference,
@@ -80,6 +81,7 @@ async def _inference_cycle() -> None:
         results = await run_inference_pipeline()
         store.whale_alerts = apply_inference_to_alerts(store.whale_alerts)
         await asyncio.to_thread(enrich_rankings_with_inference)
+    await asyncio.to_thread(publish_due_session, store.market_brief)
     async with observe_alerts():
         await process_alert_triggers(
             whale_alerts=store.whale_alerts[:200],

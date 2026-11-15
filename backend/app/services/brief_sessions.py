@@ -6,7 +6,7 @@ from app.db import SessionLocal
 from app.models.orm import BriefSessionRow
 from app.models.schemas import MarketBrief
 from app.services.brief_changes import compare_briefs
-from app.services.brief_schedule import BriefSlot, brief_coverage_empty
+from app.services.brief_schedule import BriefSlot, brief_coverage_empty, current_brief_slot
 from app.services.evidence import retrieve
 
 
@@ -27,11 +27,15 @@ def _published(db):
             .order_by(BriefSessionRow.published_at.desc(), BriefSessionRow.slot_id.desc()))
 
 
-def freeze_session(slot: BriefSlot, brief: MarketBrief | None) -> MarketBrief | None:
+def freeze_session(slot: BriefSlot, brief: MarketBrief | None, *, publish: bool = False) -> MarketBrief | None:
     """Return the original edition on retry, even after the live brief changes."""
     with SessionLocal() as db:
         row = db.get(BriefSessionRow, slot.slot_id)
         if row:
+            if publish and row.published_at is None:
+                row.published_at = datetime.now(timezone.utc)
+                db.commit()
+                return MarketBrief.model_validate_json(row.brief_json)
             return None if row.published_at else MarketBrief.model_validate_json(row.brief_json)
         if (not brief or brief.asset or brief.stale or not brief.evidence_id
                 or not (brief.digest or brief.tldr) or brief_coverage_empty(brief)):
@@ -43,9 +47,21 @@ def freeze_session(slot: BriefSlot, brief: MarketBrief | None) -> MarketBrief | 
         comparison = _compare(evidence, _published(db).first(), now)
         db.add(BriefSessionRow(slot_id=slot.slot_id, label=slot.label,
                                evidence_id=brief.evidence_id, brief_json=brief.model_dump_json(),
-                               comparison_json=json.dumps(comparison), frozen_at=now, published_at=None))
+                               comparison_json=json.dumps(comparison), frozen_at=now, published_at=now if publish else None))
         db.commit()
         return brief
+
+
+def publish_due_session(brief: MarketBrief | None) -> None:
+    slot = current_brief_slot()
+    if slot:
+        freeze_session(slot, brief, publish=True)
+
+
+def published_session_brief(slot_id: str) -> MarketBrief | None:
+    with SessionLocal() as db:
+        row = db.get(BriefSessionRow, slot_id)
+        return MarketBrief.model_validate_json(row.brief_json) if row and row.published_at else None
 
 
 def mark_session_published(slot_id: str) -> None:

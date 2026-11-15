@@ -7,7 +7,7 @@ from app.main import create_app
 from app.models.orm import BriefSessionRow
 from app.models.schemas import MarketBrief
 from app.services.brief_schedule import BriefSlot
-from app.services.brief_sessions import freeze_session, mark_session_published, session_change_line
+from app.services.brief_sessions import freeze_session, mark_session_published, session_change_line, publish_due_session
 from app.services.evidence import envelope, save
 
 
@@ -20,6 +20,26 @@ def make_brief():
         as_of=datetime.now(timezone.utc), evidence_id=key,
         tldr={"now": "BTC", "short_read": "Test read", "however": "Test caution"},
     )
+
+
+def test_web_publication_does_not_require_telegram(monkeypatch):
+    from app.config import settings
+    from app.services import brief_sessions
+
+    slot = BriefSlot("2099-02-01:asia", "asia", "Asia")
+    monkeypatch.setattr(settings, "alerts_enabled", False)
+    monkeypatch.setattr(brief_sessions, "current_brief_slot", lambda: slot)
+    brief = make_brief()
+    try:
+        publish_due_session(brief)
+        publish_due_session(brief.model_copy(update={"headline": "Changed"}))
+        assert brief_sessions.published_session_brief(slot.slot_id) == brief
+        response = TestClient(create_app()).get("/api/v2/insights/brief/session", params={"slot": slot.slot_id})
+        assert response.json()["slot_id"] == slot.slot_id
+    finally:
+        with SessionLocal() as db:
+            db.delete(db.get(BriefSessionRow, slot.slot_id))
+            db.commit()
 
 
 def test_session_retry_reuses_original_and_publication_stops_retry():

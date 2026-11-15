@@ -17,7 +17,7 @@ from app.models.schemas import (
     WhaleAlert,
 )
 from app.services.brief_schedule import due_market_brief_slot
-from app.services.brief_sessions import freeze_session, mark_session_published, session_change_line
+from app.services.brief_sessions import published_session_brief, session_change_line
 from app.services.brief_telegram import brief_send_key, format_market_brief_telegram
 from app.services.store import store
 from app.services.whale_alert_selection import PositionPushPolicy
@@ -633,14 +633,13 @@ async def _send_session_brief() -> AlertHistoryItem | None:
     )
     if slot is None:
         return None
-    brief = await asyncio.to_thread(freeze_session, slot, store.market_brief)
+    brief = await asyncio.to_thread(published_session_brief, slot.slot_id)
     if brief is None:
         return None
 
     send_key = brief_send_key(brief)
     dedupe_key = _delivery_dedupe_key("market_brief", {"snapshot_hash": send_key, "slot_id": slot.slot_id})
     if dedupe_key and await asyncio.to_thread(store.sent_alert_exists, dedupe_key):
-        await asyncio.to_thread(mark_session_published, slot.slot_id)
         return None
     title, lines = format_market_brief_telegram(brief)
     if lines:
@@ -662,7 +661,6 @@ async def _send_session_brief() -> AlertHistoryItem | None:
         },
     )
     if item and item.status in {"sent", "queued"}:
-        await asyncio.to_thread(mark_session_published, slot.slot_id)
         store.last_brief_telegram_slot = slot.slot_id
         if send_key:
             store.last_brief_telegram_hash = send_key
