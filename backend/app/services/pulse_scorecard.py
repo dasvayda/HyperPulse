@@ -1,5 +1,5 @@
 """A bounded, versioned audit view. Directional accuracy is not trading P&L."""
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import case, func
 
@@ -8,9 +8,10 @@ from app.models.orm import PulseResultRow, PulseSignalRow
 from app.services.pulse import HORIZON_SEC, SCORECARD_ENGINE, _ensure_aware
 
 
-def scorecard(asset: str | None, days: int, offset: int, limit: int, *, now=None) -> dict:
+def scorecard(asset: str | None, days: int, offset: int, limit: int, *, now=None, day: date | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
-    since = now - timedelta(days=days)
+    since = datetime.combine(day, time.min, timezone.utc) if day else now - timedelta(days=days)
+    until = min(now, datetime.combine(day, time.max, timezone.utc)) if day else now
     signal, result = PulseSignalRow, PulseResultRow
     outcome = case(
         (result.signal_id.is_(None), "pending"),
@@ -22,7 +23,7 @@ def scorecard(asset: str | None, days: int, offset: int, limit: int, *, now=None
     with SessionLocal() as db:
         query = (db.query(signal, result).outerjoin(result, signal.id == result.signal_id)
                  .filter(signal.engine == SCORECARD_ENGINE, signal.horizon_sec == HORIZON_SEC,
-                         signal.evidence_id.is_not(None), signal.created_at >= since, signal.created_at <= now))
+                         signal.evidence_id.is_not(None), signal.created_at >= since, signal.created_at <= until))
         if asset:
             query = query.filter(signal.asset == asset)
         counts = dict.fromkeys(("hit", "miss", "wait", "pending", "unavailable"), 0)

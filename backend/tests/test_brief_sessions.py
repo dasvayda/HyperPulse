@@ -88,6 +88,8 @@ def test_session_api_compares_only_published_editions():
         assert session_change_line(slots[1].slot_id) == "Since last session: BTC mark +3%"
         historical = TestClient(create_app()).get("/api/v2/insights/brief/session", params={"slot": slots[0].slot_id})
         assert historical.json()["status"] == "no_baseline"
+        archive = TestClient(create_app()).get("/api/v2/insights/brief/sessions", params={"limit": 2})
+        assert [item["slot_id"] for item in archive.json()] == [slots[1].slot_id, slots[0].slot_id]
     finally:
         with SessionLocal() as db:
             for slot in slots:

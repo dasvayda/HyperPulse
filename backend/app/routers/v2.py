@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -95,10 +95,18 @@ def get_pulse_scorecard(
     days: int = Query(7, ge=1, le=30),
     offset: int = Query(0, ge=0, le=100_000),
     limit: int = Query(25, ge=1, le=100),
+    day: date | None = None,
 ) -> dict:
     from app.services.pulse_scorecard import scorecard
 
-    return scorecard(asset.strip().upper() if asset else None, days, offset, limit)
+    return scorecard(asset.strip().upper() if asset else None, days, offset, limit, day=day)
+
+
+@router.get("/insights/brief/sessions")
+def list_session_briefs(limit: int = Query(12, ge=1, le=30)) -> list[dict]:
+    from app.services.brief_sessions import recent_sessions
+
+    return recent_sessions(limit)
 
 
 @router.get("/evidence/{evidence_id}", dependencies=[Depends(require_evidence_access)])

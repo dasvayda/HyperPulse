@@ -1,11 +1,14 @@
 import Link from "next/link";
-import { getSessionBrief } from "@/lib/api";
+import { getSessionBrief, getRecentSessionBriefs } from "@/lib/api";
 import { describeSessionChange, sessionComparisonNote } from "@/lib/session-brief-copy";
 import { EvidenceLink } from "./EvidenceLink";
 import { BetaVisit } from "./BetaVisit";
 
 export async function SessionBriefCard({ compact = false, slot }: { compact?: boolean; slot?: string }) {
-  const session = await getSessionBrief(slot).catch(() => undefined);
+  const [session, recent] = await Promise.all([
+    getSessionBrief(slot).catch(() => undefined),
+    compact ? Promise.resolve(null) : getRecentSessionBriefs().catch(() => undefined),
+  ]);
   const note = session && sessionComparisonNote(session.status, session.changes.length > 0);
   return (
     <section id="session-brief" className="mb-4 min-w-0 break-words rounded-xl border border-border bg-bg-surface p-4">
@@ -28,11 +31,19 @@ export async function SessionBriefCard({ compact = false, slot }: { compact?: bo
             {compact ? <Link href="/insights#session-brief" className="text-accent hover:underline">Session details →</Link> : null}
             <EvidenceLink id={session.evidence_id} />
             {!compact ? <Link href="/alerts" className="text-accent hover:underline">Get Telegram alerts →</Link> : null}
-            {!compact ? <Link href="/scorecard" className="text-accent hover:underline">Check signal results →</Link> : null}
+            {!compact ? <Link href={`/scorecard?${new URLSearchParams({day: new Date(session.as_of).toISOString().slice(0, 10), ...(session.changes[0] ? {asset: session.changes[0].asset} : {})})}`} className="text-accent hover:underline">Browse Pulse for this date →</Link> : null}
           </div>
           {!compact && process.env.BETA_METRICS_ENABLED === "true" ? <BetaVisit event="session_view" subject={session.slot_id} /> : null}
         </>
       )}
+      {!compact ? <details className="mt-4 text-sm text-text-muted">
+        <summary className="cursor-pointer text-text-primary">Recent sessions</summary>
+        {recent?.length ? <ul className="mt-2 space-y-2">{recent.map(item => (
+          <li key={item.slot_id}><Link href={`/insights?session=${encodeURIComponent(item.slot_id)}#session-brief`}
+            aria-current={item.slot_id === session?.slot_id ? "page" : undefined}
+            className="text-accent hover:underline">{item.slot_id.split(":")[0]} · {item.slot_label}</Link></li>
+        ))}</ul> : <p className="mt-2">{recent ? "No published sessions." : "Session archive unavailable."}</p>}
+      </details> : null}
     </section>
   );
 }

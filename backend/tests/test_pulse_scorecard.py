@@ -35,6 +35,8 @@ def test_scorecard_keeps_all_outcomes_and_rejects_late_observations():
     late = scorecard("V07LATE", 1, 0, 25, now=end)["items"][0]
     assert late["observed_at"] is None and late["result_mark"] is None
     assert scorecard("V07OLD", 1, 0, 25, now=end)["total"] == 0
+    assert scorecard("V07HIT", 7, 0, 25, now=end + timedelta(days=8), day=now.date())["total"] == 1
+    assert scorecard("V07HIT", 7, 0, 25, now=end, day=(now + timedelta(days=1)).date())["total"] == 0
     # Remove only this fixture's rows, including their resolutions and marks.
     from app.models.orm import PulseResultRow
     with SessionLocal() as db:

@@ -64,6 +64,12 @@ def published_session_brief(slot_id: str) -> MarketBrief | None:
         return MarketBrief.model_validate_json(row.brief_json) if row and row.published_at else None
 
 
+def recent_sessions(limit: int) -> list[dict]:
+    with SessionLocal() as db:
+        return [{"slot_id": row.slot_id, "slot_label": row.label, "published_at": _utc(row.published_at)}
+                for row in _published(db).limit(limit)]
+
+
 def mark_session_published(slot_id: str) -> None:
     with SessionLocal() as db:
         row = db.get(BriefSessionRow, slot_id)
