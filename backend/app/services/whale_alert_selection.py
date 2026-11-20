@@ -12,6 +12,21 @@ STRUCTURAL = {"flip", "entry", "close"}
 MAX_ROUTINE_AGE = timedelta(minutes=7)
 
 
+def _large_verified_reduction(alert: WhaleAlert, min_size: float) -> bool:
+    return bool(alert.position_change == "reduce" and alert.execution
+                and alert.execution.verified and alert.execution.tx_hashes
+                and abs(alert.size_delta_usd or 0) >= max(min_size, ABSOLUTE_OVERRIDE_USD))
+
+
+def _latest_position(alert: WhaleAlert, snapshot: WhaleAlert) -> WhaleAlert:
+    return alert.model_copy(update={
+        "size_usd": snapshot.size_usd, "entry_price": snapshot.entry_price,
+        "mark_price": snapshot.mark_price, "leverage": snapshot.leverage,
+        "roi_pct": snapshot.roi_pct, "unrealized_pnl_usd": snapshot.unrealized_pnl_usd,
+        "position_observed_at": _instant(snapshot), "priority_reduction": True,
+    })
+
+
 def _instant(alert: WhaleAlert) -> datetime:
     value = alert.timestamp
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
@@ -128,19 +143,12 @@ def select_position_pushes(alerts: list[WhaleAlert], *, now: datetime, min_size:
                 if policy is None:
                     return
                 rescue = next((row for row in reversed(batch)
-                               if row.position_change == "reduce" and row.execution
-                               and row.execution.verified and row.execution.tx_hashes
-                               and abs(row.size_delta_usd or 0) >= max(min_size, ABSOLUTE_OVERRIDE_USD)
+                               if _large_verified_reduction(row, min_size)
                                and now - _instant(row) <= MAX_ROUTINE_AGE), None)
                 # A newer trim is reflected in the position total, but never
                 # counted as part of the verified execution we rescued.
                 if rescue is not None:
-                    candidate = rescue.model_copy(update={
-                        "size_usd": latest.size_usd, "entry_price": latest.entry_price,
-                        "leverage": latest.leverage, "roi_pct": latest.roi_pct,
-                        "unrealized_pnl_usd": latest.unrealized_pnl_usd,
-                        "position_observed_at": _instant(latest), "priority_reduction": True,
-                    })
+                    candidate = _latest_position(rescue, latest)
                     policy.closed[window_key] = (candidate, "verified_large_reduction")
                     note([rescue], "verified_large_reduction")
                     selected.append(candidate)
@@ -182,6 +190,38 @@ def select_position_pushes(alerts: list[WhaleAlert], *, now: datetime, min_size:
             if policy is not None:
                 policy.closed[window_key] = (selected[-1], "selected_batch")
             break
+        if policy is None:
+            continue
+        # An unverified same-side rebound does not erase a confirmed large trim.
+        # Keep this decision separate from the rejected routine batch and freeze it.
+        represented = {member for alert in selected for member in (alert.grouped_event_ids or [alert.id])}
+        for index in range(len(rows) - 1, -1, -1):
+            trim = rows[index]
+            if (not _large_verified_reduction(trim, min_size) or trim.id in represented
+                    or trim.id in policy.represented):
+                continue
+            tail = rows[index + 1:]
+            opposite = [row for row in tail if row.position_change != "reduce"]
+            if not opposite or any(
+                row.side != trim.side or row.position_change != "increase"
+                or (row.execution and row.execution.verified) for row in opposite
+            ):
+                continue
+            if any(row.side != trim.side for row in tail):
+                continue
+            bucket = int(_instant(trim).timestamp()) // WINDOW_SECONDS
+            if bucket == int(now.timestamp()) // WINDOW_SECONDS or now - _instant(trim) > MAX_ROUTINE_AGE:
+                continue
+            rescue_key = (*key, "reduction_before_unverified_rebound", bucket)
+            if rescue_key not in policy.closed:
+                policy.closed[rescue_key] = (
+                    _latest_position(trim, rows[-1]), "verified_reduction_before_unverified_rebound",
+                )
+            frozen, reason = policy.closed[rescue_key]
+            if now - _instant(frozen) <= MAX_ROUTINE_AGE:
+                selected.append(frozen)
+                note([trim], reason)
+            break
     selected.sort(key=lambda a: ({"flip": 0, "entry": 1, "close": 1}.get(a.position_change, 2),
                                  not a.priority_reduction, -abs(a.size_delta_usd or 0), a.id))
     return selected
@@ -194,15 +234,18 @@ class PositionPushPolicy:
         self.closed = {}
         self.recent = {}
         self.suppressed = set()
+        self.represented = {}
 
     def select(self, alerts, *, now, min_size, audit=None):
         cutoff = now.timestamp() - 15 * 60
         self.closed = {k: v for k, v in self.closed.items() if (k[-1] + 1) * WINDOW_SECONDS >= cutoff}
         self.recent = {k: v for k, v in self.recent.items() if v[0].timestamp() >= cutoff}
+        self.represented = {k: v for k, v in self.represented.items() if v.timestamp() >= cutoff}
         self.suppressed.intersection_update(a.id for a, _ in self.closed.values() if a)
         accepted = []
         for alert in select_position_pushes(alerts, now=now, min_size=min_size, audit=audit, policy=self):
-            if alert.position_change in STRUCTURAL or alert.priority_reduction:
+            if (alert.position_change in STRUCTURAL or alert.priority_reduction
+                    or _large_verified_reduction(alert, min_size)):
                 accepted.append(alert)
                 continue
             key = (alert.trader_address.lower(), alert.asset.upper(), alert.side, alert.position_change)
@@ -215,4 +258,7 @@ class PositionPushPolicy:
             if not last or last[1] != alert.id:
                 self.recent[key] = (now, alert.id)
             accepted.append(alert)
+        for alert in accepted:
+            for member in alert.grouped_event_ids or [alert.id]:
+                self.represented[member] = _instant(alert)
         return accepted

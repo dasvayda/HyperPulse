@@ -10,6 +10,16 @@ from contextlib import asynccontextmanager, suppress
 from time import monotonic
 
 
+def observation_health(task, collector_seen):
+    status = "running"
+    if task.cancelled():
+        status = "stopped"
+    elif task.done():
+        status = "failed" if task.exception() else "finished"
+    return {"mode": "non_sending_observation", "telegram": False,
+            "observation_status": status, "collecting": status == "running" and collector_seen}
+
+
 async def observe(args, log):
     from app.collectors.whales import collect_whale_events
     from app.config import settings
@@ -39,12 +49,16 @@ async def observe(args, log):
         log.write(json.dumps({"kind": kind, "at": datetime.now(timezone.utc).isoformat(), **data}) + "\n")
         log.flush()
 
-    write("start", wallets=len(roster), interval=args.interval, hours=args.hours,
+    ends_at = datetime.now(timezone.utc) + timedelta(hours=args.hours)
+    print(f"Observation ends at {ends_at.isoformat()} (UTC); Telegram disabled.", flush=True)
+    write("start", wallets=len(roster), interval=args.interval, hours=args.hours, ends_at=ends_at.isoformat(),
           min_size=settings.alert_min_size_usd, fills_budget=settings.alert_execution_lookups_per_cycle)
     deadline = monotonic() + args.hours * 3600
     seen = set()
     selected = set()
     policy = PositionPushPolicy()
+    cycles = 0
+    failed_cycles = 0
     while monotonic() < deadline:
         started = monotonic()
         try:
@@ -65,10 +79,14 @@ async def observe(args, log):
                           delay_seconds=(now - alert.timestamp).total_seconds())
             coverage = store.collectors.get("whales")
             write("cycle", coverage=coverage.model_dump(mode="json") if coverage else None, decisions=audit)
+            cycles += 1
         except Exception as exc:
+            failed_cycles += 1
             write("cycle_failed", error=type(exc).__name__)
         await asyncio.sleep(max(0, min(args.interval - (monotonic() - started), deadline - monotonic())))
-    write("finished")
+    write("finished", reason="duration_elapsed", cycles=cycles, failed_cycles=failed_cycles,
+          candidates=len(seen), selections=len(selected))
+    print("Observation finished; collection stopped. See the JSONL summary.", flush=True)
 
 
 def main():
@@ -104,6 +122,7 @@ def main():
             @asynccontextmanager
             async def lifespan(_):
                 task = asyncio.create_task(observe(args, log))
+                app.state.observation_task = task
                 try:
                     yield
                 finally:
@@ -115,8 +134,7 @@ def main():
 
             @app.get("/health")
             async def health():
-                return {"mode": "non_sending_observation", "telegram": False,
-                        "collecting": "whales" in store.collectors}
+                return observation_health(app.state.observation_task, "whales" in store.collectors)
 
             @app.get("/api/v2/pipeline/status")
             def status():

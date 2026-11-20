@@ -112,3 +112,53 @@ def test_zec_close_keeps_verified_prior_trim_without_verifying_the_close():
     assert any("Earlier trim" in line and "7000 → 3500 ZEC" in line for line in lines)
     assert select(trim, close.model_copy(update={"previous_quantity": 3499}))[0].prior_reduction is None
     assert select(trim.model_copy(update={"execution": None}), close)[0].prior_reduction is None
+
+
+def test_verified_large_trim_bypasses_previous_small_trim_cooldown():
+    policy = PositionPushPolicy()
+    small = move("small", 2, 100, 88, "0xa", position_change="reduce")
+    assert policy.select([small], now=NOW, min_size=500_000)
+    large = move("large", -2, 88, 54, "0xb", position_change="reduce")
+    result, = policy.select([small, large], now=NOW + timedelta(minutes=5), min_size=500_000)
+    assert result.grouped_event_ids == [large.id]
+    assert result.execution.verified and result.size_delta_usd == -3_400_000
+
+
+def test_unverified_rebound_keeps_large_trim_and_latest_position_snapshot():
+    policy = PositionPushPolicy()
+    trim = move("trim", 4, 100, 60, "0xa", position_change="reduce")
+    rebound = move("rebound", 2, 60, 85, "0xb", execution=None)
+    audit = {}
+    result, = policy.select([trim, rebound], now=NOW, min_size=500_000, audit=audit)
+    assert result.id == trim.id and result.priority_reduction
+    assert result.execution == trim.execution and result.size_delta_usd == trim.size_delta_usd
+    assert result.size_usd == rebound.size_usd and result.position_observed_at == rebound.timestamp
+    assert audit[trim.id] == "verified_reduction_before_unverified_rebound"
+    assert policy.select([trim, rebound], now=NOW + timedelta(minutes=2), min_size=500_000) == []
+
+
+def test_verified_rebound_or_close_supersedes_large_trim():
+    trim = move("trim", 4, 100, 60, "0xa", position_change="reduce")
+    rebound = move("rebound", 2, 60, 85, "0xb")
+    for change in ("increase", "close", "flip"):
+        result = PositionPushPolicy().select(
+            [trim, rebound.model_copy(update={"position_change": change})], now=NOW, min_size=500_000,
+        )
+        assert all(a.id != trim.id and trim.id not in a.grouped_event_ids for a in result)
+
+
+def test_already_selected_large_trim_is_not_rescued_after_rebound():
+    policy = PositionPushPolicy()
+    trim = move("trim", 2, 100, 60, "0xa", position_change="reduce")
+    assert policy.select([trim], now=NOW, min_size=500_000)
+    rebound = move("rebound", -1, 60, 85, "0xb", execution=None)
+    assert policy.select([trim, rebound], now=NOW + timedelta(minutes=5), min_size=500_000) == []
+
+
+def test_old_or_unverified_large_trim_is_not_rescued():
+    trim = move("trim", 4, 100, 60, "0xa", position_change="reduce")
+    rebound = move("rebound", 2, 60, 85, "0xb", execution=None)
+    for updates, now in (({"execution": None}, NOW), ({}, NOW + timedelta(minutes=4))):
+        assert PositionPushPolicy().select(
+            [trim.model_copy(update=updates), rebound], now=now, min_size=500_000,
+        ) == []
