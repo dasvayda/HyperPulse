@@ -1,6 +1,7 @@
 """Durable session editions, separate from the mutable live Market Brief."""
 import json
 from datetime import datetime, timezone
+from sqlalchemy.exc import IntegrityError
 
 from app.db import SessionLocal
 from app.models.orm import BriefSessionRow
@@ -33,12 +34,17 @@ def freeze_session(slot: BriefSlot, brief: MarketBrief | None, *, publish: bool 
         row = db.get(BriefSessionRow, slot.slot_id)
         if row:
             if publish and row.published_at is None:
-                row.published_at = datetime.now(timezone.utc)
+                db.query(BriefSessionRow).filter(
+                    BriefSessionRow.slot_id == slot.slot_id, BriefSessionRow.published_at.is_(None),
+                ).update({BriefSessionRow.published_at: datetime.now(timezone.utc)})
                 db.commit()
                 return MarketBrief.model_validate_json(row.brief_json)
             return None if row.published_at else MarketBrief.model_validate_json(row.brief_json)
         if (not brief or brief.asset or brief.stale or not brief.evidence_id
                 or not (brief.digest or brief.tldr) or brief_coverage_empty(brief)):
+            return None
+        read = (brief.digest.read.strip() if brief.digest else "") or (brief.tldr.short_read.strip() if brief.tldr else "")
+        if not read.strip():
             return None
         evidence = retrieve(brief.evidence_id)
         if not evidence or evidence.get("kind") != "brief":
@@ -48,7 +54,14 @@ def freeze_session(slot: BriefSlot, brief: MarketBrief | None, *, publish: bool 
         db.add(BriefSessionRow(slot_id=slot.slot_id, label=slot.label,
                                evidence_id=brief.evidence_id, brief_json=brief.model_dump_json(),
                                comparison_json=json.dumps(comparison), frozen_at=now, published_at=now if publish else None))
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            # A concurrent publisher can win the unique session key. Reuse its edition.
+            db.rollback()
+            if db.get(BriefSessionRow, slot.slot_id) is None:
+                raise
+            return freeze_session(slot, brief, publish=publish)
         return brief
 
 
@@ -72,10 +85,10 @@ def recent_sessions(limit: int) -> list[dict]:
 
 def mark_session_published(slot_id: str) -> None:
     with SessionLocal() as db:
-        row = db.get(BriefSessionRow, slot_id)
-        if row and row.published_at is None:
-            row.published_at = datetime.now(timezone.utc)
-            db.commit()
+        db.query(BriefSessionRow).filter(
+            BriefSessionRow.slot_id == slot_id, BriefSessionRow.published_at.is_(None),
+        ).update({BriefSessionRow.published_at: datetime.now(timezone.utc)})
+        db.commit()
 
 
 def session_change_line(slot_id: str) -> str:

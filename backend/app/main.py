@@ -11,7 +11,7 @@ from app.config import settings
 from app.db import init_db
 from app.logging_config import configure_logging
 from app.security import require_beta_access
-from app.routers import api, v2, v3
+from app.routers import api, v2, v3, publications
 from app.services.store import store
 from app.services.readiness import get_readiness
 
@@ -85,6 +85,7 @@ def create_app() -> FastAPI:
     application.include_router(api.router)
     application.include_router(v2.router)
     application.include_router(v3.router)
+    application.include_router(publications.router)
     application.add_api_route("/health", health, methods=["GET"])
     application.add_api_route("/health/ready", readiness, methods=["GET"])
     return application

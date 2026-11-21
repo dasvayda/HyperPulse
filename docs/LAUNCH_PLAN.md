@@ -2,7 +2,7 @@
 
 | | |
 |--|--|
-| 갱신 | 2026-11-12 (Vercel 기본 배포 경로 및 무Redis Beta 계획) |
+| 갱신 | 2026-11-22 (공개 브리프 발행·검색 노출·SNS 초안 운영 추가) |
 | 현재 판단 | 핵심 제품 MVP 완료 · Closed Beta 조건부 가능 · 공개 런칭 준비 미완료 |
 | 기능 백로그 | [PRODUCT_BACKLOG.md](./PRODUCT_BACKLOG.md) |
 
@@ -21,6 +21,7 @@
 ## 현재 상태 요약
 
 - 핵심 제품 기능: 대부분 완료
+- 공개 콘텐츠 발행: 세션별 공개 웹문서·검색 메타데이터·SNS 초안 구현. 실제 도메인 설정과 검색 서비스 등록은 배포 시 수행.
 - Telegram: 단일 채널 발송 가능, Whale Move/Big Trade/Market Brief/LIQ WATCH·DANGER 운영
 - Paper Portfolio: `$1,000` Forward Test 구현 완료, Shadow 관찰 중
 - 프론트 production build: 컴파일 및 타입 검사 통과
@@ -42,6 +43,17 @@
 | 성과 표현 | 관찰 중 | Paper Portfolio 30일·100개 완료 거래, 한계 고지, 컴플라이언스 |
 
 ---
+
+## 공개 브리프 발행 운영
+
+- Next.js의 `/briefs` 목록, `/briefs/YYYY-MM-DD-asia`·`-us` 발행본, `/briefs/methodology`는 로그인 없이 공개한다. 문서와 검색 파일만 Beta 인증에서 제외한다.
+- 발행은 기존 Asia 09:00 KST·US 09:00 ET 세션과 90분 창을 따른다. 정상 백엔드의 주기 작업이 실행되어야 새 세션이 발행된다. 관찰 전용 서버는 세션 발행을 수행하지 않는다.
+- Next.js 배포 환경의 `PUBLIC_APP_URL`에 실제 사이트 origin을 설정한다. `API_URL`에는 상시 백엔드 주소를 설정하고, Beta 사용 시 서버 전용 `BETA_API_TOKEN`도 설정한다. `PUBLIC_APP_URL` 미설정 시 canonical·sitemap URL·SNS 초안이 생성되지 않는다.
+- `/robots.txt`, `/sitemap.xml`, 문서별 검색 메타데이터와 공유 이미지가 제공된다. 실제 도메인 배포 후 Google Search Console·Bing Webmaster Tools에 sitemap을 등록하고 접근·색인을 확인한다.
+- X 게시 초안은 발행본의 분석과 UTM 링크를 사용한다. 문서의 `Share this brief on X`에서 복사해 게시할 수 있다.
+- 정정 또는 후속 결과는 `POST /api/v2/publications/{slug}/notes`에 JSON `{"kind":"correction","text":"정정 내용"}` 또는 `{"kind":"follow_up","text":"후속 결과"}`로 추가한다. `X-Pipeline-Token`에 설정된 `PIPELINE_RUN_TOKEN`을 보내야 하며, Beta 사용 시 `X-Beta-Api-Token`도 필요하다. 운영 토큰 미설정 시 이 쓰기 API는 모든 환경에서 차단된다.
+- 메모는 추가 방식으로 저장하며 같은 세션·종류·내용의 재시도는 한 건으로 유지한다. 본문과 최초 발행 시각은 보존하고, 문서 수정 시각과 sitemap의 `lastmod`에 메모 시각을 반영한다. 새 메모 테이블은 기존 `init_db`가 생성한다.
+- 로컬 합성 데이터로 API·페이지 응답을 검증한 뒤 실제 공개 배포에서 검색 색인과 SNS 미리보기 결과를 확인한다.
 
 ## Phase 1 — 운영 기반 정비
 

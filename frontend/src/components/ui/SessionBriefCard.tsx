@@ -28,6 +28,7 @@ export async function SessionBriefCard({ compact = false, slot, fromTelegram = f
           {session.read ? <p className="mt-3 text-sm text-text-primary">{session.read}</p> : null}
           <p className="mt-2 text-xs text-text-muted">Before acting, check the live price, funding and tracked whale positions for changes since publication.</p>
           <div className="mt-3 flex flex-wrap gap-3 text-xs">
+            <Link href={`/briefs/${session.slot_id.replace(":", "-")}`} className="text-accent hover:underline">Read published brief →</Link>
             {compact ? <Link href="/insights#session-brief" className="text-accent hover:underline">Session details →</Link> : null}
             <EvidenceLink id={session.evidence_id} />
             {!compact ? <Link href="/alerts" className="text-accent hover:underline">Get Telegram alerts →</Link> : null}

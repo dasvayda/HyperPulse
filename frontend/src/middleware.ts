@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { matchesBetaLogin } from "./lib/beta-access";
 
 export async function middleware(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+  if (path === "/briefs" || path.startsWith("/briefs/") || path === "/robots.txt" || path === "/sitemap.xml") {
+    return NextResponse.next();
+  }
   if (process.env.BETA_ACCESS_ENABLED !== "true") return NextResponse.next();
   const headers = { "Cache-Control": "private, no-store", Vary: "Authorization" };
   const password = process.env.BETA_ACCESS_PASSWORD;

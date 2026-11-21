@@ -44,7 +44,7 @@ export class ApiError extends Error {
   }
 }
 
-async function fetchApi<T>(
+export async function fetchApi<T>(
   path: string,
   init?: RequestInit & { next?: { revalidate?: number | false } },
 ): Promise<T> {

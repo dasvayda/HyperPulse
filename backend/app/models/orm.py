@@ -29,6 +29,16 @@ class BriefSessionRow(Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
 
 
+class BriefPublicationNoteRow(Base):
+    __tablename__ = "brief_publication_notes"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    slot_id: Mapped[str] = mapped_column(String(24), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class VerifiedLiquidationRow(Base):
     __tablename__ = "verified_liquidations"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)

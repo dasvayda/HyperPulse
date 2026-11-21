@@ -8,7 +8,7 @@
 | | |
 |--|--|
 | 작성 | 2026-07-22 ~ 07-23 |
-| 갱신 | 2026-10-29 (런칭 운영 안전성 보강) |
+| 갱신 | 2026-11-22 (공개 콘텐츠 발행·검색·SNS 배포 기반) |
 | 제품 목표 | [README Product Goals](../README.md#product-goals) |
 | 설계 제약 | [ARCHITECTURE](./ARCHITECTURE.md#product-goals--design-constraints) |
 | 벤치마크 참고 | [HyperTracker Perps](https://app.coinmarketman.com/hypertracker/perps) (시그널·UX만). [Binance AI Brief](./BINANCE_AI_BRIEF_REF.md) (답변 패턴만, 챗/TA 복제 아님) |
@@ -24,6 +24,11 @@
 ## 0. 진행 현황 (한눈에)
 
 ### Shipped (유지보수만)
+
+- [x] 2026-11-22 공개 콘텐츠 발행 — 기존 Asia·US 세션 발행본을 `/briefs/YYYY-MM-DD-asia` 또는 `-us`의 고정 웹문서로 제공. 공개 목록·분석 방법·관측 시각·출처·표본 범위·이전 세션 비교 포함. 중복·동시 발행 시 원문 유지, 빈 분석 신규 발행 차단.
+- [x] 검색·SNS 배포 기반 — 문서별 title/description/canonical, Article JSON-LD, Open Graph·X 미리보기와 이미지, robots·sitemap, UTM 링크가 포함된 X 게시 초안 복사. 웹 발행은 Telegram 발송과 독립. SNS 계정 자동 게시 연동은 후속 과제.
+- [x] 정정·후속 기록 — 운영 토큰으로 날짜가 붙는 메모를 추가하고 원문을 보존. 같은 메모 재시도 중복 방지. 공개 문서는 Beta 로그인 제외, 백엔드 Beta 토큰과 기존 앱 접근 제어는 유지. 배포 설정과 운영 API는 [LAUNCH_PLAN.md](./LAUNCH_PLAN.md#공개-브리프-발행-운영) 참고.
+- 검증 기록 — 백엔드 전체 `248 passed, 1 skipped`, 프론트 `12 passed`, TypeScript와 production build 통과. 합성 데이터 HTTP 점검에서 공개 문서·canonical·JSON-LD·UTM 초안·공유 PNG·sitemap 및 비공개 앱의 인증 확인. 시각 점검은 로컬 브라우저 접근 제한으로 미수행. 실제 도메인 배포 후 검색 색인과 SNS 외부 미리보기 확인 필요.
 
 - [x] 2026-11-20 관찰 후속 개선 — 체결 검증된 $200만 이상 축소는 일반 반복 억제 예외로 선정. 후속 미검증 증액이 앞선 검증 축소를 가리지 않도록 보존하고 최신 포지션 스냅샷 시각을 표시. 이미 선정된 축소의 재선정 방지.
 - [x] 관찰 운영 상태 — 시작 로그에 종료 예정 시각, 종료 로그에 수집·실패·후보·선정 건수 기록. `/health`에서 `observation_status`로 실행·정상 종료·실패·취소 상태를 구분하고 종료 후 `collecting=false` 반환.
