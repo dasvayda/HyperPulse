@@ -47,6 +47,11 @@ def health() -> dict[str, str | bool]:
     }
 
 
+async def liveness(_):
+    """Infrastructure probe with no application data or service credentials."""
+    return JSONResponse({"status": "ok"})
+
+
 def readiness() -> JSONResponse:
     """Readiness for deploys: DB and fresh collector must be healthy.
 
@@ -86,6 +91,8 @@ def create_app() -> FastAPI:
     application.include_router(v2.router)
     application.include_router(v3.router)
     application.include_router(publications.router)
+    # A plain ASGI route keeps infrastructure probes outside the API's Beta guard.
+    application.add_route("/health/live", liveness, methods=["GET"])
     application.add_api_route("/health", health, methods=["GET"])
     application.add_api_route("/health/ready", readiness, methods=["GET"])
     return application
