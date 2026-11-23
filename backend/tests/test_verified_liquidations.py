@@ -76,6 +76,8 @@ def test_coverage_zero_null_gaps_restart_and_roster(monkeypatch):
     assert service.summary()["long_usd"] == 0
     assert service.summary()["paper_compatible"] is False
     service.coverage_touch(key, end="disconnect")
+    assert service.summary()["long_usd"] is None
+    assert service.summary()["status"] == "unavailable"
     monkeypatch.setattr(service, "utcnow", lambda: now + timedelta(minutes=5))
     assert service.summary()["long_usd"] is None
     service.coverage_start([WALLET])
@@ -89,6 +91,21 @@ def test_ws_user_budget(monkeypatch):
     monkeypatch.setattr(settings, "liquidation_other_ws_users", 10)
     with pytest.raises(ValueError):
         service.watch_addresses()
+
+
+def test_windows_keep_partial_observations_separate_and_link_exact_fill(monkeypatch):
+    now = service.utcnow()
+    monkeypatch.setattr(service, "utcnow", lambda: now)
+    service.coverage_start([WALLET])
+    service.ingest(WALLET, [fill(), fill(time=int((now - timedelta(hours=2)).timestamp() * 1000), tid=124)])
+    result = service.window_summary()
+    assert result["scope"] == "watched_wallets"
+    assert result["windows"]["1h"]["observed_long_usd"] == 200
+    assert result["windows"]["4h"]["observed_long_usd"] == 400
+    assert result["windows"]["24h"]["long_usd"] is None
+    assert result["windows"]["24h"]["status"] == "partial"
+    assert result["recent_events"][0]["tx_hash"] == fill()["hash"]
+    assert "fill" not in result["recent_events"][0]
 
 
 def test_out_of_order_events_and_disabled_feed_do_not_fake_completeness(monkeypatch):

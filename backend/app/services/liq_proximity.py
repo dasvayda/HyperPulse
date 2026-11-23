@@ -89,7 +89,7 @@ def list_liq_proximity(
         if liq_px is None:
             continue
         dist = liq_distance_pct(side=pos.side, mark=mark, liquidation_px=liq_px)
-        if dist is None:
+        if dist is None or (source == "estimate" and dist < 0):
             continue
         alias = traders_by_addr.get(pos.trader_address) or (
             f"{pos.trader_address[:6]}...{pos.trader_address[-4:]}"

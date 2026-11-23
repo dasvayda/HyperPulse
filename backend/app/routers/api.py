@@ -12,6 +12,7 @@ from app.models.schemas import (
     WhaleAlert,
 )
 from app.services.store import store
+from app.config import settings
 
 router = APIRouter(prefix="/api/v1", tags=["v1"])
 
@@ -61,9 +62,9 @@ async def get_trader(address: str) -> TraderDetail:
 def list_liquidation_zones(
     asset: str | None = None,
 ) -> list[LiquidationZone]:
-    if asset:
-        return [z for z in store.liquidation_zones if z.asset.lower() == asset.lower()]
-    return store.liquidation_zones
+    from app.services.liquidation_zones import tracked_liquidation_zones
+    zones = store.liquidation_zones if settings.use_mock_data else tracked_liquidation_zones()
+    return [z for z in zones if z.asset.lower() == asset.lower()] if asset else zones
 
 
 @router.get("/liquidations/events", response_model=list[LiquidationEvent])

@@ -126,6 +126,12 @@ def verified_liquidations(hours: int = Query(default=1, ge=1, le=24)):
     return summary(hours)
 
 
+@router.get("/liquidations/verified/windows")
+def verified_liquidation_windows():
+    from app.services.verified_liquidations import window_summary
+    return window_summary()
+
+
 @router.get("/rankings", response_model=list[SmartMoneyRank])
 def list_rankings(limit: int = Query(default=SMART_MONEY_SIZE, le=100)) -> list[SmartMoneyRank]:
     """Smart Money: top accounts by size, ordered by smart money score."""

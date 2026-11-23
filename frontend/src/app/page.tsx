@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { WatchedLiquidationCard } from "@/components/ui/WatchedLiquidationCard";
 import { SessionBriefCard } from "@/components/ui/SessionBriefCard";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import {
@@ -29,6 +30,7 @@ import {
   getDashboardStats,
   getWhaleAlerts,
   getLiquidationZones,
+  getWatchedLiquidationWindows,
   getRankings,
   getAIInsights,
   getAlertsHistory,
@@ -102,6 +104,7 @@ export default async function HomePage() {
     cohortBias,
     marketPulse,
     paperPortfolio,
+    liquidationSample,
   ] = await Promise.all([
     getDashboardStats(),
     getWhaleAlerts(),
@@ -117,6 +120,7 @@ export default async function HomePage() {
     getCohortBias(),
     getMarketPulse(),
     getPaperPortfolioSummary(),
+    getWatchedLiquidationWindows().catch(() => null),
   ]);
 
   const recentAlerts = alerts.slice(0, 5);
@@ -194,9 +198,6 @@ export default async function HomePage() {
           ? `${top3LongPct.toFixed(0)}% long · ${top3Used.join("/")}`
           : `${top3LongPct.toFixed(0)}% long / ${top3ShortPct.toFixed(0)}% short · ${top3Used.join("/")}`;
 
-  const liq1hLong = market.liq_1h_long_usd ?? 0;
-  const liq1hShort = market.liq_1h_short_usd ?? 0;
-  const liq1hTotal = market.liq_1h_total_usd ?? liq1hLong + liq1hShort;
   const liquidationUnavailable = pipeline.data_source === "live" && pipeline.collectors?.liquidations?.status !== "ok";
 
   return (
@@ -238,15 +239,7 @@ export default async function HomePage() {
             top3Bias === "LONG" ? true : top3Bias === "SHORT" ? false : undefined
           }
         />
-        <StatCard
-          label="1h Liquidations"
-          value={liquidationUnavailable ? "Unavailable" : formatUsd(liq1hTotal)}
-          change={liquidationUnavailable ? "Waiting for a verified liquidation feed" : undefined}
-          details={liquidationUnavailable ? [] : [
-            { label: "Longs", value: formatUsd(liq1hLong), tone: "negative" },
-            { label: "Shorts", value: formatUsd(liq1hShort), tone: "positive" },
-          ]}
-        />
+        <WatchedLiquidationCard sample={liquidationSample} window="1h" />
         <Suspense fallback={<StatCard label="Fear & Greed" value="—" change="Loading CMC data…" />}>
           <FearGreedCard />
         </Suspense>
@@ -300,28 +293,7 @@ export default async function HomePage() {
                 : marketPulse.vol_delta_pct >= 0
             }
           />
-          <StatCard
-            label="24h Liquidations"
-            value={
-              liquidationUnavailable
-                ? "Unavailable"
-                : marketPulse.liq_usd_24h > 0
-                ? formatUsd(marketPulse.liq_usd_24h)
-                : "$0"
-            }
-            change={
-              liquidationUnavailable
-                ? "Waiting for a verified liquidation feed"
-                : marketPulse.liq_delta_pct != null
-                ? `1h vs avg hour ${formatPct(marketPulse.liq_delta_pct)}`
-                : market.liq_24h_pressure || "sampled liq quiet"
-            }
-            positive={
-              marketPulse.liq_delta_pct == null
-                ? undefined
-                : marketPulse.liq_delta_pct <= 0
-            }
-          />
+          <WatchedLiquidationCard sample={liquidationSample} window="24h" />
         </div>
       </div>
 
@@ -823,7 +795,7 @@ export default async function HomePage() {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-text-primary">
-              Liquidation Zones
+              Tracked Liquidation Zones
             </h2>
             <Link
               href="/liquidations"
@@ -852,10 +824,8 @@ export default async function HomePage() {
                     <AssetIcon asset={zone.asset} />
                   </DataTableCell>
                   <DataTableCell>
-                    <TrendValue
-                      value={`$${zone.price.toLocaleString()}`}
-                      pct={zone.distance_pct}
-                    />
+                    <TrendValue value={formatPrice(zone.price, zone.asset)} pct={zone.distance_pct} />
+                    <span className="text-[10px] text-text-dim">{zone.source === "liquidationPx" ? "Hyperliquid liq price" : "Estimate · entry/leverage"}</span>
                   </DataTableCell>
                   <DataTableCell>
                     <Badge variant={zone.side}>

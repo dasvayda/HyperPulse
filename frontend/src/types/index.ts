@@ -119,6 +119,10 @@ export interface LiquidationZone {
   distance_pct: number;
   open_interest_pct: number;
   sparkline: number[];
+  source?: string;
+  positions?: number;
+  wallets?: number;
+  observed_at?: string | null;
 }
 
 export interface LiquidationEvent {

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WatchedLiquidationCard } from "@/components/ui/WatchedLiquidationCard";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import {
   DataTable,
@@ -9,8 +10,6 @@ import {
   DataTableRow,
   PageHeader,
   AssetIcon,
-  TrendValue,
-  StatCard,
 } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { SparkBarBackground } from "@/components/ui/SparkBar";
@@ -18,9 +17,8 @@ import {
   getLiquidationZones,
   getLiquidationEvents,
   getPipelineStatus,
-  getMarketStatus,
   getLiqProximity,
-  getVerifiedLiquidations,
+  getWatchedLiquidationWindows,
   formatUsd,
   formatPrice,
   formatTimeAgo,
@@ -30,39 +28,17 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function LiquidationsPage() {
-  const [zones, events, pipeline, market, proximity, verified] = await Promise.all([
+  const [zones, legacyEvents, pipeline, proximity, verified] = await Promise.all([
     getLiquidationZones(),
     getLiquidationEvents(),
     getPipelineStatus(),
-    getMarketStatus(),
     getLiqProximity(8),
-    getVerifiedLiquidations().catch(() => null),
+    getWatchedLiquidationWindows().catch(() => null),
   ]);
 
-  const strip = [
-    {
-      label: "1h liquidations",
-      total: market.liq_1h_total_usd ?? 0,
-      long: market.liq_1h_long_usd ?? 0,
-      short: market.liq_1h_short_usd ?? 0,
-      pressure: market.liq_1h_pressure || "sampled liq quiet",
-    },
-    {
-      label: "4h liquidations",
-      total: market.liq_4h_total_usd ?? 0,
-      long: market.liq_4h_long_usd ?? 0,
-      short: market.liq_4h_short_usd ?? 0,
-      pressure: market.liq_4h_pressure || "sampled liq quiet",
-    },
-    {
-      label: "24h liquidations",
-      total: market.liq_24h_total_usd ?? 0,
-      long: market.liq_24h_long_usd ?? 0,
-      short: market.liq_24h_short_usd ?? 0,
-      pressure: market.liq_24h_pressure || "sampled liq quiet",
-    },
-  ];
-  const liquidationUnavailable = pipeline.collectors?.liquidations?.status !== "ok" && pipeline.data_source === "live";
+  const events = pipeline.data_source === "mock" ? legacyEvents.map(event => ({ ...event, wallet: null })) : (verified?.recent_events ?? []).map(event => ({
+    ...event, timestamp: event.event_at,
+  }));
 
   return (
     <DashboardLayout>
@@ -76,49 +52,25 @@ export default async function LiquidationsPage() {
         }
       />
 
-      <section className="mb-5 rounded-xl border border-border bg-bg-surface p-4 text-sm text-text-muted">
-        <h2 className="text-text-primary">Watched wallet liquidations · 1h</h2>
-        <p>{verified?.wallets.length ?? 0} watched wallets · {verified?.status ?? "unavailable"} · {verified?.gap !== false ? "Coverage incomplete" : "Window observed"}</p>
-        <p>Longs: {verified?.long_usd == null ? "Unavailable" : formatUsd(verified.long_usd)} · Shorts: {verified?.short_usd == null ? "Unavailable" : formatUsd(verified.short_usd)}</p>
-        <p>This wallet sample does not measure market-wide liquidations. Missing coverage is not zero activity.</p>
-        {verified?.recent_events.length ? <details className="mt-3">
-          <summary className="cursor-pointer text-text-primary">Verified fills observed in this window</summary>
-          <div className="mt-3 space-y-2">{verified.recent_events.slice(0, 5).map(event => <p key={event.id}>
-            <Link className="text-accent break-all" href={`/traders/${event.wallet}`}>{event.wallet}</Link><br />
-            {event.asset} · {event.side} liquidated · {formatUsd(event.size_usd)} at {formatPrice(event.price, event.asset)} · {event.event_at}
-          </p>)}</div>
-        </details> : null}
+      <section id="watched-liquidations" className="mb-5 scroll-mt-6 rounded-xl border border-border bg-bg-surface p-4 text-sm text-text-muted">
+        <h2 className="text-text-primary">Watched wallet liquidations</h2>
+        <p>{verified?.wallets.length ?? 0} fixed wallets · actual liquidation fills from Hyperliquid.</p>
+        <p>This sample does not measure market-wide liquidations. Partial windows show only observed fills; missing coverage is not zero activity.</p>
+        <p>Coverage restarts after a disconnect or roster change. A full 24h window needs 24 uninterrupted hours.</p>
       </section>
 
       <details className="mb-5 rounded-xl border border-border bg-bg-surface p-4 text-sm text-text-muted">
         <summary className="cursor-pointer text-text-primary">Where these risk levels come from</summary>
         <div className="mt-3 space-y-2">
           <p>Closest Tracked Whales uses each wallet&apos;s open positions. Actual liquidation prices come from Hyperliquid account state; rows marked estimate use a model. Distance compares that price with the market mark.</p>
-          <p>LIQ WATCH and DANGER alerts use actual liquidation prices only. Open a trader to check their positions. Liquidation Zones are modeled risk levels, not confirmed resting orders or executed liquidations.</p>
-          <p>Verified liquidation totals and recent liquidation trades are currently unavailable. Public recent trades alone do not identify liquidations.</p>
+          <p>LIQ WATCH and DANGER alerts use actual liquidation prices only. Open a trader to check their positions. Zones group qualifying tracked positions into 1% price bands within 50% of the mark. Each band separates Hyperliquid liquidation prices from estimates; the displayed price is weighted by position size. They are risk levels, not executed liquidations.</p>
+          <p>Estimates use position entry and leverage; cross-margin collateral and other positions can change the actual liquidation price. Stale observations and estimates already behind the mark are excluded. LIQ WATCH alerts never use these estimates.</p>
         </div>
       </details>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        {strip.map((row) => (
-          <StatCard
-            key={row.label}
-            label={row.label}
-            value={liquidationUnavailable ? "Unavailable" : formatUsd(row.total)}
-            change={liquidationUnavailable ? "Waiting for a verified liquidation feed" : row.pressure}
-            details={liquidationUnavailable ? [] : [
-              {
-                label: "Longs",
-                value: formatUsd(row.long),
-                tone: "negative",
-              },
-              {
-                label: "Shorts",
-                value: formatUsd(row.short),
-                tone: "positive",
-              },
-            ]}
-          />
+        {(["1h", "4h", "24h"] as const).map(window => (
+          <WatchedLiquidationCard key={window} sample={verified} window={window} />
         ))}
       </div>
 
@@ -216,17 +168,18 @@ export default async function LiquidationsPage() {
       </div>
 
       <h2 className="text-base font-semibold text-text-primary mb-4">
-        Liquidation Zones
+        Tracked Liquidation Zones
       </h2>
+      <p className="mb-4 text-xs text-text-muted">Zones use all qualifying tracked positions. The liquidation fill feed above watches only its fixed wallet sample.</p>
       <DataTable className="mb-10">
         <DataTableHead>
           <DataTableHeaderCell>Asset</DataTableHeaderCell>
           <DataTableHeaderCell>Price Level</DataTableHeaderCell>
           <DataTableHeaderCell>Distance</DataTableHeaderCell>
           <DataTableHeaderCell>Side</DataTableHeaderCell>
-          <DataTableHeaderCell>Liquidation Size</DataTableHeaderCell>
+          <DataTableHeaderCell>Position Size at Risk</DataTableHeaderCell>
           <DataTableHeaderCell>OI Share</DataTableHeaderCell>
-          <DataTableHeaderCell>Density</DataTableHeaderCell>
+          <DataTableHeaderCell>Sample</DataTableHeaderCell>
         </DataTableHead>
         <DataTableBody>
           {zones.length === 0 ? <DataTableRow>
@@ -241,6 +194,8 @@ export default async function LiquidationsPage() {
               </DataTableCell>
               <DataTableCell className="font-medium">
                 {formatPrice(zone.price, zone.asset)}
+                <span className="block text-[11px] text-text-dim">{zone.source === "liquidationPx" ? "Hyperliquid liq price" : "Estimate · entry/leverage"}</span>
+                {zone.observed_at ? <span className="block text-[11px] text-text-dim">Updated {formatTimeAgo(zone.observed_at)}</span> : null}
               </DataTableCell>
               <DataTableCell>
                 <span
@@ -273,15 +228,7 @@ export default async function LiquidationsPage() {
                 {zone.open_interest_pct}%
               </DataTableCell>
               <DataTableCell>
-                <TrendValue
-                  value={
-                    zone.size_usd > 200_000_000
-                      ? "High"
-                      : zone.size_usd > 100_000_000
-                        ? "Medium"
-                        : "Low"
-                  }
-                />
+                <span className="text-xs text-text-muted">{zone.positions ?? 0} positions · {zone.wallets ?? 0} wallets</span>
               </DataTableCell>
             </DataTableRow>
           ))}
@@ -289,11 +236,12 @@ export default async function LiquidationsPage() {
       </DataTable>
 
       <h2 className="text-base font-semibold text-text-primary mb-4">
-        Recent Liquidation Events
+        Recent Watched Liquidations · 24h
       </h2>
       <DataTable>
         <DataTableHead>
           <DataTableHeaderCell>Asset</DataTableHeaderCell>
+          <DataTableHeaderCell>Wallet</DataTableHeaderCell>
           <DataTableHeaderCell>Side</DataTableHeaderCell>
           <DataTableHeaderCell>Size</DataTableHeaderCell>
           <DataTableHeaderCell>Price</DataTableHeaderCell>
@@ -302,14 +250,17 @@ export default async function LiquidationsPage() {
         </DataTableHead>
         <DataTableBody>
           {events.length === 0 ? <DataTableRow>
-            <td colSpan={6} className="px-4 py-5 text-sm text-text-muted">
-              {liquidationUnavailable ? "Verified liquidation events are unavailable. Coverage is incomplete." : "No liquidation events recorded in this sample."}
+            <td colSpan={7} className="px-4 py-5 text-sm text-text-muted">
+              {!verified || verified.windows["24h"].status === "unavailable" ? "Liquidation feed is offline or not ready. Missing data is not zero activity." : "No verified liquidations observed in these wallets. Partial coverage may miss events."}
             </td>
           </DataTableRow> : null}
           {events.map((event) => (
             <DataTableRow key={event.id}>
               <DataTableCell>
                 <AssetIcon asset={event.asset} />
+              </DataTableCell>
+              <DataTableCell>
+                {event.wallet ? <Link href={`/traders/${event.wallet}`} className="font-mono text-xs text-accent hover:underline" title={event.wallet}>{event.wallet.slice(0, 6)}…{event.wallet.slice(-4)}</Link> : "—"}
               </DataTableCell>
               <DataTableCell>
                 <Badge variant={event.side}>

@@ -135,12 +135,12 @@ def summary(hours: int = 1) -> dict:
             start, end = aware(row.started_at), aware(row.last_seen_at)
             if start <= cursor:
                 cursor = max(cursor, end)
-        complete = bool(roster) and cursor >= now - timedelta(seconds=30)
         rows = db.query(VerifiedLiquidationRow).filter(VerifiedLiquidationRow.event_at >= cutoff, VerifiedLiquidationRow.event_at <= now).all()
         rows = [r for r in rows if r.wallet in roster]
         observed_long = sum(r.size_usd for r in rows if r.side == "long")
         observed_short = sum(r.size_usd for r in rows if r.side == "short")
         active = any(r.ended_at is None and aware(r.last_seen_at) >= now - timedelta(seconds=30) and json.loads(r.roster_json) == roster for r in intervals)
+        complete = bool(roster) and active and cursor >= now - timedelta(seconds=30)
         return {"source": "hyperliquid.userFills", "scope": "watched_wallets", "status": "ok" if complete else "partial" if active else "unavailable",
                 "wallets": roster, "window_hours": hours, "as_of": now.isoformat(), "gap": not complete,
                 "long_usd": observed_long if complete else None, "short_usd": observed_short if complete else None,
@@ -149,7 +149,25 @@ def summary(hours: int = 1) -> dict:
                 "recent_events": [{"id": r.id, "wallet": r.wallet, "asset": r.asset, "side": r.side,
                                    "price": r.price, "size_usd": r.size_usd, "event_at": aware(r.event_at).isoformat(),
                                    "received_at": aware(r.received_at).isoformat(),
-                                   "source": "hyperliquid.userFills", "fill": json.loads(r.raw_json)["fill"]}
+                                   "source": "hyperliquid.userFills", "tx_hash": json.loads(r.raw_json)["fill"]["hash"],
+                                   "fill": json.loads(r.raw_json)["fill"]}
                                   for r in sorted(rows, key=lambda r: r.event_at, reverse=True)[:50]],
                 "intervals": [{"started_at": aware(r.started_at).isoformat(), "last_seen_at": aware(r.last_seen_at).isoformat(),
                                "ended_at": aware(r.ended_at).isoformat() if r.ended_at else None, "reason": r.reason} for r in intervals]}
+
+
+def window_summary() -> dict:
+    windows = {}
+    recent = []
+    wallets = []
+    for hours in (1, 4, 24):
+        result = summary(hours)
+        wallets = result["wallets"]
+        windows[f"{hours}h"] = {key: result[key] for key in (
+            "status", "gap", "long_usd", "short_usd", "observed_long_usd", "observed_short_usd", "events",
+        )}
+        if hours == 24:
+            recent = [{key: value for key, value in event.items() if key != "fill"}
+                      for event in result["recent_events"]]
+    return {"scope": "watched_wallets", "source": "hyperliquid.userFills", "wallets": wallets,
+            "as_of": utcnow().isoformat(), "windows": windows, "recent_events": recent}

@@ -168,6 +168,11 @@ class LiquidationZone(BaseModel):
     distance_pct: float
     open_interest_pct: float
     sparkline: list[float]
+    source: str = "model"
+    positions: int = 0
+    wallets: int = 0
+    observed_at: datetime | None = None
+    scope: str = "tracked_wallets"
 
 
 class LiquidationEvent(BaseModel):

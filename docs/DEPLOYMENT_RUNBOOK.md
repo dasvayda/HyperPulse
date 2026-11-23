@@ -334,3 +334,17 @@ This is defence in depth, not permission to log request bodies, settings, `.env`
 or provider responses. A separate audit of host log exporters, retention, and
 public error pages is still required. If a secret is exposed, restrict the log,
 rotate the affected credential, and record the incident without copying it.
+
+
+## Free liquidation wallet sample (2026-11-24)
+
+운영자 결정: 유료 시장 전체 공급원 없이 무료 Hyperliquid 지갑 표본으로 운영한다.
+
+- Railway HyperPulse: `VERIFIED_LIQUIDATIONS_ENABLED=true`, `LIQUIDATION_OTHER_WS_USERS=0`, `LIQUIDATION_WATCH_ADDRESSES`에 고정 10개 주소. 배포 당시 추적 지갑의 account value 상위 10개를 선정하며 순위가 바뀌어도 자동 회전하지 않는다. 동일 IP의 다른 프로세스가 user-specific WS를 사용하면 총 10개 한도를 함께 고려해야 한다.
+- `userFills` WebSocket만 구독한다. 주기적인 `userFillsByTime` 전체 지갑 조회는 하지 않는다. 초기 snapshot 수신 완료 후 coverage를 시작하고 heartbeat/연결 종료/프로세스 재시작을 DB에 기록한다.
+- `GET /api/v2/liquidations/verified/windows`: 1h/4h/24h. `scope=watched_wallets`; `status=partial`이면 `observed_*`만 표본 관측액이다. 완전 관측 전에는 `long_usd/short_usd=null`이며, 연결이 살아 있고 해당 창을 연속 관측해야 `status=ok`가 된다. 끊긴 동안의 미관측을 0으로 채우지 않는다.
+- 실제 청산 marker, 청산 대상 지갑, 포지션 방향, 가격·수량·시각·원본 hash를 검증한 체결만 집계한다. 재전송은 중복 저장하지 않고 불명확한 marker는 격리한다. Recent Watched Liquidations는 24h 내 최근 최대 50건과 원본 거래 링크를 제공한다.
+- `GET /api/v1/liquidations/zones`: fresh 지갑/mark, 기존 alert 크기 하한 이상 포지션, 현재가에서 0–50% 거리만 집계한다. 1% 거리별로 묶되 asset/side/실제·추정 source를 분리한다. 가격은 포지션 금액 가중 평균이다. 지갑·시세 freshness는 `max(180초, collector_interval_seconds × 3)`이며 가짜 시계열을 생성하지 않는다.
+- `source=liquidationPx`는 Hyperliquid 계정 상태의 실제 청산가, `source=estimate`는 entry/leverage 모델이다. cross margin 담보·다른 포지션을 반영한 보장 가격이 아니며, 이미 현재가를 지나간 추정치는 제외한다. Zones의 지갑 범위는 전체 추적 포지션, 실제 체결 관측은 고정 10개 지갑으로 서로 다르다.
+- 시장 전체 `liquidations` collector는 여전히 unavailable이므로 readiness degraded 및 Paper Portfolio 중지는 유지한다. 표본 스트림은 별도 `watched_liquidations` collector로 확인한다. Telegram 활성화와 독립적이다.
+- 검증: backend `253 passed / 1 skipped`, frontend `15 passed`, Next.js production build·타입 검사 통과. 실제 청산 발생 자체는 강제로 생성하지 않는다.

@@ -75,6 +75,10 @@ export function getVerifiedLiquidations(): Promise<{
   return fetchApi("/api/v2/liquidations/verified", { cache: "no-store", next: { revalidate: 0 } });
 }
 
+export function getWatchedLiquidationWindows(): Promise<import("./liquidation-sample").WatchedLiquidations> {
+  return fetchApi("/api/v2/liquidations/verified/windows", { cache: "no-store", next: { revalidate: 0 } });
+}
+
 export function getWhaleAlerts(params?: {
   asset?: string;
   alert_type?: string;
