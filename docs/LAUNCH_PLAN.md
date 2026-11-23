@@ -2,7 +2,7 @@
 
 | | |
 |--|--|
-| 갱신 | 2026-11-22 (공개 브리프 발행·검색 노출·SNS 초안 운영 추가) |
+| 갱신 | 2026-11-24 (Railway 통합 Beta 배포 및 검증) |
 | 현재 판단 | 핵심 제품 MVP 완료 · Closed Beta 조건부 가능 · 공개 런칭 준비 미완료 |
 | 기능 백로그 | [PRODUCT_BACKLOG.md](./PRODUCT_BACKLOG.md) |
 
@@ -28,7 +28,7 @@
 - 백엔드 단위·API 계약 통합 테스트: 2026-10-29 기준 `177 passed, 1 skipped` (외부 live 조회 opt-in)
 - 인증/사용자 계정: 없음
 - 사용자별 Telegram 구독: 없음
-- 기본 출시 경로: Vercel Next.js + 상시 실행 FastAPI 1개 + 영속 PostgreSQL. Docker Compose는 선택 경로이며 Redis는 Beta 필수가 아니다.
+- 기본 출시 경로: Railway 한 프로젝트에서 Next.js + 상시 실행 FastAPI 1개 + 영속 PostgreSQL. Redis는 Beta 필수가 아니다.
 - 모니터링/알림/백업: 운영 수준 보완 필요
 
 제품의 핵심 가치는 검증 가능한 상태다. 상위 고래 포지션, 최근 흐름, 시장 trend, funding과 실제 `liquidationPx`를 짧은 판단과 Telegram 알림으로 묶는 구성은 Hyperliquid 재량 트레이더에게 명확한 사용 이유가 있다.
@@ -79,14 +79,16 @@
 
 #### 배포
 
-**배포 결정 (2026-11-12):** Vercel에는 `frontend/`만 배포한다. 현재 FastAPI는
-프로세스 시작 시 수집·랭킹·알림 루프를 띄우고, 검증된 청산 수집은 장시간
-WebSocket을 사용한다. 요청 단위 실행에 시간 제한이 있는
-[Vercel Functions](https://vercel.com/docs/functions/configuring-functions/duration)에
-이 프로세스를 그대로 올리지 않는다. 별도 소형 상시 실행 호스트에서 API와
-수집기를 단일 프로세스로 운영한다. 호스트와 PostgreSQL 공급자는 아직 미선정이다.
+**배포 결정 (2026-11-24):** 관리처와 초기 변경량을 줄이기 위해 Railway
+Itaewon 워크스페이스의 `practical-success` 프로젝트에 Frontend(`/frontend`),
+HyperPulse API(`/backend`), Postgres 세 서비스를 배포한다. API와 수집기는
+한 프로세스·한 worker로 운영하고 메모리 캐시를 사용한다. PostgreSQL은 영속
+볼륨을 사용한다. Vercel 통합 운영도 Services·Daemons와 상태 공유 구조 변경으로
+가능하지만 현재 운영 대상은 Railway다. 상세 주소·설정은
+[DEPLOYMENT_RUNBOOK.md](./DEPLOYMENT_RUNBOOK.md#railway-deployment-2026-11-24-kst)에 기록한다.
 
-- [ ] Vercel `frontend/` 프로젝트와 상시 실행 백엔드의 Preview/Beta 연결·롤백 실증
+- [x] Railway production에서 프론트·백엔드·DB 연결, HTTPS, 베타 인증 및 주요 페이지 HTTP 점검
+- [ ] Railway Preview 격리·실제 rollback·백업 복구 실증
 - [x] `CACHE_BACKEND=memory`로 Redis 연결 차단, 정상 메모리 캐시와 Redis 장애 fallback을 readiness·운영 CLI에서 구분 (2026-11-13; 실제 Beta 호스트 검증은 잔여)
 - 단일 worker의 메모리 TTL 캐시로 시작한다. 캐시는 재시작 시 소실되어도 되지만 DB의 알림 이력·판단 근거·원장은 보존한다. 재시작 후 부하와 외부 API 호출을 측정하고, 공유 캐시가 실제로 필요해질 때만 Redis를 검토한다. 다중 worker 전환은 수집/발송 중복 방지 검증이 별도로 필요하다.
 - Docker는 로컬 재현과 선택 배포용으로 유지한다. 초기 서버는 Python 가상환경과 호스트 서비스 관리자로 운영할 수 있다.
@@ -102,7 +104,7 @@ WebSocket을 사용한다. 요청 단위 실행에 시간 제한이 있는
 
 #### 데이터와 운영
 
-- [ ] PostgreSQL을 production 기본 DB로 확정
+- [x] PostgreSQL을 production 기본 DB로 확정하고 Railway 영속 볼륨으로 배포
 - [ ] Alembic 등 정식 schema migration 도입
 - [ ] DB 백업 및 복구 테스트
 - [x] Redis 장애 시 동작과 재시작 후 복구 범위 명시 (2026-10-09: TTL 유지·60초 재연결·Redis 복귀 시 메모리 폐기·재시작 시 캐시 소실; runbook 및 장애/복귀 테스트)

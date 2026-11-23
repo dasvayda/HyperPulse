@@ -1,7 +1,42 @@
 # HyperPulse Deployment Runbook
 
-The default Beta route is **Vercel Next.js + one always-on FastAPI process +
-persistent PostgreSQL**. Docker Compose remains an optional alternative.
+The current Beta deployment uses **Railway Next.js + one always-on FastAPI process +
+persistent PostgreSQL** in the Itaewon workspace. Docker Compose and a split
+Vercel frontend remain alternative deployment paths.
+
+## Railway deployment (2026-11-24 KST)
+
+- Project `practical-success`, production environment, repository `dasvayda/HyperPulse`, branch `main`.
+- `Frontend` builds from `/frontend` with its Dockerfile, Node 24, port 3000,
+  and `node server.js`. Health check uses the public `/briefs/methodology` page.
+- `HyperPulse` builds from `/backend`, runs one Uvicorn worker on port 8000,
+  has sleeping disabled and zero deployment overlap, and probes `/health/live`.
+  This public endpoint exposes only process liveness. `/health`, readiness,
+  data APIs and operator APIs retain their respective access controls.
+- `Postgres` uses the Railway PostgreSQL template and a persistent volume.
+  Backend `DATABASE_URL` references `${{Postgres.DATABASE_URL}}` on the private network.
+  This is a new cloud database. Existing local SQLite history was not imported.
+- Frontend URL `https://frontend-production-bbc292b8.up.railway.app`;
+  backend URL `https://hyperpulse-production.up.railway.app`.
+  Frontend `API_URL` points to the backend. Both services use the frontend URL
+  for `PUBLIC_APP_URL`, and backend CORS uses that exact HTTPS origin.
+- Beta login username is `beta`. The generated password is stored in
+  `Frontend` → Variables → `BETA_ACCESS_PASSWORD`. Service/evidence tokens are
+  shared only between the two application services. Operator access uses a
+  separate backend token. Credentials are not stored in this repository.
+- Initial settings use `CACHE_BACKEND=memory`, `AI_PROVIDER=heuristic`,
+  `ALERTS_ENABLED=false`, and `BETA_METRICS_ENABLED=false`. OpenAI credentials
+  require the owner's approval before copying them from local settings.
+  Configure Telegram credentials and approve live sends before enabling delivery.
+- Market, trader and whale collection are enabled with 100 tracked wallets.
+  `/health/ready` reports degraded while the existing verified liquidation
+  feed remains unavailable. Check the individual collector states and do not
+  infer full readiness from Railway's process liveness check.
+- HTTP smoke covers anonymous rejection on the private app/API, authenticated
+  Home, Insights, Whale Alerts, Alerts, public briefs, sitemap and the web API
+  proxy. DB readiness is checked through `/health/ready`. Backups, a restore
+  drill, custom domain, external alert delivery and long-duration cloud
+  observation remain follow-up operations.
 
 ## Default route — Vercel and a native Python service
 

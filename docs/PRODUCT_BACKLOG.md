@@ -25,6 +25,9 @@
 
 ### Shipped (유지보수만)
 
+- [x] 2026-11-24 Railway 통합 Beta 배포 — Itaewon / practical-success에 Frontend, HyperPulse API, 영속 Postgres 구성. 루트 디렉터리·서버 간 인증·HTTPS·메모리 캐시·단일 수집 worker·생존 점검 적용. 주요 페이지 HTTP 200과 비공개 경로의 익명 401 확인. 기존 청산 feed 부재로 readiness는 degraded. 초기 AI는 heuristic, Telegram 발송 비활성. [배포 운영 기록](./DEPLOYMENT_RUNBOOK.md#railway-deployment-2026-11-24-kst)
+- [x] 배포 보안 점검 — Node 24 이미지, Next.js 15 수정판·PostCSS override 적용 후 npm audit 0건. 백엔드 249 passed / 1 skipped, 프론트 12 passed. 유료 AI 키 복사는 운영자 승인 후 적용.
+
 - [x] 2026-11-22 공개 콘텐츠 발행 — 기존 Asia·US 세션 발행본을 `/briefs/YYYY-MM-DD-asia` 또는 `-us`의 고정 웹문서로 제공. 공개 목록·분석 방법·관측 시각·출처·표본 범위·이전 세션 비교 포함. 중복·동시 발행 시 원문 유지, 빈 분석 신규 발행 차단.
 - [x] 검색·SNS 배포 기반 — 문서별 title/description/canonical, Article JSON-LD, Open Graph·X 미리보기와 이미지, robots·sitemap, UTM 링크가 포함된 X 게시 초안 복사. 웹 발행은 Telegram 발송과 독립. SNS 계정 자동 게시 연동은 후속 과제.
 - [x] 정정·후속 기록 — 운영 토큰으로 날짜가 붙는 메모를 추가하고 원문을 보존. 같은 메모 재시도 중복 방지. 공개 문서는 Beta 로그인 제외, 백엔드 Beta 토큰과 기존 앱 접근 제어는 유지. 배포 설정과 운영 API는 [LAUNCH_PLAN.md](./LAUNCH_PLAN.md#공개-브리프-발행-운영) 참고.
