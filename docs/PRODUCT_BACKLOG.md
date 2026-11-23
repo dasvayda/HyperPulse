@@ -23,6 +23,12 @@
 
 ## 0. 진행 현황 (한눈에)
 
+### 배포 후 확인된 청산 데이터 보완
+
+- [x] Home의 1h 청산 집계·코인별 청산 열에서 미수집 데이터를 `$0` 또는 Quiet로 표시하던 문제 수정. Zones·Recent Events 빈 표에 사용 불가 안내와 지갑별 위험 조회 경로 추가.
+- [ ] 시장 전체 1h/4h/24h 검증 청산 집계 공급원 연결. 현재 일반 recentTrades를 청산으로 간주하지 않으며, 별도 지갑 관측 기능은 시장 전체 집계와 구분한다.
+- [ ] 실거래 포지션 기반 Liquidation Zones 생성과 범위·모델 검증. 현재 live 모드에서는 seed 영역을 생성하지 않아 빈 배열이며, 기존 영역의 시세 갱신만 구현돼 있다.
+
 ### Shipped (유지보수만)
 
 - [x] 2026-11-24 Railway 통합 Beta 배포 — Itaewon / practical-success에 Frontend, HyperPulse API, 영속 Postgres 구성. 루트 디렉터리·서버 간 인증·HTTPS·메모리 캐시·단일 수집 worker·생존 점검 적용. 주요 페이지 HTTP 200과 비공개 경로의 익명 401 확인. 기존 청산 feed 부재로 readiness는 degraded. 초기 AI는 heuristic, Telegram 발송 비활성. [배포 운영 기록](./DEPLOYMENT_RUNBOOK.md#railway-deployment-2026-11-24-kst)

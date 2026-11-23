@@ -122,7 +122,7 @@ export default async function LiquidationsPage() {
         ))}
       </div>
 
-      <div className="mb-10">
+      <div id="tracked-whale-risk" className="mb-10 scroll-mt-6">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-base font-semibold text-text-primary">
@@ -229,6 +229,11 @@ export default async function LiquidationsPage() {
           <DataTableHeaderCell>Density</DataTableHeaderCell>
         </DataTableHead>
         <DataTableBody>
+          {zones.length === 0 ? <DataTableRow>
+            <td colSpan={7} className="px-4 py-5 text-sm text-text-muted">
+              Liquidation zone data is unavailable. Check Closest Tracked Whales above for position-level risk.
+            </td>
+          </DataTableRow> : null}
           {zones.map((zone) => (
             <DataTableRow key={zone.id}>
               <DataTableCell>
@@ -296,6 +301,11 @@ export default async function LiquidationsPage() {
           <DataTableHeaderCell>Tx</DataTableHeaderCell>
         </DataTableHead>
         <DataTableBody>
+          {events.length === 0 ? <DataTableRow>
+            <td colSpan={6} className="px-4 py-5 text-sm text-text-muted">
+              {liquidationUnavailable ? "Verified liquidation events are unavailable. Coverage is incomplete." : "No liquidation events recorded in this sample."}
+            </td>
+          </DataTableRow> : null}
           {events.map((event) => (
             <DataTableRow key={event.id}>
               <DataTableCell>

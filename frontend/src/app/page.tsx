@@ -197,6 +197,7 @@ export default async function HomePage() {
   const liq1hLong = market.liq_1h_long_usd ?? 0;
   const liq1hShort = market.liq_1h_short_usd ?? 0;
   const liq1hTotal = market.liq_1h_total_usd ?? liq1hLong + liq1hShort;
+  const liquidationUnavailable = pipeline.data_source === "live" && pipeline.collectors?.liquidations?.status !== "ok";
 
   return (
     <DashboardLayout>
@@ -239,8 +240,9 @@ export default async function HomePage() {
         />
         <StatCard
           label="1h Liquidations"
-          value={liq1hTotal > 0 ? formatUsd(liq1hTotal) : "$0"}
-          details={[
+          value={liquidationUnavailable ? "Unavailable" : formatUsd(liq1hTotal)}
+          change={liquidationUnavailable ? "Waiting for a verified liquidation feed" : undefined}
+          details={liquidationUnavailable ? [] : [
             { label: "Longs", value: formatUsd(liq1hLong), tone: "negative" },
             { label: "Shorts", value: formatUsd(liq1hShort), tone: "positive" },
           ]}
@@ -301,14 +303,14 @@ export default async function HomePage() {
           <StatCard
             label="24h Liquidations"
             value={
-              pipeline.data_source === "live" && pipeline.collectors?.liquidations?.status !== "ok"
+              liquidationUnavailable
                 ? "Unavailable"
                 : marketPulse.liq_usd_24h > 0
                 ? formatUsd(marketPulse.liq_usd_24h)
                 : "$0"
             }
             change={
-              pipeline.data_source === "live" && pipeline.collectors?.liquidations?.status !== "ok"
+              liquidationUnavailable
                 ? "Waiting for a verified liquidation feed"
                 : marketPulse.liq_delta_pct != null
                 ? `1h vs avg hour ${formatPct(marketPulse.liq_delta_pct)}`
@@ -495,12 +497,16 @@ export default async function HomePage() {
                     <div
                       className="flex flex-col gap-1 w-[108px]"
                       title={
-                        liqTotal > 0
+                        liquidationUnavailable
+                          ? "Verified liquidation data unavailable"
+                          : liqTotal > 0
                           ? `24h liq · long ${formatUsd(liqLong)} (${liqLongPct.toFixed(0)}%) / short ${formatUsd(liqShort)} (${liqShortPct.toFixed(0)}%)`
                           : "No liquidations in the last 24h"
                       }
                     >
-                      {liqTotal > 0 ? (
+                      {liquidationUnavailable ? (
+                        <span className="text-[11px] text-text-dim">Unavailable</span>
+                      ) : liqTotal > 0 ? (
                         <>
                           <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-bg-elevated">
                             <div
@@ -834,6 +840,12 @@ export default async function HomePage() {
               <DataTableHeaderCell>Size</DataTableHeaderCell>
             </DataTableHead>
             <DataTableBody>
+              {topZones.length === 0 ? <DataTableRow>
+                <td colSpan={4} className="px-4 py-5 text-sm text-text-muted">
+                  Liquidation zone data is unavailable.
+                  <Link href="/liquidations#tracked-whale-risk" className="mt-2 block text-accent hover:underline">Check tracked whales near liquidation →</Link>
+                </td>
+              </DataTableRow> : null}
               {topZones.map((zone) => (
                 <DataTableRow key={zone.id}>
                   <DataTableCell>

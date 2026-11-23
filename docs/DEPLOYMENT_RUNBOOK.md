@@ -24,9 +24,10 @@ Vercel frontend remain alternative deployment paths.
   `Frontend` → Variables → `BETA_ACCESS_PASSWORD`. Service/evidence tokens are
   shared only between the two application services. Operator access uses a
   separate backend token. Credentials are not stored in this repository.
-- Initial settings use `CACHE_BACKEND=memory`, `AI_PROVIDER=heuristic`,
-  `ALERTS_ENABLED=false`, and `BETA_METRICS_ENABLED=false`. OpenAI credentials
-  require the owner's approval before copying them from local settings.
+- Initial settings used `AI_PROVIDER=heuristic`. On 2026-11-24 KST the owner
+  approved copying the OpenAI settings to the backend; `AI_PROVIDER=openai`
+  was deployed and a fresh `source=llm` brief was verified. Current settings
+  use `CACHE_BACKEND=memory`, `ALERTS_ENABLED=false`, and `BETA_METRICS_ENABLED=false`.
   Configure Telegram credentials and approve live sends before enabling delivery.
 - Market, trader and whale collection are enabled with 100 tracked wallets.
   `/health/ready` reports degraded while the existing verified liquidation
