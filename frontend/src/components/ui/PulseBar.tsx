@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { PulseDirection, PulseSnapshot } from "@/types";
 
 function horizonLabel(sec: number): string {
@@ -62,36 +63,11 @@ export function PulseBar({ pulse, compact = false }: PulseBarProps) {
       {!compact && pulse.warming_up ? (
         <p className="text-[11px] text-text-dim">Warming up: not enough resolved signals to assess results yet.</p>
       ) : null}
-      <div className="flex gap-0.5">
-        {pulse.ticks
-          .slice()
-          .reverse()
-          .map((tick, idx) => {
-            const color =
-              tick.direction === "up"
-                ? "border-positive"
-                : tick.direction === "down"
-                  ? "border-negative"
-                  : "border-text-dim";
-            const fill =
-              tick.hit === true
-                ? tick.direction === "up"
-                  ? "bg-positive"
-                  : tick.direction === "down"
-                    ? "bg-negative"
-                    : "bg-text-dim"
-                : tick.hit === false
-                  ? "bg-transparent opacity-40"
-                  : "bg-transparent";
-            return (
-              <span
-                key={`${tick.created_at}-${idx}`}
-                className={`h-2 w-2 rounded-[2px] border ${color} ${fill}`}
-                title={`${tick.direction}${tick.hit == null ? " (open)" : tick.hit ? " hit" : " miss"}`}
-              />
-            );
-          })}
-      </div>
+      {!compact ? (
+        <Link href="/scorecard" className="inline-block text-[11px] text-accent hover:underline">
+          View signal results
+        </Link>
+      ) : null}
     </div>
   );
 }
