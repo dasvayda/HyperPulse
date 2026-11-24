@@ -340,6 +340,8 @@ rotate the affected credential, and record the incident without copying it.
 
 운영자 결정: 유료 시장 전체 공급원 없이 무료 Hyperliquid 지갑 표본으로 운영한다.
 
+배포 상태: `8c8e356` 코드의 Frontend·HyperPulse 배포 성공, Home·Liquidation Radar HTTP 200 및 source 표시 확인. 점검 당시 Zones 57개(실제 22 / 추정 35)가 생성됐다. **아래 스트림 설정은 아직 staged 상태다.** 운영자 명시 승인 후에도 Railway `accept-deploy`가 `Cancelled — the user did not approve this action`으로 취소되어 현재 관측 지갑은 0개다. Railway `practical-success` → production의 준비된 변경사항을 적용한 뒤 `watched_liquidations` 및 1h/4h/24h의 `partial` 상태를 확인해야 한다. 실제 스트림 초기화·청산 수신 완료로 보고하지 않는다.
+
 - Railway HyperPulse: `VERIFIED_LIQUIDATIONS_ENABLED=true`, `LIQUIDATION_OTHER_WS_USERS=0`, `LIQUIDATION_WATCH_ADDRESSES`에 고정 10개 주소. 배포 당시 추적 지갑의 account value 상위 10개를 선정하며 순위가 바뀌어도 자동 회전하지 않는다. 동일 IP의 다른 프로세스가 user-specific WS를 사용하면 총 10개 한도를 함께 고려해야 한다.
 - `userFills` WebSocket만 구독한다. 주기적인 `userFillsByTime` 전체 지갑 조회는 하지 않는다. 초기 snapshot 수신 완료 후 coverage를 시작하고 heartbeat/연결 종료/프로세스 재시작을 DB에 기록한다.
 - `GET /api/v2/liquidations/verified/windows`: 1h/4h/24h. `scope=watched_wallets`; `status=partial`이면 `observed_*`만 표본 관측액이다. 완전 관측 전에는 `long_usd/short_usd=null`이며, 연결이 살아 있고 해당 창을 연속 관측해야 `status=ok`가 된다. 끊긴 동안의 미관측을 0으로 채우지 않는다.
