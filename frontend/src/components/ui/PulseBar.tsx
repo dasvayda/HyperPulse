@@ -46,12 +46,22 @@ export function PulseBar({ pulse, compact = false }: PulseBarProps) {
       ) : null}
       <div
         className="flex h-1.5 w-full overflow-hidden rounded-full bg-bg-elevated"
+        role="img"
+        aria-label={`Pulse probabilities: up ${up.toFixed(0)}%, wait ${wait.toFixed(0)}%, down ${down.toFixed(0)}%`}
         title={`up ${(up).toFixed(0)}% · wait ${(wait).toFixed(0)}% · down ${(down).toFixed(0)}%`}
       >
         <span className="bg-positive" style={{ width: `${up}%` }} />
         <span className="bg-text-dim/50" style={{ width: `${wait}%` }} />
         <span className="bg-negative" style={{ width: `${down}%` }} />
       </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
+        <span className="text-positive">Up {up.toFixed(0)}%</span>
+        <span className="text-text-muted" title="Wait means no clear directional edge; it is not missing data.">Wait {wait.toFixed(0)}%</span>
+        <span className="text-negative">Down {down.toFixed(0)}%</span>
+      </div>
+      {!compact && pulse.warming_up ? (
+        <p className="text-[11px] text-text-dim">Warming up: not enough resolved signals to assess results yet.</p>
+      ) : null}
       <div className="flex gap-0.5">
         {pulse.ticks
           .slice()

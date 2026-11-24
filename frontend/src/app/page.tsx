@@ -566,6 +566,7 @@ export default async function HomePage() {
             <DataTableHeaderCell>Side</DataTableHeaderCell>
             <DataTableHeaderCell>Notional</DataTableHeaderCell>
             <DataTableHeaderCell>Entry</DataTableHeaderCell>
+            <DataTableHeaderCell>Current (mark)</DataTableHeaderCell>
             <DataTableHeaderCell>uPnL / ROI</DataTableHeaderCell>
           </DataTableHead>
           <DataTableBody>
@@ -598,6 +599,11 @@ export default async function HomePage() {
                   <DataTableCell className="text-sm text-text-muted">
                     {formatPrice(pos.entry_price, pos.asset)}
                   </DataTableCell>
+                  <DataTableCell className="text-sm text-text-primary whitespace-nowrap">
+                    {pos.mark_price != null && pos.mark_price > 0
+                      ? formatPrice(pos.mark_price, pos.asset)
+                      : <span className="text-text-dim">Unavailable</span>}
+                  </DataTableCell>
                   <DataTableCell>
                     {pos.unrealized_pnl_usd != null ? (
                       <div className="flex flex-col gap-0.5">
@@ -617,7 +623,7 @@ export default async function HomePage() {
                             }`}
                           >
                             {pos.roi_pct >= 0 ? "+" : ""}
-                            {pos.roi_pct.toFixed(1)}%
+                            <span title="Estimated leveraged ROI from entry to mark price; excludes fees and funding.">{pos.roi_pct.toFixed(1)}%</span>
                           </span>
                         )}
                       </div>
@@ -633,6 +639,7 @@ export default async function HomePage() {
                   Whale book still warming up — biggest positions appear after the
                   next collect cycle.
                 </DataTableCell>
+                <DataTableCell>—</DataTableCell>
                 <DataTableCell>—</DataTableCell>
                 <DataTableCell>—</DataTableCell>
                 <DataTableCell>—</DataTableCell>
