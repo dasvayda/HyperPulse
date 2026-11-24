@@ -12,6 +12,10 @@ from app.services.store import store
 logger = logging.getLogger(__name__)
 
 
+class LiquidationStreamError(ValueError):
+    """Only fixed internal reason codes may be exposed in runtime logs."""
+
+
 async def run_liquidation_stream():
     from websockets.asyncio.client import connect
 
@@ -41,16 +45,16 @@ async def run_liquidation_stream():
                         continue
                     message = json.loads(raw)
                     if message.get("channel") == "error":
-                        raise ValueError("Subscription rejected")
+                        raise LiquidationStreamError("subscription_rejected")
                     if message.get("channel") != "userFills":
                         continue
                     data = message["data"]
                     wallet = str(data.get("user", "")).lower()
                     if wallet not in roster or not isinstance(data.get("fills"), list):
-                        raise ValueError("Unexpected user fills envelope")
+                        raise LiquidationStreamError("unexpected_fills_envelope")
                     _, rejected = await asyncio.to_thread(ingest, wallet, data["fills"])
                     if rejected:
-                        raise ValueError("Ambiguous liquidation payload quarantined")
+                        raise LiquidationStreamError("ambiguous_liquidation_quarantined")
                     if data.get("isSnapshot") is True:
                         initialized.add(wallet)
                     if key:
@@ -65,7 +69,8 @@ async def run_liquidation_stream():
             raise
         except Exception as exc:
             # No raw messages or URLs in the log.
-            logger.warning("Liquidation stream interrupted: %s", type(exc).__name__)
+            reason = str(exc) if isinstance(exc, LiquidationStreamError) else type(exc).__name__
+            logger.warning("Liquidation stream interrupted: %s", reason)
         finally:
             store.record_collection("watched_liquidations", 0, len(roster))
             if key:

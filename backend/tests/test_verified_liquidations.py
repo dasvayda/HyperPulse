@@ -164,3 +164,39 @@ def test_stream_cancellation_closes_coverage_without_rest(monkeypatch):
     with SessionLocal() as db:
         row = db.query(LiquidationCoverageRow).one()
         assert row.ended_at is not None
+
+
+@pytest.mark.parametrize("payload,reason", [
+    ({"channel": "error", "data": "private-server-detail"}, "subscription_rejected"),
+    ({"channel": "userFills", "data": {"user": "unexpected", "fills": []}}, "unexpected_fills_envelope"),
+    ({"channel": "userFills", "data": {"user": WALLET, "fills": [{"liquidation": {}}]}}, "ambiguous_liquidation_quarantined"),
+])
+def test_stream_failure_logs_safe_reason_and_preserves_gap(monkeypatch, caplog, payload, reason):
+    from app.collectors import liquidation_stream
+    import websockets.asyncio.client
+
+    messages = iter([
+        {"channel": "userFills", "data": {"user": WALLET, "isSnapshot": True, "fills": []}},
+        payload,
+    ])
+
+    class Socket:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): return False
+        async def send(self, body): pass
+        async def recv(self):
+            try:
+                return json.dumps(next(messages))
+            except StopIteration:
+                raise asyncio.CancelledError()
+
+    async def no_delay(*args): pass
+
+    monkeypatch.setattr(websockets.asyncio.client, "connect", lambda *a, **kw: Socket())
+    monkeypatch.setattr(liquidation_stream.asyncio, "sleep", no_delay)
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(liquidation_stream.run_liquidation_stream())
+    assert reason in caplog.text
+    assert "private-server-detail" not in caplog.text
+    with SessionLocal() as db:
+        assert db.query(LiquidationCoverageRow).one().reason == "stream_gap"
