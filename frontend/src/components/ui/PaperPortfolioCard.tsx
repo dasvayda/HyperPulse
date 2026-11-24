@@ -13,9 +13,9 @@ export function PaperPortfolioCard({
   const positive = summary.return_pct >= 0;
   return (
     <div className="rounded-xl border border-border bg-bg-surface p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
             <p className="text-[10px] uppercase tracking-wide text-text-dim">
               Paper Portfolio · experimental strategy
             </p>
@@ -30,7 +30,7 @@ export function PaperPortfolioCard({
             {formatPct(summary.return_pct)} net
           </p>
         </div>
-        <Link href="/performance" className="text-xs text-accent hover:underline">
+        <Link href="/performance" className="shrink-0 text-xs text-accent hover:underline">
           Full performance
         </Link>
       </div>

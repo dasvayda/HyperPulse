@@ -201,7 +201,7 @@ export default async function HomePage() {
   const liquidationUnavailable = pipeline.data_source === "live" && pipeline.collectors?.liquidations?.status !== "ok";
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="home-readable">
       <PageHeader
         title="Dashboard"
         description="AI strategy inference, smart money ranking, and liquidation intelligence"

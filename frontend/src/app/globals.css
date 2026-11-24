@@ -28,6 +28,29 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Home only: readable descriptions without scaling headings, prices or navigation. */
+.home-readable [class~="text-[10px]"],
+.home-readable [class~="text-[11px]"] {
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.home-readable p.text-xs,
+.home-readable p[class~="text-[11px]"],
+.home-readable dl.text-xs,
+.home-readable div.text-xs {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.home-readable .text-text-dim {
+  color: var(--color-text-muted);
+}
+
+.home-readable p {
+  overflow-wrap: anywhere;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
