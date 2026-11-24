@@ -749,7 +749,7 @@ export default async function HomePage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div>
+        <div className="flex min-w-0 flex-col">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-text-primary">
               Recent Whale Alerts
@@ -761,7 +761,7 @@ export default async function HomePage() {
               View all
             </Link>
           </div>
-          <DataTable>
+          <DataTable className="flex-1 [&>table]:h-full [&_td]:px-3 [&_th]:px-3">
             <DataTableHead>
               <DataTableHeaderCell>Trader</DataTableHeaderCell>
               <DataTableHeaderCell>Asset</DataTableHeaderCell>
@@ -770,6 +770,13 @@ export default async function HomePage() {
               <DataTableHeaderCell>Time</DataTableHeaderCell>
             </DataTableHead>
             <DataTableBody>
+              {recentAlerts.length === 0 ? (
+                <DataTableRow>
+                  <td colSpan={5} className="px-3 py-5 text-sm text-text-muted">
+                    No recent whale alerts.
+                  </td>
+                </DataTableRow>
+              ) : null}
               {recentAlerts.map((alert) => (
                 <DataTableRow key={alert.id}>
                   <DataTableCell>
@@ -799,7 +806,7 @@ export default async function HomePage() {
           </DataTable>
         </div>
 
-        <div>
+        <div className="flex min-w-0 flex-col">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-text-primary">
               Tracked Liquidation Zones
@@ -811,7 +818,7 @@ export default async function HomePage() {
               View all
             </Link>
           </div>
-          <DataTable>
+          <DataTable className="flex-1 [&>table]:h-full [&_td]:px-3 [&_th]:px-3">
             <DataTableHead>
               <DataTableHeaderCell>Asset</DataTableHeaderCell>
               <DataTableHeaderCell>Price</DataTableHeaderCell>
@@ -832,7 +839,14 @@ export default async function HomePage() {
                   </DataTableCell>
                   <DataTableCell>
                     <TrendValue value={formatPrice(zone.price, zone.asset)} pct={zone.distance_pct} />
-                    <span className="text-[10px] text-text-dim">{zone.source === "liquidationPx" ? "Hyperliquid liq price" : "Estimate · entry/leverage"}</span>
+                    <span
+                      className="mt-1 block text-xs font-medium leading-5 text-text-muted"
+                      title={zone.source === "liquidationPx"
+                        ? "Liquidation price reported by Hyperliquid for the tracked position."
+                        : "Estimated from entry price and leverage; not a reported liquidation price."}
+                    >
+                      {zone.source === "liquidationPx" ? "Hyperliquid price" : "Estimated price"}
+                    </span>
                   </DataTableCell>
                   <DataTableCell>
                     <Badge variant={zone.side}>
