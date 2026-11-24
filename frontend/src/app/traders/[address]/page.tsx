@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/Badge";
 import { RecentFlowPanel } from "@/components/ui/RecentFlowPanel";
 import { WindowPnlBars } from "@/components/ui/SparkBar";
 import { SwingLabel } from "@/components/ui/ScoreMeter";
+import { positionOverview } from "@/lib/position-overview";
 import {
   ApiError,
   getTrader,
@@ -57,6 +58,10 @@ export default async function TraderDetailPage({ params }: Props) {
   }
 
   const openPositions = trader.open_positions ?? [];
+  const overview = positionOverview(openPositions);
+  const styleLabels = [...new Set([
+    trader.inferred_strategy, trader.inferred_trading_style, ...trader.strategy_tags,
+  ].filter((label): label is string => Boolean(label)))];
   const openNotional = openPositions.reduce((sum, pos) => sum + pos.size_usd, 0);
   const unrealizedPnl = openPositions.reduce(
     (sum, pos) => sum + (pos.unrealized_pnl_usd ?? 0),
@@ -198,26 +203,42 @@ export default async function TraderDetailPage({ params }: Props) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <div className="lg:col-span-2 rounded-xl border border-border bg-bg-surface p-5">
+        <div className="min-w-0 lg:col-span-2 rounded-xl border border-border bg-bg-surface p-5">
           <h3 className="text-sm font-semibold text-text-primary mb-3">
-            Behavior Analysis
+            Position Overview
           </h3>
-          <p className="text-sm text-text-muted leading-relaxed">
-            {trader.behavior_summary}
-          </p>
-          <div className="flex gap-2 mt-4 flex-wrap">
-            {trader.inferred_strategy && (
-              <Badge variant="accent">{trader.inferred_strategy}</Badge>
-            )}
-            {trader.inferred_trading_style && (
-              <Badge variant="default">{trader.inferred_trading_style}</Badge>
-            )}
-            {trader.strategy_tags.map((tag) => (
-              <Badge key={tag} variant="accent">
-                {tag}
-              </Badge>
-            ))}
-          </div>
+          {overview ? <div className="space-y-4 text-sm leading-relaxed text-text-muted">
+            <p><span className="font-medium text-text-primary">Positioning:</span>{" "}
+              Long {overview.longShare.toFixed(1)}% / short {overview.shortShare.toFixed(1)}% by open notional.
+              {" "}These are current holdings, not new buys or sells.
+            </p>
+            <p className="break-words"><span className="font-medium text-text-primary">Concentration:</span>{" "}
+              {overview.assetCount} open {overview.assetCount === 1 ? "asset" : "assets"}.
+              {" "}{overview.topAssets.length === 1 ? "Largest asset" : `Largest ${overview.topAssets.length} assets`}
+              {" "}({overview.topAssets.map(a => a.asset).join(", ")}) account for {overview.topShare.toFixed(1)}% of open notional.
+              {overview.topAssets.length > 1 ? ` ${overview.topAssets[0].asset} alone accounts for ${overview.topAssets[0].share.toFixed(1)}%.` : ""}
+            </p>
+            <p><span className="font-medium text-text-primary">Leverage:</span>{" "}
+              {overview.leverage ? <>
+                {overview.leverage.weighted.toFixed(1)}x notional-weighted average; position settings range from
+                {" "}{overview.leverage.min.toFixed(1)}x to {overview.leverage.max.toFixed(1)}x.
+                {overview.leverage.coverage < 99.999 ? ` Available for ${overview.leverage.coverage.toFixed(1)}% of open notional.` : ""}
+              </> : "Position leverage data is unavailable."}
+            </p>
+            <p className="text-xs leading-relaxed">
+              Based on the returned open-position snapshot. Long and short positions are counted by gross size;
+              leverage settings are not account-wide leverage or a liquidation-distance estimate.
+              {overview.excluded > 0 ? ` ${overview.excluded} incomplete position rows excluded.` : ""}
+            </p>
+          </div> : <p className="text-sm leading-relaxed text-text-muted">
+            No usable open-position snapshot is available. Positioning, concentration and leverage cannot be assessed.
+          </p>}
+          {styleLabels.length > 0 ? <div className="mt-4 border-t border-border pt-3">
+            <p className="mb-2 text-xs text-text-muted">Style labels · separate from current positioning</p>
+            <div className="flex flex-wrap gap-2">{styleLabels.map(label =>
+              <Badge key={label} variant="default">{label}</Badge>
+            )}</div>
+          </div> : null}
         </div>
 
         <div className="rounded-xl border border-border bg-bg-surface p-5">
@@ -236,12 +257,6 @@ export default async function TraderDetailPage({ params }: Props) {
             <div className="flex justify-between text-sm">
               <span className="text-text-muted">Rank</span>
               <span className="font-medium text-accent">#{trader.rank}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-text-muted">Assets</span>
-              <span className="font-medium">
-                {trader.preferred_assets.join(", ") || "—"}
-              </span>
             </div>
           </div>
         </div>
