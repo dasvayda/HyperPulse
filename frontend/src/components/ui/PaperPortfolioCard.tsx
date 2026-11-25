@@ -19,8 +19,8 @@ export function PaperPortfolioCard({
             <p className="text-[10px] uppercase tracking-wide text-text-dim">
               Paper Portfolio · experimental strategy
             </p>
-            <Badge variant={summary.warming_up ? "hold" : "accent"}>
-              {summary.warming_up ? "WARMING UP" : summary.status.toUpperCase()}
+            <Badge variant={summary.evaluation_paused ? "exit" : summary.warming_up ? "hold" : "accent"}>
+              {summary.evaluation_paused ? "PAUSED" : summary.warming_up ? "COLLECTING SAMPLE" : "PAPER RUNNING"}
             </Badge>
           </div>
           <p className="mt-2 text-2xl font-semibold text-text-primary">
@@ -63,14 +63,18 @@ export function PaperPortfolioCard({
       </p>
       {summary.evaluation_paused !== false && (
         <p className="mt-2 text-xs text-negative">
-          Evaluation paused while source data is unverified or incomplete.
-          Showing the last recorded results.
+          {summary.pause_reason || "Waiting for complete inputs."} Showing the last recorded results.
         </p>
       )}
+      <p className="mt-2 text-xs text-text-muted">
+        Strategy v{summary.version} · {summary.pending_orders ?? 0} pending hourly orders.
+        {" "}Simulated fills use the first observed mark after each signal, with fees and slippage.
+      </p>
 
       <p className="mt-4 text-[11px] leading-relaxed text-text-dim">
         Top 5 Whale + recent Top 5 flow, confirmed by 1h/4h trend · fees,
-        slippage and funding included · updated {formatTimeAgo(summary.updated_at)}
+        slippage and hourly funding included. Funding costs use historical rates and sampled mark estimates.
+        {" "}Updated {formatTimeAgo(summary.updated_at)}
       </p>
       <p className="mt-2 text-[11px] leading-relaxed text-text-dim">
         Simulated trades with {formatUsd(summary.initial_cash)} virtual capital.

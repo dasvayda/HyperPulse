@@ -10,6 +10,7 @@ def simulated_paper_inputs(monkeypatch):
 
 from app.db import SessionLocal
 from app.models.orm import (
+    PaperOrderRow, PaperRunStateRow, PaperFundingRateRow, PaperFundingPaymentRow,
     MarketSnapshotRow,
     PaperDecisionRow,
     PaperEquityRow,
@@ -36,6 +37,7 @@ def _clear() -> None:
     db = SessionLocal()
     try:
         for model in (
+            PaperOrderRow, PaperRunStateRow, PaperFundingRateRow, PaperFundingPaymentRow,
             PaperTradeRow,
             PaperEquityRow,
             PaperDecisionRow,
@@ -97,7 +99,7 @@ def _seed_long_case() -> None:
                 )
             )
         for asset, price in (("ETH", 4_000.0), ("SOL", 200.0)):
-            for hour in (8, 11, 12, 13):
+            for hour in (8, 9, 10, 11, 12, 13):
                 db.add(
                     MarketSnapshotRow(
                         asset=asset,
@@ -126,16 +128,33 @@ def _seed_long_case() -> None:
         db.close()
 
 
+def healthy(at):
+    from app.models.schemas import CollectorStatus
+    store.collectors = {name: CollectorStatus(status="ok", last_success_at=at, checked_at=at,
+                                           successful=5, expected=5) for name in ("market", "whales")}
+
+
 def test_top5_strategy_opens_after_two_confirmations() -> None:
     _clear()
     _seed_long_case()
 
+    healthy(AT)
     assert run_paper_portfolio(AT) is True
     first = get_paper_summary()
     assert first.trades_count == 0
 
+    healthy(AT + timedelta(hours=1))
     assert run_paper_portfolio(AT + timedelta(hours=1)) is True
-    assert run_paper_portfolio(AT + timedelta(hours=1, minutes=5)) is False
+    # The signal itself cannot fill at its decision price.
+    assert get_paper_summary().trades_count == 0
+    execution_at = AT + timedelta(hours=1, minutes=1)
+    with SessionLocal() as db:
+        for asset, mark in (("BTC", 104), ("ETH", 4000), ("SOL", 200)):
+            db.add(MarketSnapshotRow(asset=asset, mark_price=mark, funding_rate=0, timestamp=execution_at))
+        db.commit()
+    healthy(execution_at)
+    assert run_paper_portfolio(execution_at) is False
+    assert run_paper_portfolio(execution_at) is False
     summary = get_paper_summary()
 
     assert summary.strategy_id == STRATEGY_ID

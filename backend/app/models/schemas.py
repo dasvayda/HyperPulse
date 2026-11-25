@@ -603,6 +603,9 @@ class PaperEquityPoint(BaseModel):
 
 
 class PaperPortfolioSummary(BaseModel):
+    pause_reason: str | None = None
+    pending_orders: int = 0
+    evaluation_checked_at: datetime | None = None
     strategy_id: str
     version: str
     status: str

@@ -413,6 +413,48 @@ Paper Portfolio의 30일·100개 완료 거래 조건은 이 2주 일정으로 �
    확보하거나 표본 전용 전략을 새 버전·hash로 정의하고 별도 관찰을 시작해야 한다.
    공급자/노드의 광범위 feed는 커버리지·비용·복구 가능성을 확인한 후 별도 도입 판단한다.
 
+### Paper Portfolio v2 — 2026-11-25 구현
+
+시그널을 따르는 가상 자산 Forward Test는 시장 전체 청산 feed를 필요로 하지 않는다.
+`top5_whale_trend_v1` 원장과 설정은 그대로 두고 `top5_whale_trend_v2`를 별도 시작한다.
+이 절의 v2 규칙이 앞의 v1 평가중지 결정을 대체하며 v1 성과를 이어 붙이지 않는다.
+
+로컬 검증: backend 263 passed / 1 skipped, frontend 19 passed 및 production build 통과.
+외부 funding 호출은 테스트 대역으로 검증했으며 Railway 실데이터 동작은 아직 미관찰이다.
+
+- 신호: UTC 일별 Top 5 Smart Money 명단, 포지션 방향, 최근 1h Top 5 flow와
+  1h/4h 가격 추세를 사용한다. 15m Pulse나 모든 BUY 카드의 체결 모사가 아니다.
+  flow가 부족하면 기존 규칙에 따라 포지션+추세로 판단하며 없는 flow를 0으로 꾸미지 않는다.
+- 매시간 새 판단 1개 묶음을 기록하고, 연속 두 시간의 확인 후 목표 비중을 정한다.
+  Wait가 연속 확인되면 포지션을 정리한다. 확인 전에는 기존 비중을 유지한다.
+  명단·입력 포지션·시장 snapshot ID/시각·flow·규칙 hash·판단을 저장한다.
+- 같은 시각의 가격으로 체결하지 않는다. 각 자산의 **신호 이후 첫 관측 mark**가
+  10분 안에 모두 확보되면 가상 주문을 실행하고, 매수/매도 방향의 slippage와 수수료를 적용한다.
+  주문이 만료되면 과거 신호를 새로 만들거나 현재 가격으로 소급 체결하지 않는다.
+  여러 자산의 관측 시각은 다를 수 있으며 원장에 각 snapshot과 묶음 실행 시각을 남긴다.
+- BTC/ETH/SOL의 공개 `fundingHistory`를 최대 분당 자산별 1회 조회한다.
+  실제 시간별 funding rate를 별도 보존하고 보유 방향·수량·해당 시각 직전 mark로
+  가상 비용을 정산한다. mark는 최대 10분 이내 관측값이므로 실제 거래소 계정의
+  funding 체결액과 같다고 보장하지 않으며 UI에 추정 비용으로 설명한다.
+  [공식 funding history 명세](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint/perpetuals).
+- 시장·고래 collector의 완전성과 10분 이내 최신성, 5개 ranked wallet,
+  BTC/ETH/SOL의 현재·1h·4h 전 가격 이력을 검사한다. 청산 collector 상태는 gate가 아니다.
+  funding이나 정산용 mark가 누락되면 거래/비용 변경을 rollback하고 대기 이유를 표시한다.
+  장애 시간의 가격을 복원할 수 없으면 운영자가 원본 archive로 재검증하기 전까지 보류한다.
+- 주문·체결·시간별 funding 원장은 DB에 남고 재실행 시 중복 정산하지 않는다.
+  SQLite 쓰기 transaction / PostgreSQL 전략 row lock으로 동시 실행을 직렬화한다.
+  추가 테이블은 기존 `init_db()`의 additive 생성으로 도입하며 정식 migration은 별도 과제다.
+- `PAPER_PORTFOLIO_ENABLED=true`가 기본값이다. 배포 후 collector가 실행되고
+  이력이 충분하면 내부 Shadow를 자동 시작하며 `false`로 비활성화할 수 있다.
+  화면은 PAUSED/대기 사유, COLLECTING SAMPLE, PAPER RUNNING과 pending 주문 수를 구분한다.
+  기존 30일·720개 hourly bucket·100개 완전 종료·audit 기준은 **공개 검증 기준**이며
+  가상 매매 시작을 막는 조건이 아니다. 수익성 보장 기준도 아니다.
+
+- [x] 후속 가격 체결, 주문 만료, 과거 신호 불변, 수수료·slippage,
+  롱/숏 funding 방향·중복 방지·v1 보존 및 데이터 누락 보류 회귀 테스트.
+- [ ] Railway 배포 후 새 v2 원장 생성·첫 판단·후속 가격 체결·funding 정산 관찰.
+- [ ] PostgreSQL 환경의 동시 실행·backup/restore 및 장기 Shadow 회계 audit.
+
 ### S1 — provenance 저장·조회 계약
 
 1. 판단 생성 시 하나의 immutable evidence envelope를 저장한다. schema/engine

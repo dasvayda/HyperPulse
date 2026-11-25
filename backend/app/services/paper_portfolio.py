@@ -8,10 +8,8 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.db import SessionLocal
 from app.models.orm import (
-    LiquidationRow,
     MarketSnapshotRow,
     PaperDecisionRow,
     PaperEquityRow,
@@ -33,7 +31,7 @@ from app.services.ranking import select_smart_money_ranks
 from app.services.store import store
 
 
-STRATEGY_ID = "top5_whale_trend_v1"
+STRATEGY_ID = "top5_whale_trend_v2"
 ASSETS = ("BTC", "ETH", "SOL")
 INITIAL_CASH = 1_000.0
 DISCLOSURE = (
@@ -63,7 +61,10 @@ CONFIG = {
     "taker_fee_rate": 0.00045,
     "slippage_bps": 2.0,
     "extreme_funding_rate": 0.0002,
-    "liq_spike_usd_1h": 10_000_000.0,
+    "liquidation_filter": False,
+    "execution": "first_observed_mark_after_signal",
+    "order_expiry_sec": 600,
+    "funding": "historical_hourly_rate_times_observed_mark_estimate",
     "max_market_staleness_sec": 600,
     "leverage": 1.0,
 }
@@ -147,10 +148,12 @@ def record_whale_flows(
 
 def _ensure_strategy(db: Session, at: datetime) -> PaperStrategyRow:
     row = db.get(PaperStrategyRow, STRATEGY_ID)
+    if row is not None and row.config_hash != CONFIG_HASH:
+        raise RuntimeError("Paper strategy configuration changed; create a new strategy version")
     if row is None:
         row = PaperStrategyRow(
             id=STRATEGY_ID,
-            version="1.0",
+            version="2.0",
             config_json=CONFIG_JSON,
             config_hash=CONFIG_HASH,
             status="shadow",
@@ -320,47 +323,6 @@ def _raw_decision(position: str, flow: str, trend: str) -> tuple[str, float, str
     return "wait", 0.0, "Whale direction lacks market-trend confirmation"
 
 
-def _apply_risk_filters(
-    db: Session,
-    *,
-    asset: str,
-    action: str,
-    weight: float,
-    latest: MarketSnapshotRow | None,
-    at: datetime,
-) -> tuple[float, dict]:
-    if action == "wait" or weight <= 0:
-        return 0.0, {"funding_reduced": False, "liquidation_reduced": False}
-    funding = float(latest.funding_rate) if latest is not None else 0.0
-    threshold = float(CONFIG["extreme_funding_rate"])
-    funding_reduced = (action == "long" and funding > threshold) or (
-        action == "short" and funding < -threshold
-    )
-    liq_total = float(
-        db.query(func.coalesce(func.sum(LiquidationRow.size_usd), 0.0))
-        .filter(
-            LiquidationRow.asset == asset,
-            LiquidationRow.timestamp > at - timedelta(hours=1),
-            LiquidationRow.timestamp <= at,
-        )
-        .scalar()
-        or 0.0
-    )
-    liquidation_reduced = liq_total >= float(CONFIG["liq_spike_usd_1h"])
-    if funding_reduced and liquidation_reduced:
-        adjusted = 0.0
-    elif funding_reduced or liquidation_reduced:
-        adjusted = weight / 2.0
-    else:
-        adjusted = weight
-    return adjusted, {
-        "funding_rate": funding,
-        "funding_reduced": funding_reduced,
-        "liq_1h_usd": round(liq_total, 2),
-        "liquidation_reduced": liquidation_reduced,
-        "before_weight": weight,
-        "after_weight": adjusted,
-    }
 
 
 def _marks(db: Session, at: datetime) -> dict[str, float]:
@@ -406,21 +368,6 @@ def _portfolio_values(
     return nav, gross, unrealized
 
 
-def _accrue_funding(db: Session, strategy: PaperStrategyRow, marks: dict[str, float]) -> None:
-    payment_total = 0.0
-    for position in db.query(PaperPositionRow).filter(PaperPositionRow.strategy_id == strategy.id).all():
-        mark = marks.get(position.asset)
-        tick = (store.market_ticks or {}).get(position.asset) or {}
-        if mark is None:
-            continue
-        try:
-            rate = float(tick.get("funding_rate") or 0.0)
-        except (TypeError, ValueError):
-            rate = 0.0
-        sign = 1.0 if position.direction == "long" else -1.0
-        payment_total += -sign * abs(float(position.quantity) * mark) * rate
-    strategy.cash += payment_total
-    strategy.cumulative_funding += payment_total
 
 
 def _add_trade(
@@ -574,150 +521,11 @@ def _rebalance_position(
         position.updated_at = now
 
 
+
+
 def run_paper_portfolio(at: datetime | None = None) -> bool:
-    """Evaluate one idempotent hourly strategy bucket.
-
-    Returns True when a new bucket was recorded, False when already processed.
-    """
-    # Preserve the forward-test ledger during incomplete source cycles. In
-    # particular, missing liquidation evidence must not mean zero liq risk.
-    if not settings.use_mock_data or any(state.status != "ok" for state in store.collectors.values()):
-        return False
-    at = (at or _utcnow()).astimezone(timezone.utc)
-    bucket = _hour_bucket(at)
-    db = SessionLocal()
-    try:
-        strategy = _ensure_strategy(db, at)
-        existing = (
-            db.query(PaperDecisionRow)
-            .filter(PaperDecisionRow.strategy_id == strategy.id, PaperDecisionRow.bucket == bucket)
-            .first()
-        )
-        if existing is not None:
-            db.rollback()
-            return False
-
-        roster = _daily_roster(db, at)
-        marks = _marks(db, at)
-        _accrue_funding(db, strategy, marks)
-        nav_before, _, _ = _portfolio_values(db, strategy, marks)
-        if strategy.benchmark_start_price is None and marks.get("BTC"):
-            strategy.benchmark_start_price = marks["BTC"]
-
-        decisions: list[PaperDecisionRow] = []
-        for asset in ASSETS:
-            position_signal, position_long_pct = _position_consensus(asset, roster)
-            flow_signal, flow_long_pct = _flow_consensus(db, asset, at)
-            trend, r1, r4, latest = _market_trend(db, asset, at)
-            raw_action, weight, reason = _raw_decision(position_signal, flow_signal, trend)
-            weight, risk = _apply_risk_filters(
-                db,
-                asset=asset,
-                action=raw_action,
-                weight=weight,
-                latest=latest,
-                at=at,
-            )
-            if weight <= 0:
-                raw_action = "wait"
-
-            previous = (
-                db.query(PaperDecisionRow)
-                .filter(
-                    PaperDecisionRow.strategy_id == strategy.id,
-                    PaperDecisionRow.asset == asset,
-                )
-                .order_by(PaperDecisionRow.created_at.desc())
-                .first()
-            )
-            confirmed = previous is not None and previous.raw_action == raw_action
-            current = db.get(PaperPositionRow, f"{strategy.id}:{asset}")
-            if confirmed:
-                action = raw_action
-                target_weight = weight
-            elif current is not None and marks.get(asset) and nav_before > 0:
-                action = current.direction
-                target_weight = min(
-                    float(CONFIG["max_asset_weight"]),
-                    abs(float(current.quantity) * marks[asset]) / nav_before,
-                )
-                reason += "; awaiting second confirmation, holding current position"
-            else:
-                action = "wait"
-                target_weight = 0.0
-                reason += "; awaiting second confirmation"
-
-            decision = PaperDecisionRow(
-                id=f"{strategy.id}:{bucket}:{asset}",
-                strategy_id=strategy.id,
-                bucket=bucket,
-                asset=asset,
-                roster_json=json.dumps(roster),
-                position_signal=position_signal,
-                position_long_pct=position_long_pct,
-                flow_signal=flow_signal,
-                flow_long_pct=flow_long_pct,
-                trend=trend,
-                return_1h_pct=r1,
-                return_4h_pct=r4,
-                raw_action=raw_action,
-                action=action,
-                target_weight=target_weight,
-                risk_json=json.dumps(risk),
-                reason=reason,
-                mark_price=marks.get(asset),
-                created_at=at,
-            )
-            db.add(decision)
-            decisions.append(decision)
-        db.flush()
-
-        total_weight = sum(max(0.0, d.target_weight) for d in decisions)
-        scale = min(1.0, float(CONFIG["max_gross_weight"]) / total_weight) if total_weight > 0 else 1.0
-        for decision in decisions:
-            decision.target_weight = min(
-                float(CONFIG["max_asset_weight"]), decision.target_weight * scale
-            )
-            _rebalance_position(
-                db,
-                strategy,
-                decision,
-                max(0.0, nav_before) * decision.target_weight,
-            )
-
-        nav, gross, unrealized = _portfolio_values(db, strategy, marks)
-        strategy.peak_nav = max(float(strategy.peak_nav), nav)
-        strategy.updated_at = at
-        drawdown = (nav / strategy.peak_nav - 1.0) * 100.0 if strategy.peak_nav > 0 else 0.0
-        benchmark = None
-        if strategy.benchmark_start_price and marks.get("BTC"):
-            benchmark = strategy.initial_cash * marks["BTC"] / strategy.benchmark_start_price
-        db.add(
-            PaperEquityRow(
-                id=f"{strategy.id}:{bucket}",
-                strategy_id=strategy.id,
-                bucket=bucket,
-                cash=strategy.cash,
-                gross_exposure_usd=gross,
-                unrealized_pnl_usd=unrealized,
-                realized_pnl_usd=strategy.realized_pnl,
-                nav=nav,
-                return_pct=(nav / strategy.initial_cash - 1.0) * 100.0,
-                benchmark_nav=benchmark,
-                drawdown_pct=drawdown,
-                cumulative_fees=strategy.cumulative_fees,
-                cumulative_slippage=strategy.cumulative_slippage,
-                cumulative_funding=strategy.cumulative_funding,
-                created_at=at,
-            )
-        )
-        db.commit()
-        return True
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
+    from app.services.paper_forward import run_forward
+    return run_forward(at)
 
 
 def _position_models(
@@ -796,6 +604,10 @@ def get_paper_summary() -> PaperPortfolioSummary:
             .limit(3)
             .all()
         )
+        from app.models.orm import PaperOrderRow, PaperRunStateRow
+        from app.services.paper_forward import input_reason
+        state = db.get(PaperRunStateRow, strategy.id)
+        pause_reason = input_reason(now, db) or (state.pause_reason if state else "Waiting for first evaluation")
         return PaperPortfolioSummary(
             strategy_id=strategy.id,
             version=strategy.version,
@@ -821,10 +633,13 @@ def get_paper_summary() -> PaperPortfolioSummary:
             closed_trades_count=len(closed),
             fully_closed_positions_count=fully_closed,
             observed_hour_buckets=observed_hours,
-            minimum_sample_met=observed_hours >= 720 and fully_closed >= 100,
-            evaluation_paused=not settings.use_mock_data or not store.collectors or any(
-                state.status != "ok" for state in store.collectors.values()
-            ),
+            minimum_sample_met=observed_hours >= 720 and fully_closed >= 100 and (now - (
+                strategy.started_at.replace(tzinfo=timezone.utc) if strategy.started_at.tzinfo is None else strategy.started_at
+            )).total_seconds() >= 30 * 86400,
+            evaluation_paused=bool(pause_reason),
+            pause_reason=pause_reason,
+            pending_orders=db.query(PaperOrderRow).filter_by(strategy_id=strategy.id, status="pending").count(),
+            evaluation_checked_at=state.checked_at if state else None,
             win_rate=round(wins / len(closed) * 100.0, 1) if closed else None,
             current_positions=_position_models(db, strategy, marks, nav),
             last_decisions=[

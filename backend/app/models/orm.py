@@ -257,6 +257,47 @@ class PaperStrategyRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class PaperRunStateRow(Base):
+    __tablename__ = "paper_run_states"
+    strategy_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    funding_through: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    pause_reason: Mapped[str | None] = mapped_column(String(256), nullable=True)
+
+
+class PaperOrderRow(Base):
+    __tablename__ = "paper_orders"
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    strategy_id: Mapped[str] = mapped_column(String(64), index=True)
+    bucket: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    execution_json: Mapped[str] = mapped_column(Text, default="{}")
+
+
+class PaperFundingRateRow(Base):
+    __tablename__ = "paper_funding_rates"
+    id: Mapped[str] = mapped_column(String(96), primary_key=True)
+    asset: Mapped[str] = mapped_column(String(32), index=True)
+    funded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    rate: Mapped[float] = mapped_column(Float)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PaperFundingPaymentRow(Base):
+    __tablename__ = "paper_funding_payments"
+    id: Mapped[str] = mapped_column(String(160), primary_key=True)
+    strategy_id: Mapped[str] = mapped_column(String(64), index=True)
+    asset: Mapped[str] = mapped_column(String(32))
+    funded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    rate: Mapped[float] = mapped_column(Float)
+    quantity: Mapped[float] = mapped_column(Float)
+    mark_price: Mapped[float] = mapped_column(Float)
+    amount: Mapped[float] = mapped_column(Float)
+
+
 class PaperRosterRow(Base):
     """Daily frozen Top-5 Smart Money roster used by decisions."""
 

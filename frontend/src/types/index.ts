@@ -516,6 +516,9 @@ export interface PaperDecision {
 }
 
 export interface PaperPortfolioSummary {
+  pause_reason?: string | null;
+  pending_orders?: number;
+  evaluation_checked_at?: string | null;
   strategy_id: string;
   version: string;
   status: string;

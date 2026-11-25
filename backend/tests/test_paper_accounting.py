@@ -1,12 +1,15 @@
 import pytest
 
 from app.db import SessionLocal
-from app.models.orm import PaperDecisionRow
+from app.models.orm import PaperDecisionRow, PaperFundingRateRow, PaperRunStateRow
 from app.services.paper_portfolio import (
-    _accrue_funding, _ensure_strategy, _portfolio_values, _rebalance_position,
+    _ensure_strategy, _portfolio_values, _rebalance_position,
 )
 from app.services.store import store
 from tests.test_paper_portfolio import AT, _clear
+from app.services.paper_forward import settle_funding
+from app.models.orm import MarketSnapshotRow
+from datetime import timedelta
 
 
 @pytest.mark.parametrize("direction,exit_mark,entry_fill,exit_fill,funding", [
@@ -30,7 +33,13 @@ def test_round_trip_nav_includes_costs_once_and_funding_side(
         assert gross == pytest.approx(200)
         assert upnl == pytest.approx(-0.04)
         assert nav == pytest.approx(1000 - opening_fee - 0.04)
-        _accrue_funding(db, strategy, {"BTC": 105})
+        hour = AT + timedelta(hours=1)
+        db.add(PaperFundingRateRow(id=f"BTC:{int(hour.timestamp())}", asset="BTC", funded_at=hour, rate=0.001))
+        db.add(MarketSnapshotRow(asset="BTC", mark_price=105, funding_rate=0.001, timestamp=hour))
+        db.flush()
+        state = PaperRunStateRow(strategy_id=strategy.id, funding_through=AT, checked_at=AT)
+        settle_funding(db, strategy, state, hour)
+        settle_funding(db, strategy, state, hour)
         assert strategy.cumulative_funding == pytest.approx(funding)
         decision.action = "wait"
         decision.mark_price = exit_mark

@@ -46,6 +46,8 @@ async def _collect_cycle() -> None:
     snapshot = await collect_market_snapshot()
     await collect_liquidation_events()
     await collect_whale_events()
+    from app.collectors.paper_funding import collect_paper_funding
+    await collect_paper_funding()
     try:
         from app.services.paper_portfolio import run_paper_portfolio
 

@@ -51,6 +51,7 @@ class Settings(BaseSettings):
 
     # Data source
     use_mock_data: bool = False
+    paper_portfolio_enabled: bool = True
 
     # AI
     openai_api_key: str = ""

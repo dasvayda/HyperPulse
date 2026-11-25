@@ -18,6 +18,7 @@ os.environ["LIQUIDATION_WATCH_ADDRESSES"] = ""
 os.environ["EVIDENCE_ACCESS_TOKEN"] = ""
 os.environ["BETA_ACCESS_ENABLED"] = "false"
 os.environ["BETA_API_TOKEN"] = ""
+os.environ["PAPER_PORTFOLIO_ENABLED"] = "true"
 os.environ["ENVIRONMENT"] = "development"
 os.environ["CORS_ORIGINS"] = "http://localhost:3100"
 if _TEST_DB.exists():
