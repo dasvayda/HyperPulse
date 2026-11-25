@@ -101,6 +101,11 @@ async def _ranking_cycle() -> None:
     logger.info("Ranking cycle complete: top=%s", rankings[0].alias if rankings else None)
 
 
+async def _retention_cycle() -> None:
+    from app.services.retention import run_retention
+    await asyncio.to_thread(run_retention)
+
+
 async def run_bootstrap_pipeline() -> None:
     """Run one fast collect pass so the API can start serving requests quickly.
 
@@ -150,6 +155,11 @@ def start_background_tasks() -> None:
     if _started:
         return
     _started = True
+
+    if settings.retention_enabled:
+        _tasks.append(asyncio.create_task(_loop(
+            "retention", max(300, settings.retention_interval_seconds), _retention_cycle,
+        )))
 
     if settings.collector_enabled:
         if settings.verified_liquidations_enabled and not settings.use_mock_data:

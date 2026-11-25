@@ -6,6 +6,8 @@ import hashlib
 import json
 import logging
 import re
+import time
+from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -22,6 +24,7 @@ from app.services.whale_book import list_biggest_positions
 logger = logging.getLogger(__name__)
 
 BRIEF_COOLDOWN = timedelta(seconds=max(60, settings.market_brief_cooldown_seconds))
+_coin_briefs: OrderedDict[str, tuple[float, MarketBrief]] = OrderedDict()
 ALLOWED_STRATEGIES = {
     "Speculative",
     "Directional",
@@ -1034,6 +1037,11 @@ async def generate_market_brief(*, force: bool = False, asset: str | None = None
     """Build snapshot, optionally call LLM, always return a displayable brief."""
     from app.services.evidence import capture_context, envelope, save
     from app.services.inference import _frozen_snapshots, _latest_snapshots_by_asset
+    want = (asset or "").strip().upper() or None
+    if want and not force:
+        cached = _coin_briefs.get(want)
+        if cached and time.monotonic() - cached[0] < 60:
+            return cached[1].model_copy(deep=True)
     with store._lock:
         assets = list(set(store.market_ticks) | set(store.whale_summary.by_asset if store.whale_summary else {}))
         rows = _latest_snapshots_by_asset(assets)
@@ -1045,7 +1053,6 @@ async def generate_market_brief(*, force: bool = False, asset: str | None = None
             context = capture_context()
         finally:
             _frozen_snapshots.reset(token)
-    want = (asset or "").strip().upper() or None
     if want:
         sliced = slice_snapshot(snapshot, want)
         brief = build_template_brief(sliced)
@@ -1053,6 +1060,10 @@ async def generate_market_brief(*, force: bool = False, asset: str | None = None
         with SessionLocal() as db:
             brief.evidence_id = save(db, envelope("brief", sliced, brief.model_dump(mode="json"), context=context))
             db.commit()
+        _coin_briefs[want] = (time.monotonic(), brief.model_copy(deep=True))
+        _coin_briefs.move_to_end(want)
+        while len(_coin_briefs) > 64:
+            _coin_briefs.popitem(last=False)
         return brief
 
     if not force and not _should_refresh(snapshot) and store.market_brief is not None:

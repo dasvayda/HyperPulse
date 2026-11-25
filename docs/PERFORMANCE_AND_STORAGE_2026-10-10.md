@@ -29,6 +29,10 @@ SQLite contained approximately 1.81 million market snapshots (234 assets),
 
 ## Storage policy and safe maintenance
 
+Update 2026-11-25: [bounded hot-data retention and PostgreSQL test recovery](./STORAGE_RETENTION.md)
+now supplement this SQLite-only archive tool. The background worker applies the
+seven-day policy; archival remains a separate opt-in operation.
+
 Keep at least seven days of high-resolution market snapshots in the hot DB.
 Keep each asset's latest observation even if it is older. Long-term market
 history is moved losslessly to a separate SQLite archive; it is not a product

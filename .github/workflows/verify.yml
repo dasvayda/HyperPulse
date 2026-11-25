@@ -68,6 +68,10 @@ jobs:
           docker exec "$PG_CONTAINER" createdb -U rehearsal hyperpulse_restored
           docker exec -i "$PG_CONTAINER" pg_restore --exit-on-error --single-transaction -U rehearsal -d hyperpulse_restored < "$RUNNER_TEMP/hyperpulse-rehearsal.dump"
           DATABASE_URL="${DATABASE_URL%/*}/hyperpulse_restored" python -c 'from sqlalchemy import inspect, text; from app.db import engine, init_db; init_db(); assert "evidence_id" in {c["name"] for c in inspect(engine).get_columns("alerts")}; assert "evidence_id" in {c["name"] for c in inspect(engine).get_columns("market_briefs")}; assert "previous_at" in {c["name"] for c in inspect(engine).get_columns("whale_flows")}; conn = engine.connect(); assert conn.execute(text("SELECT body FROM signal_evidence WHERE id = :id"), {"id": "ci-evidence"}).scalar_one() == "{}"; conn.close()'
+      - name: Verify retention and transient reset on isolated PostgreSQL schemas
+        env:
+          RETENTION_TEST_POSTGRES_URL: postgresql://rehearsal:ci-fixture-only@127.0.0.1:5432/hyperpulse_rehearsal
+        run: python -m pytest tests/test_retention.py -q
 
   frontend:
     runs-on: ubuntu-latest

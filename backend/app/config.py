@@ -93,6 +93,14 @@ class Settings(BaseSettings):
     # Ranking
     ranking_interval_seconds: int = 90
 
+    # Bounded maintenance, independent of collectors. Minimum seven-day hot history.
+    retention_enabled: bool = True
+    retention_days: int = 7
+    retention_pulse_days: int = 30
+    retention_interval_seconds: int = 3600
+    retention_batch_size: int = 500
+    retention_max_batches: int = 20
+
     # CoinMarketCap (optional — keyless public API works without this)
     cmc_api_key: str = ""
 

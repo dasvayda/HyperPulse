@@ -2,14 +2,30 @@
 from __future__ import annotations
 
 import copy
+import base64
 import hashlib
 import json
+import zlib
 from datetime import datetime, timezone
 
 from app.db import SessionLocal
 from app.config import settings
 from app.models.orm import EvidenceRow, WhaleFlowRow
 from app.services.store import store
+
+COMPRESSED_PREFIX = "zlib-v1:"
+
+
+def encode_body(raw: str) -> str:
+    """Lossless storage compression; IDs continue to hash the original JSON."""
+    packed = COMPRESSED_PREFIX + base64.b64encode(zlib.compress(raw.encode(), 6)).decode("ascii")
+    return packed if len(packed) < len(raw) else raw
+
+
+def decode_body(body: str) -> str:
+    if body.startswith(COMPRESSED_PREFIX):
+        return zlib.decompress(base64.b64decode(body[len(COMPRESSED_PREFIX):], validate=True)).decode()
+    return body  # Existing evidence remains readable without migration.
 
 
 def capture_context() -> dict:
@@ -53,7 +69,7 @@ def envelope(kind: str, inputs: dict, outputs: dict | list, *, context: dict | N
 def save(db, evidence: tuple[str, str]) -> str:
     key, raw = evidence
     if db.get(EvidenceRow, key) is None:
-        db.add(EvidenceRow(id=key, body=raw))
+        db.add(EvidenceRow(id=key, body=encode_body(raw)))
     return key
 
 
@@ -62,6 +78,7 @@ def retrieve(key: str) -> dict | None:
         row = db.get(EvidenceRow, key)
         if row is None:
             return None
-        if hashlib.sha256(row.body.encode()).hexdigest() != key:
+        raw = decode_body(row.body)
+        if hashlib.sha256(raw.encode()).hexdigest() != key:
             raise ValueError("Evidence digest mismatch")
-        return {"id": key, **json.loads(row.body)}
+        return {"id": key, **json.loads(raw)}
