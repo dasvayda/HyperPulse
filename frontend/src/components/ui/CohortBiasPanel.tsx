@@ -22,7 +22,7 @@ export function CohortBiasPanel({ data, className = "" }: CohortBiasPanelProps) 
         </span>
       </div>
       <p className="text-xs text-text-dim">
-        Long % by $ — Smart Money cohort vs the rest of tracked whales
+        Long share by position value — Smart Money vs the rest of tracked whales
       </p>
 
       {rows.length === 0 ? (

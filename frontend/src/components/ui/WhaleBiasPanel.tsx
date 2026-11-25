@@ -22,13 +22,14 @@ export function WhaleBiasPanel({ summary, className = "" }: WhaleBiasPanelProps)
     <div
       className={`rounded-xl border border-border bg-bg-surface p-5 flex flex-col gap-4 w-full ${className}`}
     >
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-text-primary">
           Whale Long / Short
         </h3>
         <div className="flex rounded-full border border-border overflow-hidden text-xs shrink-0">
           <button
             type="button"
+            aria-pressed={mode === "count"}
             onClick={() => setMode("count")}
             className={`px-2.5 py-1 transition-colors ${
               mode === "count"
@@ -36,10 +37,11 @@ export function WhaleBiasPanel({ summary, className = "" }: WhaleBiasPanelProps)
                 : "text-text-muted hover:text-text-primary"
             }`}
           >
-            Whales
+            By whale count
           </button>
           <button
             type="button"
+            aria-pressed={mode === "value"}
             onClick={() => setMode("value")}
             className={`px-2.5 py-1 transition-colors ${
               mode === "value"
@@ -47,7 +49,7 @@ export function WhaleBiasPanel({ summary, className = "" }: WhaleBiasPanelProps)
                 : "text-text-muted hover:text-text-primary"
             }`}
           >
-            Value
+            By position value
           </button>
         </div>
       </div>
@@ -57,11 +59,9 @@ export function WhaleBiasPanel({ summary, className = "" }: WhaleBiasPanelProps)
           <div className="flex items-center justify-between text-xs font-medium">
             <span className="text-positive">
               Long {longPct.toFixed(0)}%
-              {mode === "value" ? " by $" : " of whales"}
             </span>
             <span className="text-negative">
               Short {shortPct.toFixed(0)}%
-              {mode === "value" ? " by $" : " of whales"}
             </span>
           </div>
           <div className="h-3 w-full rounded-full overflow-hidden bg-bg-elevated flex">
@@ -78,7 +78,7 @@ export function WhaleBiasPanel({ summary, className = "" }: WhaleBiasPanelProps)
             {mode === "value"
               ? `${formatUsd(summary.long_notional_usd)} long vs ${formatUsd(
                   summary.short_notional_usd,
-                )} short (notional)`
+                )} short`
               : `${summary.long_whale_count} whales net-long vs ${summary.short_whale_count} net-short`}
           </p>
           <p className="text-xs text-text-dim">

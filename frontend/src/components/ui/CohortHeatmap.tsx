@@ -71,7 +71,7 @@ export function CohortHeatmap({ data, className = "" }: CohortHeatmapProps) {
         </span>
       </div>
       <p className="text-xs text-text-dim mb-4">
-        Long share by $ — green long-heavy, red short-heavy, grey balanced.
+        Long share by position value — green long-heavy, red short-heavy, grey balanced.
         &quot;Thin&quot; names sit outside the volume majors, so whale size moves
         them more.
       </p>

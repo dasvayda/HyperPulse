@@ -340,7 +340,9 @@ rotate the affected credential, and record the incident without copying it.
 
 운영자 결정: 유료 시장 전체 공급원 없이 무료 Hyperliquid 지갑 표본으로 운영한다.
 
-배포 상태: `8c8e356` 코드의 Frontend·HyperPulse 배포 성공, Home·Liquidation Radar HTTP 200 및 source 표시 확인. 점검 당시 Zones 57개(실제 22 / 추정 35)가 생성됐다. **아래 스트림 설정은 아직 staged 상태다.** 운영자 명시 승인 후에도 Railway `accept-deploy`가 `Cancelled — the user did not approve this action`으로 취소되어 현재 관측 지갑은 0개다. Railway `practical-success` → production의 준비된 변경사항을 적용한 뒤 `watched_liquidations` 및 1h/4h/24h의 `partial` 상태를 확인해야 한다. 실제 스트림 초기화·청산 수신 완료로 보고하지 않는다.
+배포 상태 갱신 (2026-11-25 KST): 운영 설정은 이미 적용되어 staged 변경이 없다. API에서 고정 지갑 10개, `watched_liquidations` 10/10 `ok`, 초기 snapshot 완료 및 heartbeat 갱신을 확인했다. 1h/4h/24h는 과거 연결 중단 때문에 `partial`이며 실제 청산 관측은 0건이다. 이는 전체 시장 청산 0건을 의미하지 않는다. 이전의 “설정 적용 대기/지갑 0개” 기록은 해소됐다.
+
+추가 운영 이슈: 초기 점검에서 최근 24h 안에 관측 구간 69개와 반복 `ValueError` 재접속이 있었다. 동일 표본의 직접 WS 점검(100초, 952체결)에서는 오류를 재현하지 못했으므로 원인을 단정하지 않는다. 구독 거부·응답 형식 오류·모호한 청산 payload 격리를 고정 reason code로 구분하도록 로그를 보완한다. 원본 서버 오류 문자열이나 인증정보는 로그에 넣지 않는다. 실제 gap을 지우거나 미검증 체결을 인정해 지표를 녹색으로 만들지 않는다.
 
 - Railway HyperPulse: `VERIFIED_LIQUIDATIONS_ENABLED=true`, `LIQUIDATION_OTHER_WS_USERS=0`, `LIQUIDATION_WATCH_ADDRESSES`에 고정 10개 주소. 배포 당시 추적 지갑의 account value 상위 10개를 선정하며 순위가 바뀌어도 자동 회전하지 않는다. 동일 IP의 다른 프로세스가 user-specific WS를 사용하면 총 10개 한도를 함께 고려해야 한다.
 - `userFills` WebSocket만 구독한다. 주기적인 `userFillsByTime` 전체 지갑 조회는 하지 않는다. 초기 snapshot 수신 완료 후 coverage를 시작하고 heartbeat/연결 종료/프로세스 재시작을 DB에 기록한다.
